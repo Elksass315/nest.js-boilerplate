@@ -4,8 +4,8 @@
   either branch.
 - `feature/*`, `fix/*`, `refactor/*`, and `chore/*` branch from an up-to-date `develop` and squash
   back through reviewed pull requests.
-- `release/*` branches from `develop`; `hotfix/*` branches from `main`. Both require explicit release
-  authorization and merge commits/back-merges for traceability.
+- `release/<semver>` branches (for example `release/0.1.0`) from `develop`; `hotfix/*` branches from
+  `main`. Both require explicit release authorization and merge commits/back-merges for traceability.
 
 Before any repository write, run:
 
