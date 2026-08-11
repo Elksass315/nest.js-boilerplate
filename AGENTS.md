@@ -44,8 +44,14 @@ repository-wide rules.
   requires a documented high-volume or stable-traversal reason. Never return a raw array.
 - Put application policy in `src/core`, Nest/HTTP primitives in `src/common`, proven framework-light
   reuse in `src/shared`, and ambient declarations in `src/types`. Do not create generic buckets.
-- Do not claim completion until the relevant checks pass. Run `pnpm validate` for repository
-  changes; also run e2e and Docker validation when platform wiring changes.
+- After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,
+  applicable focused tests, and build are mandatory blocking gates. The command selects architecture,
+  i18n, documentation, tooling, dependency, and Compose gates from the actual diff and fails when a
+  governed code change omits its authoritative documentation companion.
+- Run full `pnpm validate` once before a PR/release handoff and whenever a change is broad, security
+  sensitive, dependency-heavy, or affects shared platform policy. Also run relevant e2e, migration,
+  seed, worker, SMTP, and Docker checks when those surfaces change. Do not rerun unrelated expensive
+  suites after every small prompt.
 
 ## Dependency Policy
 

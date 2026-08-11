@@ -48,5 +48,7 @@ Use only the sections that match the requested capability.
 - Tests cover success and relevant validation, conflict, not-found, authorization, and dependency failures.
 - E2E tests cover public contracts.
 - Documentation changes accompany contract, security, architecture, and operational changes.
-- `pnpm arch:check`, `pnpm i18n:check`, `pnpm docs:check`, `pnpm typecheck`, focused tests, and
-  `pnpm validate` pass.
+- `pnpm validate:change` passes after the coding prompt; all mandatory baseline, selected, and
+  documentation-companion gates pass without bypassing failures.
+- Full `pnpm validate` passes before PR/release handoff or when the change is broad or high risk.
+- Relevant e2e, migration, seed, worker, SMTP, and Docker checks pass when those surfaces changed.

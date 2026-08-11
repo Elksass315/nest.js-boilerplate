@@ -33,8 +33,12 @@ never introduce DDD layers speculatively.
    outbound work.
 10. Add explicit migrations and immutable ordered seeds when stored state or reference data changes.
     Never enable synchronization or run migrations/seeds during API startup.
-11. Run formatting, focused tests, `pnpm arch:check`, `pnpm i18n:check`, `pnpm docs:check`,
-    `pnpm typecheck`, and then `pnpm validate`. Report unavailable external checks precisely.
+11. After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,
+    applicable focused tests, and build are mandatory blocking gates. It adds architecture, i18n,
+    docs, tooling, dependency, and Compose checks from the diff and rejects governed changes missing
+    their authoritative documentation companion. Run full `pnpm validate` once before PR/release
+    handoff or for broad and high-risk work. Add relevant e2e, migration, seed, worker, SMTP, or
+    Docker checks when those surfaces changed. Report unavailable external checks precisely.
 
 ## Hard boundaries
 
