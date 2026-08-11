@@ -15,3 +15,9 @@ Reference/bootstrap data uses the explicit ordered seed registry. Applied seeds 
 and checksums in `app_seed_history`. The runner holds a PostgreSQL advisory lock and commits each seed
 with its history record in one transaction. Editing an applied seed fails; add a new seed instead.
 Run `pnpm seed:show` or `pnpm seed:run` only as explicit one-shot deployment steps.
+
+Identity migration `1786579200000-CreateIdentityCore` creates users, role assignments, security
+audits, roles, permissions, and role-permission mappings with explicit checks, indexes, and foreign
+keys. Seed `002-rbac` installs deterministic fixed RBAC definitions. The seed contains no user or
+bootstrap-super-admin credentials; that optional behavior requires explicit seed configuration in a
+later auth change.

@@ -14,3 +14,7 @@ Cursor pagination is available only for high-volume, append-oriented, or stable 
 Its opaque cursor contains a versioned stable sort value and unique entity ID. The repository orders
 by both values and fetches one extra row to determine `hasNextPage`. Document the evidence under
 `Cursor pagination rationale` in the module document and use `ApiCursorPaginatedResponse`.
+
+Canonical pagination response decorators are the only composed Swagger responses accepted by the
+contract checker; they emit the item model and complete page metadata schema without duplicating it
+in each controller.

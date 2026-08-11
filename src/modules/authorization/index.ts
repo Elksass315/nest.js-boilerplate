@@ -1,0 +1,9 @@
+export { AuthorizationModule } from './authorization.module';
+export { AuthorizationService } from './authorization.service';
+export { RequireAuthenticated } from './decorators/require-authenticated.decorator';
+export { RequirePermissions } from './decorators/require-permissions.decorator';
+export { CurrentPrincipal } from './decorators/current-principal.decorator';
+export { PermissionsGuard } from './guards/permissions.guard';
+export { PERMISSIONS, ROLE_KEYS } from './authorization.constants';
+export type { Permission, RoleKey } from './authorization.constants';
+export type { AuthenticatedPrincipal, RoleDefinition } from './authorization.types';

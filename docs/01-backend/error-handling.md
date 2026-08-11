@@ -20,3 +20,8 @@ log internal diagnostics without exposing them.
   "details": { "fields": { "name": ["name should not be empty"] } }
 }
 ```
+
+Identity foundation errors distinguish missing users/roles, normalized-email conflicts, and the
+last-active-super-admin invariant. They use `USER_NOT_FOUND`, `ROLE_NOT_FOUND`,
+`EMAIL_ALREADY_REGISTERED`, and `LAST_SUPER_ADMIN`; repositories never leak PostgreSQL constraint
+names or credential/account internals.

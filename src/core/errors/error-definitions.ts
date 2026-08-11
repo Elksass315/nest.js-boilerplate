@@ -21,6 +21,26 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.resourceConflict',
     fallbackMessage: 'The request conflicts with the current resource state',
   },
+  USER_NOT_FOUND: {
+    status: HttpStatus.NOT_FOUND,
+    messageKey: 'errors.userNotFound',
+    fallbackMessage: 'The requested user was not found',
+  },
+  ROLE_NOT_FOUND: {
+    status: HttpStatus.NOT_FOUND,
+    messageKey: 'errors.roleNotFound',
+    fallbackMessage: 'One or more requested roles were not found',
+  },
+  EMAIL_ALREADY_REGISTERED: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.emailAlreadyRegistered',
+    fallbackMessage: 'An account with this email already exists',
+  },
+  LAST_SUPER_ADMIN: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.lastSuperAdmin',
+    fallbackMessage: 'At least one active super administrator must remain',
+  },
   UNAUTHORIZED: {
     status: HttpStatus.UNAUTHORIZED,
     messageKey: 'errors.unauthorized',

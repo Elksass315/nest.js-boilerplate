@@ -6,9 +6,14 @@ import type { SeedDefinition } from './seed.types';
 
 describe(SeedRunnerService.name, () => {
   const registry = SEED_REGISTRY as SeedDefinition[];
+  const registeredSeeds = [...registry];
+
+  beforeEach(() => {
+    registry.length = 0;
+  });
 
   afterEach(() => {
-    registry.length = 0;
+    registry.splice(0, registry.length, ...registeredSeeds);
   });
 
   function createHarness(): {
