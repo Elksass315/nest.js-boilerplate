@@ -1,6 +1,7 @@
-import { ServiceUnavailableException } from '@nestjs/common';
 import type Redis from 'ioredis';
 import type { DataSource } from 'typeorm';
+
+import { AppException } from '@/core/errors/app.exception';
 
 import { HealthService } from './health.service';
 
@@ -36,7 +37,7 @@ describe(HealthService.name, () => {
     jest.mocked(redis.ping).mockResolvedValue('PONG');
 
     await expect(new HealthService(dataSource, redis).getReadiness()).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
+      AppException,
     );
   });
 });

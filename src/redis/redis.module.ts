@@ -2,7 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
-import type { EnvironmentVariables } from '@/config/environment';
+import type { AppConfiguration } from '@/config/configuration.types';
 
 import { REDIS_CLIENT } from './redis.constants';
 import { RedisLifecycleService } from './redis-lifecycle.service';
@@ -13,13 +13,13 @@ import { RedisLifecycleService } from './redis-lifecycle.service';
     {
       provide: REDIS_CLIENT,
       inject: [ConfigService],
-      useFactory: (configService: ConfigService<EnvironmentVariables, true>): Redis =>
+      useFactory: (configService: ConfigService<AppConfiguration, true>): Redis =>
         new Redis({
-          host: configService.getOrThrow('REDIS_HOST', { infer: true }),
-          port: configService.getOrThrow('REDIS_PORT', { infer: true }),
-          password: configService.getOrThrow('REDIS_PASSWORD', { infer: true }) || undefined,
-          db: configService.getOrThrow('REDIS_DB', { infer: true }),
-          connectTimeout: configService.getOrThrow('REDIS_CONNECT_TIMEOUT_MS', { infer: true }),
+          host: configService.getOrThrow('redis.host', { infer: true }),
+          port: configService.getOrThrow('redis.port', { infer: true }),
+          password: configService.getOrThrow('redis.password', { infer: true }) || undefined,
+          db: configService.getOrThrow('redis.db', { infer: true }),
+          connectTimeout: configService.getOrThrow('redis.connectTimeoutMs', { infer: true }),
           lazyConnect: true,
           enableReadyCheck: true,
           maxRetriesPerRequest: 1,

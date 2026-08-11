@@ -7,6 +7,7 @@ Use only the sections that match the requested capability.
 - Feature has one owning Nest module and a public `index.ts`.
 - Controller exists only for HTTP; repository/entity exist only for persistence.
 - No DDD layers, speculative adapters, generic utilities, or cross-feature internals.
+- Normal entities extend `AppBaseEntity`; soft deletion has a current documented requirement.
 
 ## Contracts and behavior
 
@@ -14,31 +15,38 @@ Use only the sections that match the requested capability.
 - External input uses validated DTOs with Swagger metadata.
 - Responses use explicit DTOs and do not serialize entities directly.
 - Service owns rules and transactions; repository owns queries and locking.
-- Errors use stable codes and safe client messages.
-- Logs include correlation context without secrets or personal data.
+- Errors use registered stable codes, safe messages, and complete English translations.
+- Validation failures use structured `422 VALIDATION_ERROR` field details.
+- Logs and work items preserve request/correlation IDs without secrets or personal data.
+
+## Collections
+
+- Every collection route uses the canonical offset page unless cursor pagination is justified.
+- Raw array responses are forbidden.
+- Offset responses include `items` and complete page metadata.
+- Cursor ordering is stable, has a unique tie-breaker, and its rationale is in module docs.
+- Matching pagination DTOs and Swagger decorators describe the implemented contract.
 
 ## OpenAPI contract
 
 - Every route has an `@ApiOperation` summary and behavior description.
-- Every reachable success and failure HTTP status has its own response decorator.
-- Every response decorator explains when the response occurs and includes a realistic payload
-  example; errors show the exact `code` and client-visible `message`.
-- Every request field has an example. Distinct accepted request bodies are named separately with
-  `@ApiBody({ content: { 'application/json': { examples: ... } } })`.
-- Examples contain no real credentials, tokens, personal data, or unstable generated values.
-- Swagger metadata, DTO validation, controller behavior, tests, and module docs describe the same
-  contract.
+- Every reachable success and failure status has its own response decorator.
+- Every response explains when it occurs and has a realistic payload example.
+- Errors show the exact `code` and client-visible `message`.
+- Every request field has an example; distinct bodies have named `@ApiBody` examples.
+- Swagger, DTO validation, behavior, tests, translations, and module docs agree.
 
 ## Persistence
 
-- Schema change has an explicit migration with safe up/down or documented forward-fix policy.
-- Synchronization remains disabled.
-- Constraints and indexes enforce real invariants where appropriate.
-- Query and transaction failure paths are covered.
+- Schema changes have explicit migrations with safe reversal or documented forward-fix policy.
+- Reference-data changes use immutable ordered seeds when appropriate.
+- Synchronization remains disabled; constraints and indexes enforce real invariants.
+- Query, transaction, migration, and seed failure paths are covered.
 
 ## Verification
 
-- Unit tests cover success, validation, conflicts, not-found, and dependency failures as relevant.
-- E2E tests cover the public contract when one exists.
-- Documentation changes accompany contract, security, architecture, or operational changes.
-- `pnpm arch:check`, `pnpm docs:check`, `pnpm typecheck`, focused tests, and `pnpm validate` pass.
+- Tests cover success and relevant validation, conflict, not-found, authorization, and dependency failures.
+- E2E tests cover public contracts.
+- Documentation changes accompany contract, security, architecture, and operational changes.
+- `pnpm arch:check`, `pnpm i18n:check`, `pnpm docs:check`, `pnpm typecheck`, focused tests, and
+  `pnpm validate` pass.

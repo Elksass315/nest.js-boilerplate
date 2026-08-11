@@ -4,9 +4,12 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
-import { GlobalExceptionFilter } from '@/common/errors/global-exception.filter';
 import { createLoggerOptions } from '@/common/logging/logger-options';
-import { type EnvironmentVariables, validateEnvironment } from '@/config/environment';
+import type { AppConfiguration } from '@/config/configuration.types';
+import { loadApiConfiguration } from '@/config/environment';
+import { CoreModule } from '@/core/core.module';
+import { GlobalExceptionFilter } from '@/core/errors/global-exception.filter';
+import { AppI18nModule } from '@/core/i18n/i18n.module';
 import { DatabaseModule } from '@/database/database.module';
 import { HealthModule } from '@/health/health.module';
 import { RedisModule } from '@/redis/redis.module';
@@ -17,22 +20,24 @@ import { RedisModule } from '@/redis/redis.module';
       isGlobal: true,
       cache: true,
       expandVariables: false,
-      validate: validateEnvironment,
+      load: [loadApiConfiguration],
     }),
     LoggerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService<EnvironmentVariables, true>) =>
-        createLoggerOptions(configService.getOrThrow('LOG_LEVEL', { infer: true })),
+      useFactory: (config: ConfigService<AppConfiguration, true>) =>
+        createLoggerOptions(config.getOrThrow('logging.level', { infer: true })),
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService<EnvironmentVariables, true>) => [
+      useFactory: (config: ConfigService<AppConfiguration, true>) => [
         {
-          ttl: configService.getOrThrow('RATE_LIMIT_TTL_MS', { infer: true }),
-          limit: configService.getOrThrow('RATE_LIMIT_MAX', { infer: true }),
+          ttl: config.getOrThrow('rateLimit.ttlMs', { infer: true }),
+          limit: config.getOrThrow('rateLimit.max', { infer: true }),
         },
       ],
     }),
+    AppI18nModule,
+    CoreModule,
     DatabaseModule,
     RedisModule,
     HealthModule,

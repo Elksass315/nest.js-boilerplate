@@ -92,12 +92,17 @@ pipeline {
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
                         -f "$deploy_path/compose.deploy.yaml" \
-                        pull api migrate
+                        pull api migrate seed
 
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
                         -f "$deploy_path/compose.deploy.yaml" \
                         run --rm migrate
+
+                    docker compose --env-file "$env_file" \
+                        -f "$deploy_path/compose.yaml" \
+                        -f "$deploy_path/compose.deploy.yaml" \
+                        run --rm seed
 
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \

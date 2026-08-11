@@ -7,6 +7,9 @@
 - Validate path, query, header, and body input at the DTO boundary; reject unknown fields.
 - Whitelist filters and sort fields. Bound pagination and expensive operations.
 - Never return TypeORM entities as API contracts.
+- Never return raw arrays from business collection routes. Offset page/limit is the default; cursor
+  pagination requires documented evidence and stable ordering.
+- Return and propagate both `x-request-id` and `x-correlation-id`.
 
 Backward-incompatible behavior requires a version strategy, migration guidance, tests,
 documentation, and release communication. A controller without explicit version metadata fails

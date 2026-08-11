@@ -96,6 +96,8 @@ jobs:
           pnpm lint
           pnpm typecheck
           pnpm arch:check
+          pnpm i18n:check
+          pnpm docs:check
           pnpm deps:check
           pnpm deps:duplicates:check
 

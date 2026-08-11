@@ -25,6 +25,8 @@ repository-wide rules.
 - Use `ConfigService`; never hardcode credentials, environment-specific hosts, or secrets.
 - Use structured logging with correlation context. Never use `console.*` or log secrets, tokens,
   cookies, passwords, or raw personal data.
+- Preserve `x-request-id` for one request and `x-correlation-id` across related work. Propagate the
+  correlation ID into background jobs, audit events, and outbound calls.
 - Use migrations for schema changes. Never enable TypeORM synchronization.
 - Do not run migrations or seeds from the API startup path.
 - Update tests and authoritative documentation when behavior, contracts, security, deployment, or
@@ -38,6 +40,10 @@ repository-wide rules.
   code and client-visible message for each failure condition.
 - Every request DTO property has validation and Swagger examples. When an endpoint accepts
   meaningfully different request shapes, document each shape as a named `@ApiBody` example.
+- Every business collection endpoint is paginated. Use page/limit by default; cursor pagination
+  requires a documented high-volume or stable-traversal reason. Never return a raw array.
+- Put application policy in `src/core`, Nest/HTTP primitives in `src/common`, proven framework-light
+  reuse in `src/shared`, and ambient declarations in `src/types`. Do not create generic buckets.
 - Do not claim completion until the relevant checks pass. Run `pnpm validate` for repository
   changes; also run e2e and Docker validation when platform wiring changes.
 

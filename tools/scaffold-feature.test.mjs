@@ -43,6 +43,11 @@ test('creates service-only and persistence-aware features', () => {
       'utf8',
     );
     assert.match(repository, /InjectRepository/);
+    const entity = readFileSync(
+      path.join(root, 'src/modules/catalog/entities/catalog.entity.ts'),
+      'utf8',
+    );
+    assert.match(entity, /extends AppBaseEntity/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

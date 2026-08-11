@@ -7,31 +7,22 @@ import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module';
 import { configureSwagger } from './common/swagger/configure-swagger';
-import { parseCorsOrigins, type EnvironmentVariables } from './config/environment';
+import type { AppConfiguration } from './config/configuration.types';
+import { validationPipeOptions } from './core/errors/validation-pipe-options';
 
 export async function createApplication(): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
-  const configService = app.get(ConfigService<EnvironmentVariables, true>);
-  const apiPrefix = configService.getOrThrow('API_PREFIX', { infer: true });
-  const corsOrigins = parseCorsOrigins(configService.getOrThrow('CORS_ORIGINS', { infer: true }));
+  const config = app.get(ConfigService<AppConfiguration, true>);
 
   app.useLogger(app.get(Logger));
   app.use(helmet());
   app.enableCors({
-    origin: corsOrigins,
+    origin: config.getOrThrow('cors.origins', { infer: true }),
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: false },
-      stopAtFirstError: false,
-    }),
-  );
-  app.setGlobalPrefix(apiPrefix, {
+  app.useGlobalPipes(new ValidationPipe(validationPipeOptions));
+  app.setGlobalPrefix(config.getOrThrow('app.apiPrefix', { infer: true }), {
     exclude: [
       { path: 'health/live', method: RequestMethod.GET },
       { path: 'health/ready', method: RequestMethod.GET },
@@ -39,8 +30,7 @@ export async function createApplication(): Promise<NestExpressApplication> {
   });
   app.enableVersioning({ type: VersioningType.URI, prefix: 'v' });
   app.enableShutdownHooks();
-
-  configureSwagger(app, configService);
+  configureSwagger(app, config);
 
   return app;
 }

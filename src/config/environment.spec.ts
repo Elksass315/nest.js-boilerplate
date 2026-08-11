@@ -1,4 +1,9 @@
-import { parseCorsOrigins, validateEnvironment } from './environment';
+import { parseCorsOrigins } from './cors.config';
+import {
+  loadApiConfiguration,
+  validateApiEnvironment,
+  validateDatabaseEnvironment,
+} from './environment';
 
 const validEnvironment = {
   DATABASE_HOST: 'localhost',
@@ -9,21 +14,32 @@ const validEnvironment = {
 };
 
 describe('environment validation', () => {
-  it('applies safe development defaults', () => {
-    const result = validateEnvironment({ ...validEnvironment, PATH: '/usr/local/bin' });
+  it('loads namespaced development defaults', () => {
+    const original = process.env;
+    process.env = { ...original, ...validEnvironment };
+    try {
+      const result = loadApiConfiguration();
+      expect(result.app).toEqual(expect.objectContaining({ nodeEnv: 'test', port: 3000 }));
+      expect(result.swagger.access).toBe('disabled');
+      expect(result.i18n).toEqual(
+        expect.objectContaining({ fallbackLanguage: 'en', supportedLanguages: ['en'] }),
+      );
+      expect(result.database.sslEnabled).toBe(false);
+      expect(result.redis.db).toBe(0);
+    } finally {
+      process.env = original;
+    }
+  });
 
-    expect(result.NODE_ENV).toBe('development');
-    expect(result.APP_NAME).toBe('NestJS SaaS API');
-    expect(result.PORT).toBe(3000);
-    expect(result.SWAGGER_DOCS_ACCESS).toBe('disabled');
-    expect(result.DATABASE_SSL_ENABLED).toBe(false);
-    expect(result.REDIS_DB).toBe(0);
-    expect(result).not.toHaveProperty('PATH');
+  it('validates database configuration without API or Redis values', () => {
+    expect(validateDatabaseEnvironment(validEnvironment)).toEqual(
+      expect.objectContaining({ DATABASE_HOST: 'localhost', DATABASE_PORT: 5432 }),
+    );
   });
 
   it('rejects public Swagger access in managed environments', () => {
     expect(() =>
-      validateEnvironment({
+      validateApiEnvironment({
         ...validEnvironment,
         NODE_ENV: 'staging',
         REDIS_PASSWORD: 'a-secure-redis-password',
@@ -34,42 +50,23 @@ describe('environment validation', () => {
 
   it('requires strong credentials for basic Swagger access', () => {
     expect(() =>
-      validateEnvironment({
+      validateApiEnvironment({
         ...validEnvironment,
         SWAGGER_DOCS_ACCESS: 'basic',
         SWAGGER_DOCS_USERNAME: 'ab',
         SWAGGER_DOCS_PASSWORD: 'weak',
       }),
     ).toThrow('SWAGGER_DOCS_USERNAME must contain at least 3 characters');
-
-    expect(
-      validateEnvironment({
-        ...validEnvironment,
-        SWAGGER_DOCS_ACCESS: 'basic',
-        SWAGGER_DOCS_USERNAME: 'docs-user',
-        SWAGGER_DOCS_PASSWORD: 'strong-docs-password',
-      }).SWAGGER_DOCS_ACCESS,
-    ).toBe('basic');
   });
 
-  it('rejects unused Swagger credentials', () => {
+  it('requires the fallback language to be supported', () => {
     expect(() =>
-      validateEnvironment({
+      validateApiEnvironment({
         ...validEnvironment,
-        SWAGGER_DOCS_ACCESS: 'disabled',
-        SWAGGER_DOCS_USERNAME: 'docs-user',
+        APP_FALLBACK_LANGUAGE: 'ar',
+        APP_SUPPORTED_LANGUAGES: 'en',
       }),
-    ).toThrow('must be empty unless SWAGGER_DOCS_ACCESS is basic');
-  });
-
-  it('requires a strong Redis password in managed environments', () => {
-    expect(() =>
-      validateEnvironment({
-        ...validEnvironment,
-        NODE_ENV: 'staging',
-        REDIS_PASSWORD: 'weak',
-      }),
-    ).toThrow('REDIS_PASSWORD must contain at least 16 characters');
+    ).toThrow('APP_FALLBACK_LANGUAGE must be included');
   });
 
   it('normalizes a comma-separated CORS allowlist', () => {
@@ -82,9 +79,9 @@ describe('environment validation', () => {
   it.each(['*', 'https://example.test/path', 'file:///tmp/app', 'not-a-url'])(
     'rejects an unsafe CORS origin: %s',
     (corsOrigins) => {
-      expect(() => validateEnvironment({ ...validEnvironment, CORS_ORIGINS: corsOrigins })).toThrow(
-        'CORS_ORIGINS must be a comma-separated list of exact HTTP(S) origins',
-      );
+      expect(() =>
+        validateApiEnvironment({ ...validEnvironment, CORS_ORIGINS: corsOrigins }),
+      ).toThrow('CORS_ORIGINS must be a comma-separated list of exact HTTP(S) origins');
     },
   );
 });

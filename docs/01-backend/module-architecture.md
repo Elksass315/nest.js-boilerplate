@@ -21,8 +21,12 @@ src/modules/<feature>/
 
 Features consume one another through the owning module's exported service and public index. Direct
 imports of another feature's repository, entity, or internal DTO are forbidden. Shared code enters
-`src/common` only after at least two real consumers exist and it contains no feature policy.
+the purpose-specific `core`, `common`, `shared`, or `types` boundary only with a current reusable
+consumer and no feature policy. See [Shared Foundation](shared-foundation.md).
 
 Use `pnpm scaffold:feature <name> [--http] [--persistence] --dry-run`, then the repository skill.
 Create optional folders and files only when the feature actually uses them. Every feature also owns
 `docs/01-backend/modules/<feature>.md` based on the module documentation template.
+
+Business collection routes follow the [pagination standard](../02-api/pagination-standard.md) and
+never return raw arrays.

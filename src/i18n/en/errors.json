@@ -1,0 +1,11 @@
+{
+  "badRequest": "The request could not be processed",
+  "validationFailed": "Input validation failed",
+  "resourceNotFound": "The requested resource was not found",
+  "resourceConflict": "The request conflicts with the current resource state",
+  "unauthorized": "Authentication is required",
+  "forbidden": "You are not allowed to perform this action",
+  "tooManyRequests": "Too many requests",
+  "serviceNotReady": "One or more required services are unavailable",
+  "internalServerError": "An unexpected error occurred"
+}

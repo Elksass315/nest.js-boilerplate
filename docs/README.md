@@ -16,6 +16,8 @@ request as the behavior it describes.
 - [Error handling](01-backend/error-handling.md)
 - [Structured logging](01-backend/logging.md)
 - [Database and migrations](01-backend/database.md)
+- [Shared foundation](01-backend/shared-foundation.md)
+- [Internationalization](01-backend/internationalization.md)
 - [Health endpoints](01-backend/health.md)
 - Feature module records live under `01-backend/modules/` when business modules are added.
 
@@ -24,6 +26,7 @@ request as the behavior it describes.
 - [REST and versioning](02-api/rest-standard.md)
 - [OpenAPI and Swagger](02-api/openapi-standard.md)
 - [Error catalog](02-api/error-catalog.md)
+- [Pagination](02-api/pagination-standard.md)
 
 ## Development process
 
