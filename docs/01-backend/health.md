@@ -1,0 +1,11 @@
+# Health Endpoints
+
+- `GET /health/live` proves the Node process can serve requests. It does not contact dependencies.
+- `GET /health/ready` checks PostgreSQL and Redis and returns 503 with `SERVICE_NOT_READY` when
+  either is unavailable.
+
+Health controllers use `VERSION_NEUTRAL` and remain outside `/api`. Responses include correlation
+and security headers. Readiness failures expose only up/down state, never connection details.
+
+Both routes have concrete Swagger examples for success. Readiness documents separate PostgreSQL
+and Redis failure examples with the exact error code and client-visible message.
