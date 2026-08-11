@@ -13,6 +13,13 @@
 Direct pushes to `main` and `develop` are prohibited. Required checks, review, resolved
 conversations, and CODEOWNERS approval apply before merge.
 
+Before making any repository change, confirm a writable short-lived branch:
+
+```bash
+git status --short --branch
+pnpm branch:write-check
+```
+
 ## Commits and releases
 
 Use Conventional Commits:
@@ -29,8 +36,10 @@ and GitHub Release from commits reaching `main`; this private application is nev
 
 Explain the outcome, compatibility, operational risk, migration/rollback behavior, and verification.
 Add tests for changed behavior and update contracts, architecture, security, or operations docs in
-the same change. New dependencies must be necessary, actively maintained, compatible with Node 24,
-license-approved, and clean under the repository audit.
+the same change. API reviews compare DTO validation, controller behavior, complete Swagger
+request/response examples, exact error codes/messages, tests, and module documentation. New
+dependencies must be necessary, actively maintained, compatible with Node 24, license-approved,
+and clean under the repository audit.
 
 Before requesting review, run:
 

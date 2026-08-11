@@ -3,6 +3,8 @@ import request from 'supertest';
 
 import { createApplication } from '../src/bootstrap';
 
+jest.setTimeout(30_000);
+
 describe('platform foundation (e2e)', () => {
   let app: INestApplication;
 

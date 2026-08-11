@@ -17,6 +17,7 @@ test('prints a dry run without writing files', () => {
     const result = run(['billing', '--http', '--dry-run', '--root', root]);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /billing\.controller\.ts/);
+    assert.match(result.stdout, /docs\/01-backend\/modules\/billing\.md/);
     assert.equal(existsSync(path.join(root, 'src')), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -28,9 +29,15 @@ test('creates service-only and persistence-aware features', () => {
   try {
     assert.equal(run(['reporting', '--root', root]).status, 0);
     assert.equal(existsSync(path.join(root, 'src/modules/reporting/reporting.service.ts')), true);
+    assert.equal(existsSync(path.join(root, 'docs/01-backend/modules/reporting.md')), true);
 
     assert.equal(run(['catalog', '--http', '--persistence', '--root', root]).status, 0);
     assert.equal(existsSync(path.join(root, 'src/modules/catalog/catalog.controller.ts')), true);
+    const controller = readFileSync(
+      path.join(root, 'src/modules/catalog/catalog.controller.ts'),
+      'utf8',
+    );
+    assert.match(controller, /version: API_VERSION/);
     const repository = readFileSync(
       path.join(root, 'src/modules/catalog/catalog.repository.ts'),
       'utf8',

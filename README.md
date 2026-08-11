@@ -23,7 +23,7 @@ On macOS/Linux, use `cp .env.example .env`. The API listens on `http://localhost
 
 - Liveness: `GET /health/live`
 - Readiness: `GET /health/ready`
-- Swagger in development: `/docs`
+- Swagger in development: `/docs` (`SWAGGER_DOCS_ACCESS=public`)
 - Future business endpoints: `/api/v1`
 
 Useful commands:
@@ -40,8 +40,6 @@ guarded and should never be used against a managed environment.
 
 ## Design
 
-Features use `controller → service → concrete repository → TypeORM`. See
-[`docs/architecture.md`](docs/architecture.md) for boundaries and
+Features use `controller -> service -> concrete repository -> TypeORM`. See
+[`docs/README.md`](docs/README.md) for architecture, API, operations, and governance sources and
 [`CONTRIBUTING.md`](CONTRIBUTING.md) for branch, commit, review, and verification rules.
-
-Operational configuration and deployment are documented in [`docs/operations.md`](docs/operations.md).

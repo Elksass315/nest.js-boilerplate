@@ -45,12 +45,14 @@ jobs:
           --health-retries 10
     env:
       NODE_ENV: test
-      APP_PORT: 3000
+      APP_NAME: NestJS SaaS API
+      PORT: 3000
       API_PREFIX: api
-      API_VERSION: 1
       CORS_ORIGINS: http://localhost:3000
       LOG_LEVEL: silent
-      SWAGGER_ENABLED: false
+      SWAGGER_DOCS_ACCESS: disabled
+      SWAGGER_DOCS_USERNAME: ''
+      SWAGGER_DOCS_PASSWORD: ''
       DATABASE_HOST: localhost
       DATABASE_PORT: 5432
       DATABASE_NAME: nestjs_saas_test
