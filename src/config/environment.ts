@@ -1,124 +1,36 @@
 import Joi from 'joi';
 
-export interface EnvironmentVariables {
-  NODE_ENV: 'development' | 'test' | 'staging' | 'production';
-  APP_NAME: string;
-  PORT: number;
-  API_PREFIX: string;
-  CORS_ORIGINS: string;
-  LOG_LEVEL: string;
-  SWAGGER_DOCS_ACCESS: 'public' | 'basic' | 'disabled';
-  SWAGGER_DOCS_USERNAME: string;
-  SWAGGER_DOCS_PASSWORD: string;
-  DATABASE_HOST: string;
-  DATABASE_PORT: number;
-  DATABASE_NAME: string;
-  DATABASE_USERNAME: string;
-  DATABASE_PASSWORD: string;
-  DATABASE_SSL_ENABLED: boolean;
-  DATABASE_REJECT_UNAUTHORIZED: boolean;
-  DATABASE_POOL_SIZE: number;
-  DATABASE_CONNECT_TIMEOUT_MS: number;
-  REDIS_HOST: string;
-  REDIS_PORT: number;
-  REDIS_PASSWORD: string;
-  REDIS_DB: number;
-  REDIS_CONNECT_TIMEOUT_MS: number;
-  RATE_LIMIT_TTL_MS: number;
-  RATE_LIMIT_MAX: number;
-}
+import {
+  createDatabaseConfig,
+  databaseEnvironmentSchema,
+  type DatabaseConfig,
+} from '@/database/config/database.config';
+import { createRedisConfig, redisEnvironmentSchema } from '@/redis/config/redis.config';
 
-const environmentSchema = Joi.object<EnvironmentVariables>({
-  NODE_ENV: Joi.string()
-    .valid('development', 'test', 'staging', 'production')
-    .default('development'),
-  APP_NAME: Joi.string().trim().min(1).max(80).default('NestJS SaaS API'),
-  PORT: Joi.number().port().default(3000),
-  API_PREFIX: Joi.string()
-    .pattern(/^[a-z][a-z0-9-]*$/)
-    .default('api'),
-  CORS_ORIGINS: Joi.string()
-    .custom((value: string, helpers: Joi.CustomHelpers) => {
-      const origins = parseCorsOrigins(value);
-      if (origins.length === 0) {
-        return helpers.error('environment.corsOrigins');
-      }
+import { appEnvironmentSchema, createAppConfig } from './app.config';
+import type { AppConfiguration } from './configuration.types';
+import { corsEnvironmentSchema, createCorsConfig } from './cors.config';
+import { createI18nConfig, i18nEnvironmentSchema, parseSupportedLanguages } from './i18n.config';
+import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config';
+import { createRateLimitConfig, rateLimitEnvironmentSchema } from './rate-limit.config';
+import { createSwaggerConfig, swaggerEnvironmentSchema } from './swagger.config';
 
-      for (const origin of origins) {
-        try {
-          const url = new URL(origin);
-          if (
-            !['http:', 'https:'].includes(url.protocol) ||
-            url.origin !== origin ||
-            origin.includes('*')
-          ) {
-            return helpers.error('environment.corsOrigins');
-          }
-        } catch {
-          return helpers.error('environment.corsOrigins');
-        }
-      }
-
-      return value;
-    })
-    .default('http://localhost:3000'),
-  LOG_LEVEL: Joi.string()
-    .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent')
-    .default('info'),
-  SWAGGER_DOCS_ACCESS: Joi.string().valid('public', 'basic', 'disabled').default('disabled'),
-  SWAGGER_DOCS_USERNAME: Joi.string().trim().allow('').default(''),
-  SWAGGER_DOCS_PASSWORD: Joi.string().allow('').default(''),
-  DATABASE_HOST: Joi.string().hostname().required(),
-  DATABASE_PORT: Joi.number().port().default(5432),
-  DATABASE_NAME: Joi.string()
-    .pattern(/^[a-zA-Z0-9_-]+$/)
-    .required(),
-  DATABASE_USERNAME: Joi.string().required(),
-  DATABASE_PASSWORD: Joi.string().min(12).required(),
-  DATABASE_SSL_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
-  DATABASE_REJECT_UNAUTHORIZED: Joi.boolean().truthy('true').falsy('false').default(true),
-  DATABASE_POOL_SIZE: Joi.number().integer().min(1).max(100).default(20),
-  DATABASE_CONNECT_TIMEOUT_MS: Joi.number().integer().min(500).max(60000).default(5000),
-  REDIS_HOST: Joi.string().hostname().required(),
-  REDIS_PORT: Joi.number().port().default(6379),
-  REDIS_PASSWORD: Joi.string().allow('').default(''),
-  REDIS_DB: Joi.number().integer().min(0).max(15).default(0),
-  REDIS_CONNECT_TIMEOUT_MS: Joi.number().integer().min(500).max(60000).default(5000),
-  RATE_LIMIT_TTL_MS: Joi.number().integer().min(1000).default(60000),
-  RATE_LIMIT_MAX: Joi.number().integer().min(1).default(100),
+const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
+  ...appEnvironmentSchema,
+  ...corsEnvironmentSchema,
+  ...loggingEnvironmentSchema,
+  ...swaggerEnvironmentSchema,
+  ...rateLimitEnvironmentSchema,
+  ...i18nEnvironmentSchema,
+  ...databaseEnvironmentSchema,
+  ...redisEnvironmentSchema,
 })
-  .custom((environment: EnvironmentVariables, helpers: Joi.CustomHelpers) => {
-    const isManagedEnvironment =
-      environment.NODE_ENV === 'staging' || environment.NODE_ENV === 'production';
-
-    if (isManagedEnvironment && environment.SWAGGER_DOCS_ACCESS === 'public') {
-      return helpers.error('environment.swaggerPublicManaged');
-    }
-
-    if (
-      environment.SWAGGER_DOCS_ACCESS === 'basic' &&
-      (environment.SWAGGER_DOCS_USERNAME.length < 3 ||
-        environment.SWAGGER_DOCS_PASSWORD.length < 16)
-    ) {
-      return helpers.error('environment.swaggerBasicCredentials');
-    }
-
-    if (
-      environment.SWAGGER_DOCS_ACCESS !== 'basic' &&
-      (environment.SWAGGER_DOCS_USERNAME.length > 0 || environment.SWAGGER_DOCS_PASSWORD.length > 0)
-    ) {
-      return helpers.error('environment.swaggerUnusedCredentials');
-    }
-
-    if (isManagedEnvironment && environment.REDIS_PASSWORD.length < 16) {
-      return helpers.error('environment.redisPassword');
-    }
-
-    return environment;
-  })
+  .custom(validateApiContradictions)
   .messages({
     'environment.corsOrigins':
       'CORS_ORIGINS must be a comma-separated list of exact HTTP(S) origins without wildcards, paths, queries, or fragments',
+    'environment.fallbackLanguage':
+      'APP_FALLBACK_LANGUAGE must be included in APP_SUPPORTED_LANGUAGES',
     'environment.redisPassword':
       'REDIS_PASSWORD must contain at least 16 characters in staging and production',
     'environment.swaggerBasicCredentials':
@@ -129,24 +41,97 @@ const environmentSchema = Joi.object<EnvironmentVariables>({
       'SWAGGER_DOCS_USERNAME and SWAGGER_DOCS_PASSWORD must be empty unless SWAGGER_DOCS_ACCESS is basic',
   });
 
-export function validateEnvironment(input: Record<string, unknown>): EnvironmentVariables {
-  const result: Joi.ValidationResult<EnvironmentVariables> = environmentSchema.validate(input, {
+const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
+  ...databaseEnvironmentSchema,
+});
+
+function validateApiContradictions(
+  environment: Record<string, unknown>,
+  helpers: Joi.CustomHelpers,
+): Record<string, unknown> | Joi.ErrorReport {
+  const nodeEnvironment = environment['NODE_ENV'];
+  const swaggerAccess = environment['SWAGGER_DOCS_ACCESS'];
+  const swaggerUsername = environment['SWAGGER_DOCS_USERNAME'];
+  const swaggerPassword = environment['SWAGGER_DOCS_PASSWORD'];
+  const redisPassword = environment['REDIS_PASSWORD'];
+  const fallbackLanguage = environment['APP_FALLBACK_LANGUAGE'];
+  const supportedLanguages = environment['APP_SUPPORTED_LANGUAGES'];
+  const isManaged = nodeEnvironment === 'staging' || nodeEnvironment === 'production';
+
+  if (isManaged && swaggerAccess === 'public') {
+    return helpers.error('environment.swaggerPublicManaged');
+  }
+  if (
+    swaggerAccess === 'basic' &&
+    (typeof swaggerUsername !== 'string' ||
+      swaggerUsername.length < 3 ||
+      typeof swaggerPassword !== 'string' ||
+      swaggerPassword.length < 16)
+  ) {
+    return helpers.error('environment.swaggerBasicCredentials');
+  }
+  if (
+    swaggerAccess !== 'basic' &&
+    ((typeof swaggerUsername === 'string' && swaggerUsername.length > 0) ||
+      (typeof swaggerPassword === 'string' && swaggerPassword.length > 0))
+  ) {
+    return helpers.error('environment.swaggerUnusedCredentials');
+  }
+  if (isManaged && (typeof redisPassword !== 'string' || redisPassword.length < 16)) {
+    return helpers.error('environment.redisPassword');
+  }
+  if (
+    typeof fallbackLanguage !== 'string' ||
+    typeof supportedLanguages !== 'string' ||
+    !parseSupportedLanguages(supportedLanguages).includes(fallbackLanguage)
+  ) {
+    return helpers.error('environment.fallbackLanguage');
+  }
+  return environment;
+}
+
+function validateWithSchema(
+  schema: Joi.ObjectSchema<Record<string, unknown>>,
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Joi.ValidationResult<Record<string, unknown>> = schema.validate(input, {
     abortEarly: false,
     allowUnknown: true,
     convert: true,
     stripUnknown: true,
   });
-
   if (result.error) {
     throw new Error(`Environment validation failed: ${result.error.message}`);
   }
-
   return result.value;
 }
 
-export function parseCorsOrigins(value: string): string[] {
-  return value
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0);
+export function validateApiEnvironment(input: Record<string, unknown>): Record<string, unknown> {
+  return validateWithSchema(apiEnvironmentSchema, input);
+}
+
+export function validateDatabaseEnvironment(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  return validateWithSchema(databaseOnlyEnvironmentSchema, input);
+}
+
+export function loadApiConfiguration(): AppConfiguration {
+  const environment = validateApiEnvironment(process.env);
+  return {
+    app: createAppConfig(environment),
+    cors: createCorsConfig(environment),
+    logging: createLoggingConfig(environment),
+    swagger: createSwaggerConfig(environment),
+    rateLimit: createRateLimitConfig(environment),
+    i18n: createI18nConfig(environment),
+    database: createDatabaseConfig(environment),
+    redis: createRedisConfig(environment),
+  };
+}
+
+export function loadDatabaseConfiguration(
+  input: Record<string, unknown> = process.env,
+): DatabaseConfig {
+  return createDatabaseConfig(validateDatabaseEnvironment(input));
 }

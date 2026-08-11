@@ -1,23 +1,22 @@
 # Error Handling
 
-All controller failures use the global error envelope:
+Core owns the stable error registry, `AppException`, validation mapping, and global filter. Every
+definition provides an HTTP status, English translation key, and safe fallback. Feature changes add
+the code, English resource, error catalog, Swagger examples, tests, and module documentation together.
+
+Malformed syntax returns `400`; a well-formed request that fails DTO rules returns
+`422 VALIDATION_ERROR` with messages under `details.fields`. Unknown failures return a safe 500 and
+log internal diagnostics without exposing them.
 
 ```json
 {
-  "statusCode": 409,
-  "code": "RESOURCE_CONFLICT",
-  "message": "A resource with this identifier already exists",
-  "timestamp": "2026-08-11T12:00:00.000Z",
+  "statusCode": 422,
+  "code": "VALIDATION_ERROR",
+  "message": "Input validation failed",
+  "timestamp": "2026-08-12T12:00:00.000Z",
   "path": "/api/v1/resources",
   "requestId": "01J5EXAMPLE0000000000000000",
-  "details": {}
+  "correlationId": "01J5EXAMPLE0000000000000001",
+  "details": { "fields": { "name": ["name should not be empty"] } }
 }
 ```
-
-Codes are stable machine contracts; messages are safe client-facing explanations. Never expose SQL
-errors, stack traces, credentials, internal hosts, or dependency implementation details. Each new
-failure code must be added to the error catalog, Swagger response example, tests, and owning module
-documentation in the same change.
-
-Swagger descriptions state when the failure occurs. An annotation such as "Bad request" is not
-enough: document the actual condition, exact code, and exact message emitted by the implementation.

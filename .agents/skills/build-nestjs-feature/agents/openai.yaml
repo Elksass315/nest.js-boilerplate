@@ -1,4 +1,4 @@
 interface:
   display_name: 'Build NestJS Feature'
-  short_description: 'Build clean, documented NestJS API features'
-  default_prompt: 'Use $build-nestjs-feature to build a versioned, tested NestJS feature with complete Swagger and module documentation.'
+  short_description: 'Build clean, paginated NestJS API features'
+  default_prompt: 'Use $build-nestjs-feature to build a versioned, paginated, tested NestJS feature with complete Swagger, translated errors, and module documentation.'

@@ -1,23 +1,22 @@
 # Configuration Standard
 
-Copy `.env.example` for local development. Managed environments inject values through their secret
-mechanism; no staging or production secrets belong in Git.
+Copy `.env.example` for development. Managed environments inject secrets outside Git.
 
-The application validates all keys before connecting to dependencies. Missing, malformed,
-insecure, contradictory, and unknown application values are rejected or stripped by the canonical
-schema in `src/config/environment.ts`.
+Configuration is namespaced and typed by domain: app, CORS, logging, Swagger, rate limits, i18n,
+database, and Redis. Each domain owns its schema fragment, loader, contract, tests, and environment
+documentation. One composed validator creates the API configuration.
 
-When adding or changing configuration, update in the same pull request:
+Executables validate only their dependencies:
 
-1. `EnvironmentVariables` and Joi validation.
-2. Validation tests, including invalid and contradictory combinations.
-3. `.env.example` comments and safe local values.
-4. This document plus Compose, GitHub Actions, Jenkins, and deployment secrets when applicable.
+- API validates every platform domain.
+- Migration commands validate database settings only.
+- Seed commands validate database and seed settings.
+- Future workers validate app identity, logging, Redis, and their owned settings.
 
-Public API versions are source-controlled contracts, not environment configuration. Port, app
-identity, CORS, logging, Swagger access, database, Redis, and rate-limit settings use one naming
-scheme shown in `.env.example`.
+Raw `process.env` access is restricted to configuration and CLI entrypoints. Application code uses
+typed `ConfigService` paths such as `app.port` and `database.host`. Missing, malformed, insecure, or
+contradictory values fail before dependency connections.
 
-Swagger access modes are `public`, `basic`, and `disabled`. Staging and production reject `public`.
-`basic` requires a username of at least three characters and a password of at least sixteen;
-credentials are rejected in the other modes to prevent false assumptions about protection.
+When configuration changes, update schema, tests, `.env.example`, Compose/CI/deployment inputs, and
+this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments
+reject public access.

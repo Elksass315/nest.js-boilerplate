@@ -1,8 +1,9 @@
-import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 
 import { REDIS_CLIENT } from '@/redis/redis.constants';
+import { AppException } from '@/core/errors/app.exception';
 
 import type { LivenessResponse, ReadinessResponse } from './health.types';
 
@@ -32,11 +33,7 @@ export class HealthService {
     } as const;
 
     if (checks.database === 'down' || checks.redis === 'down') {
-      throw new ServiceUnavailableException({
-        code: 'SERVICE_NOT_READY',
-        message: 'One or more required services are unavailable',
-        details: { checks },
-      });
+      throw new AppException('SERVICE_NOT_READY', { checks });
     }
 
     return {

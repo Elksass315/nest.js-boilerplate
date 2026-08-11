@@ -4,10 +4,15 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Params } from 'nestjs-pino';
 
 const REQUEST_ID_HEADER = 'x-request-id';
+const CORRELATION_ID_HEADER = 'x-correlation-id';
 const MAX_REQUEST_ID_LENGTH = 128;
 
-function getIncomingRequestId(request: IncomingMessage): string | undefined {
-  const value = request.headers[REQUEST_ID_HEADER];
+interface ContextIncomingMessage extends IncomingMessage {
+  correlationId?: string;
+}
+
+function getIncomingIdentifier(request: IncomingMessage, header: string): string | undefined {
+  const value = request.headers[header];
   const candidate = Array.isArray(value) ? value[0] : value;
 
   if (!candidate || candidate.length > MAX_REQUEST_ID_LENGTH) {
@@ -22,11 +27,21 @@ export function createLoggerOptions(logLevel: string): Params {
     pinoHttp: {
       level: logLevel,
       genReqId: createRequestId,
-      customProps: (request: IncomingMessage): { requestId: string } => ({
+      customProps: (
+        request: ContextIncomingMessage,
+      ): {
+        requestId: string;
+        correlationId: string;
+      } => ({
         requestId:
           typeof request.id === 'string' || typeof request.id === 'number'
             ? request.id.toString()
             : JSON.stringify(request.id),
+        correlationId:
+          request.correlationId ??
+          (typeof request.id === 'string' || typeof request.id === 'number'
+            ? request.id.toString()
+            : JSON.stringify(request.id)),
       }),
       redact: {
         paths: [
@@ -36,6 +51,8 @@ export function createLoggerOptions(logLevel: string): Params {
           'req.body.token',
           'req.body.accessToken',
           'req.body.refreshToken',
+          'req.body.code',
+          'req.body.recoveryCode',
           'res.headers.set-cookie',
         ],
         censor: '[REDACTED]',
@@ -56,7 +73,10 @@ export function createLoggerOptions(logLevel: string): Params {
 }
 
 export function createRequestId(request: IncomingMessage, response: ServerResponse): string {
-  const requestId = getIncomingRequestId(request) ?? randomUUID();
+  const requestId = getIncomingIdentifier(request, REQUEST_ID_HEADER) ?? randomUUID();
+  const correlationId = getIncomingIdentifier(request, CORRELATION_ID_HEADER) ?? requestId;
+  (request as ContextIncomingMessage).correlationId = correlationId;
   response.setHeader(REQUEST_ID_HEADER, requestId);
+  response.setHeader(CORRELATION_ID_HEADER, correlationId);
   return requestId;
 }

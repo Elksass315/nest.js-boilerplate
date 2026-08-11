@@ -28,6 +28,8 @@ describe('platform foundation (e2e)', () => {
       }),
     );
     expect(response.headers).toHaveProperty('x-request-id');
+    expect(response.headers).toHaveProperty('x-correlation-id', response.headers['x-request-id']);
+    expect(response.headers).toHaveProperty('content-language', 'en');
     expect(response.headers).toHaveProperty('x-content-type-options', 'nosniff');
   });
 
@@ -51,5 +53,32 @@ describe('platform foundation (e2e)', () => {
       .set('x-request-id', 'e2e-request-1')
       .expect('x-request-id', 'e2e-request-1')
       .expect(200);
+  });
+
+  it('propagates a supplied correlation ID independently across the request', async () => {
+    await request(app.getHttpServer())
+      .get('/health/live')
+      .set('x-request-id', 'e2e-request-2')
+      .set('x-correlation-id', 'e2e-workflow-1')
+      .expect('x-request-id', 'e2e-request-2')
+      .expect('x-correlation-id', 'e2e-workflow-1')
+      .expect(200);
+  });
+
+  it('includes request and correlation IDs in safe error responses', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/missing')
+      .set('x-correlation-id', 'e2e-workflow-error')
+      .expect('content-language', 'en')
+      .expect(404);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        statusCode: 404,
+        code: 'RESOURCE_NOT_FOUND',
+        requestId: expect.any(String),
+        correlationId: 'e2e-workflow-error',
+      }),
+    );
   });
 });

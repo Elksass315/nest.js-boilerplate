@@ -31,6 +31,27 @@ services:
     profiles:
       - deployment
 
+  seed:
+    image: ${APP_IMAGE:?APP_IMAGE must be an immutable registry reference}
+    env_file:
+      - ${APP_ENV_FILE:?APP_ENV_FILE is required}
+    command: ['node', 'dist/database/seeds/seed-runner.js', 'run']
+    restart: 'no'
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend-internal
+    profiles:
+      - deployment
+
   postgres:
     restart: always
 
