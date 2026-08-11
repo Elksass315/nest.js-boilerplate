@@ -19,7 +19,8 @@ services:
         - -e
         - >-
           const http=require('node:http');
-          const request=http.get('http://127.0.0.1:3000/health/ready',(response)=>process.exit(response.statusCode===200?0:1));
+          const port=process.env.PORT||'3000';
+          const request=http.get(`http://127.0.0.1:$${port}/health/ready`,(response)=>process.exit(response.statusCode===200?0:1));
           request.setTimeout(2500,()=>{request.destroy();process.exit(1)});
           request.on('error',()=>process.exit(1));
       interval: 15s

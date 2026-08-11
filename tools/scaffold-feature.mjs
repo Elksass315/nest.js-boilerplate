@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
+import { currentBranch, validateWritableBranch } from './branch-policy.mjs';
+
 function parseArguments(argv) {
   const options = {
     dryRun: argv.includes('--dry-run'),
@@ -75,7 +77,7 @@ function createFiles({ name, http, persistence }) {
   if (http) {
     files.set(
       `${name}.controller.ts`,
-      `import { Controller } from '@nestjs/common';\nimport { ApiTags } from '@nestjs/swagger';\n\nimport { ${className}Service } from './${name}.service';\n\n@ApiTags('${name}')\n@Controller('${name}')\nexport class ${className}Controller {\n  public constructor(_service: ${className}Service) {}\n}\n`,
+      `import { Controller } from '@nestjs/common';\nimport { ApiTags } from '@nestjs/swagger';\n\nimport { API_VERSION } from '@/common/http/api-version.constants';\n\nimport { ${className}Service } from './${name}.service';\n\n@ApiTags('${name}')\n@Controller({ path: '${name}', version: API_VERSION })\nexport class ${className}Controller {\n  public constructor(_service: ${className}Service) {}\n}\n`,
     );
   }
 
@@ -93,17 +95,39 @@ function createFiles({ name, http, persistence }) {
   return files;
 }
 
+function createModuleDocumentation(name) {
+  const className = pascalCase(name);
+  return `# ${className} Module\n\n## Purpose and scope\n\nDescribe the owned business capability and explicit non-responsibilities before handoff.\n\n## Structure and public surface\n\nDocument exported services/contracts and required cross-feature dependencies.\n\n## API contracts\n\nDocument versioned routes, request variants, response statuses, and stable error code/message pairs.\n\n## Data and migrations\n\nDocument owned data, constraints, indexes, migrations, and transaction boundaries.\n\n## Security and observability\n\nDocument validation, authorization, sensitive-data handling, safe logs, and metrics.\n\n## Test strategy and change impact\n\nDocument unit, integration, e2e, compatibility, rollout, and rollback coverage.\n`;
+}
+
 function run() {
   const options = parseArguments(process.argv.slice(2));
   const target = path.join(options.root, 'src', 'modules', options.name);
+  const documentation = path.join(
+    options.root,
+    'docs',
+    '01-backend',
+    'modules',
+    `${options.name}.md`,
+  );
   if (existsSync(target)) {
     throw new Error(`Feature already exists: ${target}`);
+  }
+  if (existsSync(documentation)) {
+    throw new Error(`Feature documentation already exists: ${documentation}`);
   }
 
   const files = createFiles(options);
   if (options.dryRun) {
-    process.stdout.write(`${[...files.keys()].join('\n')}\n`);
+    process.stdout.write(
+      `${[...files.keys()].join('\n')}\ndocs/01-backend/modules/${options.name}.md\n`,
+    );
     return;
+  }
+
+  const branchError = validateWritableBranch(currentBranch());
+  if (branchError) {
+    throw new Error(branchError);
   }
 
   for (const [relativePath, contents] of files) {
@@ -112,7 +136,15 @@ function run() {
     writeFileSync(destination, contents, { encoding: 'utf8', flag: 'wx' });
   }
 
-  process.stdout.write(`Created ${files.size} files in ${target}\n`);
+  mkdirSync(path.dirname(documentation), { recursive: true });
+  writeFileSync(documentation, createModuleDocumentation(options.name), {
+    encoding: 'utf8',
+    flag: 'wx',
+  });
+
+  process.stdout.write(
+    `Created ${files.size} feature files and module documentation in ${target}\n`,
+  );
 }
 
 try {

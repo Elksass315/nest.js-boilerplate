@@ -1,8 +1,19 @@
 # Repository Working Agreement
 
-This repository is a single-tenant NestJS modular monolith. Read `README.md`,
-`docs/architecture.md`, and `CONTRIBUTING.md` before changing behavior or structure. Rules in a
-closer `AGENTS.md` add to these repository-wide rules.
+This repository is a single-tenant NestJS modular monolith. Read `README.md`, `docs/README.md`, and
+`CONTRIBUTING.md` before changing behavior or structure. Rules in a closer `AGENTS.md` add to these
+repository-wide rules.
+
+## Write Safety: Check the Branch First
+
+- Before editing, generating, formatting, staging, or committing, run `git status --short --branch`
+  and `pnpm branch:write-check`.
+- Never write on `main` or `develop`. Never bypass this rule with hook flags or by editing first and
+  moving changes later.
+- Start `feature/*`, `fix/*`, `refactor/*`, or `chore/*` from an up-to-date `develop`. Use
+  `release/*` or `hotfix/*` only for an explicitly requested release workflow.
+- If the branch is protected, detached, unexpectedly dirty, or based on the wrong branch, stop and
+  correct it without discarding user changes.
 
 ## Mandatory Engineering Rules
 
@@ -18,6 +29,15 @@ closer `AGENTS.md` add to these repository-wide rules.
 - Do not run migrations or seeds from the API startup path.
 - Update tests and authoritative documentation when behavior, contracts, security, deployment, or
   architecture changes.
+- Treat documentation as part of the implementation. Update the relevant `docs/` source of truth
+  in the same commit; never leave documentation work for a later unspecified change.
+- Every controller declares an explicit URI version. Operational controllers use
+  `VERSION_NEUTRAL`; business controllers use the owned API version constant.
+- Every route has Swagger operation metadata and documents every applicable success and error
+  status with a description and concrete response payload example. Document the exact stable error
+  code and client-visible message for each failure condition.
+- Every request DTO property has validation and Swagger examples. When an endpoint accepts
+  meaningfully different request shapes, document each shape as a named `@ApiBody` example.
 - Do not claim completion until the relevant checks pass. Run `pnpm validate` for repository
   changes; also run e2e and Docker validation when platform wiring changes.
 
@@ -37,4 +57,6 @@ closer `AGENTS.md` add to these repository-wide rules.
   mutable deployment image tags, and logs containing sensitive fields.
 - Flag DDD-style domain/application/infrastructure folders or repository interface/adapter pairs
   unless an approved ADR demonstrates a current need.
+- Flag unversioned controllers, undocumented response statuses, response docs without payload
+  examples, generic error descriptions that omit code/message behavior, and stale module/API docs.
 - Treat generated code as untrusted and verify it against the same rules and commands.

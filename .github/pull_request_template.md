@@ -13,8 +13,10 @@ Describe the outcome and why it is needed.
 
 ## Verification
 
+- [ ] Work was created on an approved short-lived branch; `main`/`develop` were not edited directly
 - [ ] `pnpm validate` passes
 - [ ] Integration/e2e tests pass when platform services are affected
 - [ ] Docker/Compose configuration is validated when runtime files change
 - [ ] New dependencies are necessary, current, licensed, and audited
-- [ ] Documentation and release notes are updated when required
+- [ ] Authoritative documentation is updated in this PR
+- [ ] Every changed route documents all request variants and success/error responses with exact examples

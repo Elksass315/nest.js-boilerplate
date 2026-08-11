@@ -1,1 +1,1 @@
-pnpm exec lint-staged
+pnpm branch:write-check && pnpm exec lint-staged

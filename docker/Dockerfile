@@ -36,7 +36,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production
-ENV APP_PORT=3000
+ENV PORT=3000
 WORKDIR /app
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
