@@ -1,0 +1,10 @@
+* @Elksass
+
+/src/database/ @Elksass
+/src/common/ @Elksass
+/docker/ @Elksass
+/compose*.yaml @Elksass
+/.github/workflows/ @Elksass
+/Jenkinsfile @Elksass
+/AGENTS.md @Elksass
+/.agents/ @Elksass

@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Build NestJS Feature'
+  short_description: 'Create clean service-repository NestJS features'
+  default_prompt: 'Use $build-nestjs-feature to create a clean NestJS feature that follows this repository architecture.'

@@ -1,0 +1,106 @@
+name: Publish immutable image
+
+on:
+  push:
+    branches: [main, develop, 'release/**']
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm validate
+
+      - name: Create semantic release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm release
+
+      - name: Prepare image tags
+        id: image
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          image="ghcr.io/${repository}"
+          ref_tag="${GITHUB_REF_NAME//\//-}"
+          tags="${image}:sha-${GITHUB_SHA},${image}:${ref_tag}"
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            git fetch --force --tags
+            version="$(git tag --points-at HEAD --list 'v*' | sort -V | tail -n 1)"
+            if [[ -n "${version}" ]]; then
+              tags="${tags},${image}:${version},${image}:latest"
+            fi
+          fi
+          echo "name=${image}" >> "${GITHUB_OUTPUT}"
+          echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish once
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: runtime
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trigger Jenkins deployment
+        if: env.JENKINS_DEPLOY_URL != ''
+        env:
+          JENKINS_DEPLOY_URL: ${{ secrets.JENKINS_DEPLOY_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+          IMAGE_REF: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
+            target_environment=development
+          elif [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
+            target_environment=staging
+          else
+            target_environment=production
+          fi
+          curl --fail --silent --show-error \
+            --user "${JENKINS_USER}:${JENKINS_TOKEN}" \
+            --request POST "${JENKINS_DEPLOY_URL}/buildWithParameters" \
+            --data-urlencode "IMAGE_REF=${IMAGE_REF}" \
+            --data-urlencode "TARGET_ENV=${target_environment}" \
+            --data-urlencode "SOURCE_BRANCH=${GITHUB_REF_NAME}" \
+            --data-urlencode "SOURCE_COMMIT=${GITHUB_SHA}"

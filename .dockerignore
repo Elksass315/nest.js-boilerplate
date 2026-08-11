@@ -1,0 +1,15 @@
+.git
+.github
+.husky
+.agents
+.vscode
+node_modules
+dist
+coverage
+docs
+test
+tools/*.test.mjs
+*.log
+.env
+.env.*
+!.env.example

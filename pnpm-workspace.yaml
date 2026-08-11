@@ -1,0 +1,15 @@
+engineStrict: true
+autoInstallPeers: false
+strictPeerDependencies: true
+resolutionMode: highest
+savePrefix: ''
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - '@penta-tech/*'
+overrides:
+  'js-yaml@>=5.0.0 <=5.2.1': 5.2.2
+verifyDepsBeforeRun: error
+strictDepBuilds: true
+allowBuilds:
+  '@scarf/scarf': false
+  unrs-resolver: true
