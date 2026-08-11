@@ -19,32 +19,32 @@ jobs:
   codeql:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@24c7eb380a2dc368f2d129e4c65e51d172983a1e
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
         with:
           languages: javascript-typescript
           build-mode: none
-      - uses: github/codeql-action/analyze@24c7eb380a2dc368f2d129e4c65e51d172983a1e
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3
 
   supply-chain:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: 11.21.0
           run_install: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm licenses:check && pnpm audit:prod && pnpm deps:check
-      - uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           scan-type: fs
           scan-ref: .
@@ -53,7 +53,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
-      - uses: anchore/sbom-action@fbfd9c6c189226748411491745178e0c2017392d
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610
         with:
           path: .
           format: spdx-json
