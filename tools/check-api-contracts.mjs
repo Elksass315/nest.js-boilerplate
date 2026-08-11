@@ -6,6 +6,10 @@ import ts from 'typescript';
 
 const sourceRoot = path.resolve('src');
 const routeDecorators = new Set(['Delete', 'Get', 'Head', 'Options', 'Patch', 'Post', 'Put']);
+const composedResponseDecorators = new Set([
+  'ApiOffsetPaginatedResponse',
+  'ApiCursorPaginatedResponse',
+]);
 
 function walk(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -144,6 +148,9 @@ for (const filePath of walk(sourceRoot).filter((file) => file.endsWith('.control
       }
 
       for (const response of responses) {
+        if (composedResponseDecorators.has(decoratorName(response))) {
+          continue;
+        }
         const call = decoratorCall(response);
         if (!hasObjectProperty(call, 'description')) {
           violations.push(`${methodLocation} response documentation must explain when it occurs`);

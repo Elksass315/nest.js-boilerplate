@@ -24,6 +24,14 @@ test('prints a dry run without writing files', () => {
   }
 });
 
+test('accepts a single-word feature name without a root option', () => {
+  const result = run(['singlewordfixture', '--http', '--persistence', '--dry-run']);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /singlewordfixture\.module\.ts/);
+  assert.match(result.stdout, /docs\/01-backend\/modules\/singlewordfixture\.md/);
+});
+
 test('creates service-only and persistence-aware features', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'nestjs-scaffold-'));
   try {

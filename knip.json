@@ -6,6 +6,7 @@
     "src/database/migrations/*.ts",
     "src/common/pagination/index.ts",
     "src/shared/entities/app-base.entity.ts",
+    "src/modules/*/index.ts",
     "test/**/*.ts",
     "tools/**/*.mjs"
   ],

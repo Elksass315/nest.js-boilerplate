@@ -44,3 +44,7 @@ them. Staging and production reject `public`; production should normally use `di
 `pnpm arch:check` rejects unversioned controllers, missing operation descriptions, missing response
 decorators, and response documentation without concrete content examples. Semantic completeness—
 all reachable statuses and all accepted body variants—remains a mandatory review check.
+
+The canonical `ApiOffsetPaginatedResponse` and `ApiCursorPaginatedResponse` decorators are composed
+response contracts: the static checker recognizes their embedded description and schema content.
+All other response decorators declare `description` and concrete `content` directly at the route.

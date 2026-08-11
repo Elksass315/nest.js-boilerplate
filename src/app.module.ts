@@ -12,6 +12,8 @@ import { GlobalExceptionFilter } from '@/core/errors/global-exception.filter';
 import { AppI18nModule } from '@/core/i18n/i18n.module';
 import { DatabaseModule } from '@/database/database.module';
 import { HealthModule } from '@/health/health.module';
+import { AuthorizationModule } from '@/modules/authorization';
+import { UsersModule } from '@/modules/users';
 import { RedisModule } from '@/redis/redis.module';
 
 @Module({
@@ -41,6 +43,8 @@ import { RedisModule } from '@/redis/redis.module';
     DatabaseModule,
     RedisModule,
     HealthModule,
+    AuthorizationModule,
+    UsersModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

@@ -20,7 +20,13 @@ describe('base entity metadata', () => {
       expect.objectContaining({ type: 'uuid', primary: true }),
     );
     expect(columns.find(({ propertyName }) => propertyName === 'createdAt')?.options).toEqual(
-      expect.objectContaining({ type: 'timestamptz' }),
+      expect.objectContaining({ name: 'created_at', type: 'timestamptz' }),
+    );
+    expect(columns.find(({ propertyName }) => propertyName === 'updatedAt')?.options).toEqual(
+      expect.objectContaining({ name: 'updated_at', type: 'timestamptz' }),
+    );
+    expect(columns.find(({ propertyName }) => propertyName === 'deletedAt')?.options).toEqual(
+      expect.objectContaining({ name: 'deleted_at', type: 'timestamptz' }),
     );
   });
 });

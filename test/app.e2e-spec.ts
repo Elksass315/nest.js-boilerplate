@@ -7,14 +7,21 @@ jest.setTimeout(30_000);
 
 describe('platform foundation (e2e)', () => {
   let app: INestApplication;
+  const originalSwaggerAccess = process.env['SWAGGER_DOCS_ACCESS'];
 
   beforeAll(async () => {
+    process.env['SWAGGER_DOCS_ACCESS'] = 'public';
     app = await createApplication();
     await app.init();
   });
 
   afterAll(async () => {
     await app.close();
+    if (originalSwaggerAccess === undefined) {
+      delete process.env['SWAGGER_DOCS_ACCESS'];
+    } else {
+      process.env['SWAGGER_DOCS_ACCESS'] = originalSwaggerAccess;
+    }
   });
 
   it('serves liveness outside the API version prefix', async () => {
@@ -78,6 +85,50 @@ describe('platform foundation (e2e)', () => {
         code: 'RESOURCE_NOT_FOUND',
         requestId: expect.any(String),
         correlationId: 'e2e-workflow-error',
+      }),
+    );
+  });
+
+  it.each(['/api/v1/users', '/api/v1/authorization/roles'])(
+    'protects the identity endpoint %s and preserves correlation context',
+    async (route) => {
+      const response = await request(app.getHttpServer())
+        .get(route)
+        .set('x-correlation-id', 'e2e-identity-workflow')
+        .expect('content-language', 'en')
+        .expect(401);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          statusCode: 401,
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required',
+          requestId: expect.any(String),
+          correlationId: 'e2e-identity-workflow',
+        }),
+      );
+    },
+  );
+
+  it('publishes versioned identity contracts with distinct role-update failures', async () => {
+    const response = await request(app.getHttpServer()).get('/docs-json').expect(200);
+    const document = response.body as {
+      paths?: Record<
+        string,
+        { put?: { responses?: Record<string, { content?: Record<string, unknown> }> } }
+      >;
+    };
+
+    expect(document.paths).toHaveProperty('/api/v1/users');
+    expect(document.paths).toHaveProperty('/api/v1/authorization/roles');
+    expect(document.paths?.['/api/v1/users/{id}/roles']?.put?.responses?.['404']?.content).toEqual(
+      expect.objectContaining({
+        'application/json': expect.objectContaining({
+          examples: expect.objectContaining({
+            userNotFound: expect.any(Object),
+            roleNotFound: expect.any(Object),
+          }),
+        }),
       }),
     );
   });
