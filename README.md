@@ -1,0 +1,47 @@
+# NestJS SaaS Boilerplate
+
+A production-ready, single-tenant NestJS 11 foundation with strict TypeScript, PostgreSQL,
+TypeORM, Redis, structured logging, health checks, hardened containers, and enforced engineering
+workflows. It intentionally contains no business modules.
+
+## Requirements
+
+- Node.js 24.19.0 LTS
+- Corepack and pnpm 11.21.0
+- Docker Desktop or Docker Engine with Compose for the full platform
+
+## Quick start
+
+```powershell
+corepack enable
+pnpm install --frozen-lockfile
+Copy-Item .env.example .env
+pnpm docker:up
+```
+
+On macOS/Linux, use `cp .env.example .env`. The API listens on `http://localhost:3000` by default.
+
+- Liveness: `GET /health/live`
+- Readiness: `GET /health/ready`
+- Swagger in development: `/docs`
+- Future business endpoints: `/api/v1`
+
+Useful commands:
+
+```bash
+pnpm validate
+pnpm test:e2e
+pnpm docker:logs
+pnpm scaffold:feature billing --http --persistence --dry-run
+```
+
+`pnpm docker:reset -- --confirm` deletes local PostgreSQL and Redis volumes. It is intentionally
+guarded and should never be used against a managed environment.
+
+## Design
+
+Features use `controller → service → concrete repository → TypeORM`. See
+[`docs/architecture.md`](docs/architecture.md) for boundaries and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for branch, commit, review, and verification rules.
+
+Operational configuration and deployment are documented in [`docs/operations.md`](docs/operations.md).
