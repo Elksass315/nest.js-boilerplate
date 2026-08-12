@@ -39,6 +39,23 @@ export class UsersRepository {
     return this.users.findOneBy({ normalizedEmail });
   }
 
+  public findByIdForUpdate(manager: EntityManager, id: string): Promise<UserEntity | null> {
+    return manager.getRepository(UserEntity).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  public async saveWithAudit(
+    manager: EntityManager,
+    user: UserEntity,
+    audit: SecurityAuditInput,
+  ): Promise<UserEntity> {
+    const saved = await manager.getRepository(UserEntity).save(user);
+    await this.appendAudit(manager, audit);
+    return saved;
+  }
+
   public async roleIdsByUserIds(userIds: readonly string[]): Promise<Map<string, string[]>> {
     if (userIds.length === 0) return new Map();
     const assignments = await this.userRoles.find({

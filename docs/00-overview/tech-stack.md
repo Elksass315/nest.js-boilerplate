@@ -5,7 +5,9 @@
 | Runtime       | Node.js 24.19.0 LTS, pnpm 11.21.0 through Corepack         |
 | Framework     | NestJS 11 on Express, strict TypeScript 5.9                |
 | Persistence   | PostgreSQL 18, TypeORM, migration-only schema evolution    |
-| Coordination  | Redis 8; queues are deferred                               |
+| Coordination  | Redis 8 and BullMQ 6 for correlated background mail jobs   |
+| Security      | Argon2id passwords and JOSE-signed rotating auth sessions  |
+| Email         | Handlebars bodies with shared branded header/footer layout |
 | HTTP          | Helmet, CORS allowlist, global validation, URI versioning  |
 | Observability | Pino structured logs, correlation IDs, health endpoints    |
 | Contracts     | `@nestjs/swagger` with complete request/response examples  |

@@ -8,20 +8,24 @@ import {
 import { createRedisConfig, redisEnvironmentSchema } from '@/redis/config/redis.config';
 
 import { appEnvironmentSchema, createAppConfig } from './app.config';
+import { authEnvironmentSchema, createAuthConfig } from './auth.config';
 import type { AppConfiguration } from './configuration.types';
 import { corsEnvironmentSchema, createCorsConfig } from './cors.config';
 import { createI18nConfig, i18nEnvironmentSchema, parseSupportedLanguages } from './i18n.config';
 import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config';
+import { createMailConfig, mailEnvironmentSchema } from './mail.config';
 import { createRateLimitConfig, rateLimitEnvironmentSchema } from './rate-limit.config';
 import { createSwaggerConfig, swaggerEnvironmentSchema } from './swagger.config';
 
 const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...appEnvironmentSchema,
+  ...authEnvironmentSchema,
   ...corsEnvironmentSchema,
   ...loggingEnvironmentSchema,
   ...swaggerEnvironmentSchema,
   ...rateLimitEnvironmentSchema,
   ...i18nEnvironmentSchema,
+  ...mailEnvironmentSchema,
   ...databaseEnvironmentSchema,
   ...redisEnvironmentSchema,
 })
@@ -120,11 +124,13 @@ export function loadApiConfiguration(): AppConfiguration {
   const environment = validateApiEnvironment(process.env);
   return {
     app: createAppConfig(environment),
+    auth: createAuthConfig(environment),
     cors: createCorsConfig(environment),
     logging: createLoggingConfig(environment),
     swagger: createSwaggerConfig(environment),
     rateLimit: createRateLimitConfig(environment),
     i18n: createI18nConfig(environment),
+    mail: createMailConfig(environment),
     database: createDatabaseConfig(environment),
     redis: createRedisConfig(environment),
   };

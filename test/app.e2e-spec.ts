@@ -2,15 +2,20 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 
 import { createApplication } from '../src/bootstrap';
+import { AuthService } from '../src/modules/auth';
 
 jest.setTimeout(30_000);
 
 describe('platform foundation (e2e)', () => {
   let app: INestApplication;
   const originalSwaggerAccess = process.env['SWAGGER_DOCS_ACCESS'];
+  const originalAuthSecret = process.env['AUTH_ACCESS_TOKEN_SECRET'];
+  const originalMailEnabled = process.env['MAIL_ENABLED'];
 
   beforeAll(async () => {
     process.env['SWAGGER_DOCS_ACCESS'] = 'public';
+    process.env['AUTH_ACCESS_TOKEN_SECRET'] = 'e2e-only-access-token-secret-at-least-32-characters';
+    process.env['MAIL_ENABLED'] = 'false';
     app = await createApplication();
     await app.init();
   });
@@ -22,6 +27,10 @@ describe('platform foundation (e2e)', () => {
     } else {
       process.env['SWAGGER_DOCS_ACCESS'] = originalSwaggerAccess;
     }
+    if (originalAuthSecret === undefined) delete process.env['AUTH_ACCESS_TOKEN_SECRET'];
+    else process.env['AUTH_ACCESS_TOKEN_SECRET'] = originalAuthSecret;
+    if (originalMailEnabled === undefined) delete process.env['MAIL_ENABLED'];
+    else process.env['MAIL_ENABLED'] = originalMailEnabled;
   });
 
   it('serves liveness outside the API version prefix', async () => {
@@ -121,6 +130,9 @@ describe('platform foundation (e2e)', () => {
 
     expect(document.paths).toHaveProperty('/api/v1/users');
     expect(document.paths).toHaveProperty('/api/v1/authorization/roles');
+    expect(document.paths).toHaveProperty('/api/v1/auth/register');
+    expect(document.paths).toHaveProperty('/api/v1/auth/refresh');
+    expect(document.paths).toHaveProperty('/api/v1/sessions');
     expect(document.paths?.['/api/v1/users/{id}/roles']?.put?.responses?.['404']?.content).toEqual(
       expect.objectContaining({
         'application/json': expect.objectContaining({
@@ -129,6 +141,64 @@ describe('platform foundation (e2e)', () => {
             roleNotFound: expect.any(Object),
           }),
         }),
+      }),
+    );
+  });
+
+  it('registers, verifies, logs in, lists sessions, rotates refresh, and detects reuse', async () => {
+    const email = 'identity-e2e@example.com';
+    const password = 'Correct-Horse-Battery-2026!';
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .set('x-correlation-id', 'e2e-auth-register')
+      .send({ fullName: 'Identity E2E', email, password })
+      .expect('x-correlation-id', 'e2e-auth-register')
+      .expect(201);
+
+    const delivery = await app.get(AuthService).resendVerification(email);
+    expect(delivery).not.toBeNull();
+    if (!delivery) throw new Error('Expected verification delivery');
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verification/confirm')
+      .send({ token: delivery.token })
+      .expect(200);
+
+    const login = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email, password })
+      .expect(200);
+    expect(login.body).toEqual(
+      expect.objectContaining({
+        accessToken: expect.any(String),
+        refreshToken: expect.any(String),
+        tokenType: 'Bearer',
+        expiresIn: 900,
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get('/api/v1/sessions?page=1&limit=20')
+      .set('authorization', `Bearer ${String(login.body.accessToken)}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual(
+          expect.objectContaining({ items: expect.any(Array), meta: expect.any(Object) }),
+        );
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: login.body.refreshToken })
+      .expect(200);
+    const reuse = await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('x-correlation-id', 'e2e-refresh-reuse')
+      .send({ refreshToken: login.body.refreshToken })
+      .expect(401);
+    expect(reuse.body).toEqual(
+      expect.objectContaining({
+        code: 'REFRESH_TOKEN_REUSED',
+        correlationId: 'e2e-refresh-reuse',
       }),
     );
   });

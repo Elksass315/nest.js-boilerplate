@@ -2,6 +2,7 @@ import type { Permission, RoleKey } from './authorization.constants';
 
 export interface AuthenticatedPrincipal {
   userId: string;
+  sessionId?: string;
   authVersion: number;
   roleKeys: RoleKey[];
   permissions: Permission[];

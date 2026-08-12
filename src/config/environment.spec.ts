@@ -6,6 +6,7 @@ import {
 } from './environment';
 
 const validEnvironment = {
+  AUTH_ACCESS_TOKEN_SECRET: 'test-only-access-token-secret-at-least-32-characters',
   DATABASE_HOST: 'localhost',
   DATABASE_NAME: 'app',
   DATABASE_PASSWORD: 'local-password',

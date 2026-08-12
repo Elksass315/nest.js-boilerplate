@@ -4,21 +4,21 @@
 
 `users` owns account identity state, profile data, role assignments, and append-only security audit
 records. It does not authenticate credentials, issue tokens, manage sessions, send mail, or define
-role/permission policy. Those capabilities belong to later `auth`, `mail`, and existing
-`authorization` modules.
+role/permission policy. Those capabilities belong to the `auth`, `mail`, and `authorization`
+modules.
 
 ## Structure and public surface
 
 The module follows `controller -> service -> concrete repository -> TypeORM`. It exports
 `UsersService` plus the intentional `CreatePendingUserInput`, `UserWithRoles`, and `UserStatus`
-contracts for the future auth module. Entities, the repository, HTTP DTOs, and password hashes remain
+contracts for the auth module. Entities, the repository, HTTP DTOs, and password hashes remain
 private. The module imports only the public `authorization` index and resolves opaque role IDs through
 `AuthorizationService`; it never queries authorization tables.
 
 ## API contracts
 
-All routes use URI version `v1` and require the `PermissionsGuard`. The auth phase will populate the
-typed `request.user` principal; until then protected routes correctly return `401 UNAUTHORIZED`.
+All routes use URI version `v1` and require the `PermissionsGuard`. The global access-token guard
+hydrates the typed `request.user` principal from current user/session state before permission checks.
 
 | Method | Route               | Policy                | Success | Reachable errors                                                 |
 | ------ | ------------------- | --------------------- | ------- | ---------------------------------------------------------------- |
@@ -60,10 +60,9 @@ principals through stable `UNAUTHORIZED` and `FORBIDDEN` errors.
 ## Test strategy and change impact
 
 Unit tests cover paginated response mapping, credential-field exclusion, duplicate emails,
-correlated audit data, role replacement, and last-super-admin protection. Migration validation must
-exercise `up` and `down` against a temporary PostgreSQL test database. The later auth branch adds
-registration, credential, session, and end-to-end authenticated route coverage without changing the
-module boundary.
+correlated auth/profile audit data, lockout transitions, password auth-version changes, role
+replacement, and last-super-admin protection. Migration validation exercises `up` and `down`
+against a temporary PostgreSQL test database.
 
 ## Cursor pagination rationale
 

@@ -12,4 +12,6 @@ verifyDepsBeforeRun: error
 strictDepBuilds: true
 allowBuilds:
   '@scarf/scarf': false
+  argon2: true
+  msgpackr-extract: false
   unrs-resolver: true

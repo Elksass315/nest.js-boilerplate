@@ -147,6 +147,84 @@ export class UsersService {
     return this.toUserWithRoles(user, await this.rolesForUser(user.id));
   }
 
+  public async findByIdForAuthentication(id: string): Promise<UserWithRoles | null> {
+    const user = await this.repository.findById(id);
+    if (!user) return null;
+    return this.toUserWithRoles(user, await this.rolesForUser(user.id));
+  }
+
+  public async verifyEmail(userId: string): Promise<UserWithRoles> {
+    const user = await this.dataSource.transaction(async (manager) => {
+      const current = await this.repository.findByIdForUpdate(manager, userId);
+      if (!current) throw new AppException('USER_NOT_FOUND');
+      if (current.status === 'suspended') throw new AppException('ACCOUNT_SUSPENDED');
+      current.emailVerifiedAt ??= new Date();
+      current.status = 'active';
+      return this.repository.saveWithAudit(
+        manager,
+        current,
+        this.auditContext(userId, userId, 'auth.email.verified'),
+      );
+    });
+    return this.toUserWithRoles(user, await this.rolesForUser(user.id));
+  }
+
+  public async recordFailedLogin(
+    userId: string,
+    maximum: number,
+    lockSeconds: number,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const user = await this.repository.findByIdForUpdate(manager, userId);
+      if (!user) return;
+      user.failedLoginCount += 1;
+      if (user.failedLoginCount >= maximum) {
+        user.lockedUntil = new Date(Date.now() + lockSeconds * 1000);
+      }
+      await this.repository.saveWithAudit(
+        manager,
+        user,
+        this.auditContext(userId, userId, 'auth.login.failed', {
+          failedLoginCount: user.failedLoginCount,
+          locked: user.lockedUntil !== null,
+        }),
+      );
+    });
+  }
+
+  public async recordSuccessfulLogin(userId: string): Promise<UserWithRoles> {
+    const user = await this.dataSource.transaction(async (manager) => {
+      const current = await this.repository.findByIdForUpdate(manager, userId);
+      if (!current) throw new AppException('USER_NOT_FOUND');
+      current.failedLoginCount = 0;
+      current.lockedUntil = null;
+      return this.repository.saveWithAudit(
+        manager,
+        current,
+        this.auditContext(userId, userId, 'auth.login.succeeded'),
+      );
+    });
+    return this.toUserWithRoles(user, await this.rolesForUser(user.id));
+  }
+
+  public async changePassword(
+    userId: string,
+    passwordHash: string,
+    eventType: 'auth.password.changed' | 'auth.password.reset',
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const user = await this.repository.findByIdForUpdate(manager, userId);
+      if (!user) throw new AppException('USER_NOT_FOUND');
+      user.passwordHash = passwordHash;
+      user.authVersion += 1;
+      await this.repository.saveWithAudit(
+        manager,
+        user,
+        this.auditContext(userId, userId, eventType),
+      );
+    });
+  }
+
   private async requireUser(id: string): Promise<UserEntity> {
     const user = await this.repository.findById(id);
     if (!user) throw new AppException('USER_NOT_FOUND');

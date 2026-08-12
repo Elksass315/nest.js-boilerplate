@@ -2,7 +2,8 @@
 
 A production-ready, single-tenant NestJS 11 foundation with strict TypeScript, PostgreSQL,
 TypeORM, Redis, structured logging, health checks, hardened containers, and enforced engineering
-workflows. It intentionally contains no business modules.
+workflows. Phase 2 adds fixed RBAC, users, credential authentication, rotating sessions, and the
+correlated mail-job producer while preserving the flat modular-monolith architecture.
 
 ## Requirements
 
