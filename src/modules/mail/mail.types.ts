@@ -1,8 +1,20 @@
 export const MAIL_QUEUE = 'mail';
 
-export type MailTemplate = 'email-verification' | 'reset-password';
+export type MailTemplate =
+  | 'email-verification'
+  | 'reset-password'
+  | 'two-step-code'
+  | 'new-session'
+  | 'session-revoked'
+  | 'password-changed'
+  | 'two-step-changed'
+  | 'account-status-changed'
+  | 'role-changed';
+
+export type MailDeliveryStatus = 'queued' | 'processing' | 'sent' | 'failed';
 
 export interface MailJob {
+  deliveryId: string;
   to: string;
   fromAddress: string;
   fromName: string;
@@ -20,3 +32,29 @@ export interface VerificationMailInput {
 }
 
 export type PasswordResetMailInput = VerificationMailInput;
+
+export interface TwoStepCodeMailInput {
+  email: string;
+  fullName: string;
+  code: string;
+  expiresInSeconds: number;
+  purpose: 'login' | 'enable' | 'disable' | 'recovery_regenerate';
+}
+
+export interface SecurityMailInput {
+  email: string;
+  fullName: string;
+  occurredAt: Date;
+}
+
+export interface TwoStepChangedMailInput extends SecurityMailInput {
+  enabled: boolean;
+}
+
+export interface AccountStatusChangedMailInput extends SecurityMailInput {
+  status: string;
+}
+
+export interface RoleChangedMailInput extends SecurityMailInput {
+  roles: readonly string[];
+}

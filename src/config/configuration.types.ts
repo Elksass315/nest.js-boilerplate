@@ -48,6 +48,9 @@ export interface AuthConfig {
   maxActiveSessions: number;
   maxFailedLoginAttempts: number;
   loginLockSeconds: number;
+  twoStepCodeTtlSeconds: number;
+  twoStepMaxAttempts: number;
+  recoveryCodeCount: number;
 }
 
 export interface MailConfig {
@@ -62,6 +65,9 @@ export interface MailConfig {
   smtpPassword: string;
   maxRetries: number;
   retryDelayMs: number;
+  workerConcurrency: number;
+  smtpConnectionTimeoutMs: number;
+  smtpSocketTimeoutMs: number;
   branding: {
     primaryColor: string;
     secondaryColor: string;
@@ -83,3 +89,8 @@ export interface AppConfiguration {
   database: DatabaseConfig;
   redis: RedisConfig;
 }
+
+export type MailWorkerConfiguration = Pick<
+  AppConfiguration,
+  'app' | 'logging' | 'mail' | 'database' | 'redis'
+>;

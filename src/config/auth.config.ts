@@ -14,6 +14,9 @@ export const authEnvironmentSchema = {
   AUTH_MAX_ACTIVE_SESSIONS: Joi.number().integer().min(1).max(20).default(5),
   AUTH_MAX_FAILED_LOGIN_ATTEMPTS: Joi.number().integer().min(3).max(20).default(5),
   AUTH_LOGIN_LOCK_SECONDS: Joi.number().integer().min(60).max(86400).default(900),
+  AUTH_TWO_STEP_CODE_TTL_SECONDS: Joi.number().integer().min(60).max(900).default(300),
+  AUTH_TWO_STEP_MAX_ATTEMPTS: Joi.number().integer().min(1).max(10).default(5),
+  AUTH_RECOVERY_CODE_COUNT: Joi.number().integer().min(5).max(20).default(10),
 } satisfies Record<string, Joi.Schema>;
 
 export function createAuthConfig(environment: Record<string, unknown>): AuthConfig {
@@ -28,5 +31,8 @@ export function createAuthConfig(environment: Record<string, unknown>): AuthConf
     maxActiveSessions: readNumber(environment, 'AUTH_MAX_ACTIVE_SESSIONS'),
     maxFailedLoginAttempts: readNumber(environment, 'AUTH_MAX_FAILED_LOGIN_ATTEMPTS'),
     loginLockSeconds: readNumber(environment, 'AUTH_LOGIN_LOCK_SECONDS'),
+    twoStepCodeTtlSeconds: readNumber(environment, 'AUTH_TWO_STEP_CODE_TTL_SECONDS'),
+    twoStepMaxAttempts: readNumber(environment, 'AUTH_TWO_STEP_MAX_ATTEMPTS'),
+    recoveryCodeCount: readNumber(environment, 'AUTH_RECOVERY_CODE_COUNT'),
   };
 }

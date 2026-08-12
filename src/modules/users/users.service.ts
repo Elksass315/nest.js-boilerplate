@@ -6,6 +6,7 @@ import { buildOffsetPage, type OffsetPage } from '@/common/pagination';
 import { AppException } from '@/core/errors/app.exception';
 import { RequestContextService } from '@/core/request-context/request-context.service';
 import { AuthorizationService, type RoleDefinition } from '@/modules/authorization';
+import { MailService } from '@/modules/mail';
 import { isPlainRecord } from '@/shared/helpers/is-plain-record';
 
 import type { UserResponseDto } from './dto/user-response.dto';
@@ -19,6 +20,7 @@ export class UsersService {
   public constructor(
     private readonly repository: UsersRepository,
     private readonly authorization: AuthorizationService,
+    private readonly mail: MailService,
     private readonly requestContext: RequestContextService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
@@ -83,6 +85,12 @@ export class UsersService {
       );
     });
     if (!user) throw new AppException('USER_NOT_FOUND');
+    await this.mail.sendAccountStatusChanged({
+      email: user.email,
+      fullName: user.fullName,
+      status,
+      occurredAt: new Date(),
+    });
     return this.toResponse(user, await this.rolesForUser(user.id));
   }
 
@@ -117,6 +125,12 @@ export class UsersService {
       );
     });
     if (!user) throw new AppException('USER_NOT_FOUND');
+    await this.mail.sendRoleChanged({
+      email: user.email,
+      fullName: user.fullName,
+      roles: requestedRoles.map(({ key }) => key),
+      occurredAt: new Date(),
+    });
     return this.toResponse(user, requestedRoles);
   }
 
@@ -221,6 +235,37 @@ export class UsersService {
         manager,
         user,
         this.auditContext(userId, userId, eventType),
+      );
+    });
+  }
+
+  public async setEmailTwoStep(userId: string, enabled: boolean): Promise<UserWithRoles> {
+    const user = await this.dataSource.transaction(async (manager) => {
+      const current = await this.repository.findByIdForUpdate(manager, userId);
+      if (!current) throw new AppException('USER_NOT_FOUND');
+      current.emailTwoStepEnabled = enabled;
+      current.authVersion += 1;
+      return this.repository.saveWithAudit(
+        manager,
+        current,
+        this.auditContext(
+          userId,
+          userId,
+          enabled ? 'auth.two_step.enabled' : 'auth.two_step.disabled',
+        ),
+      );
+    });
+    return this.toUserWithRoles(user, await this.rolesForUser(user.id));
+  }
+
+  public async auditRecoveryCodesRegenerated(userId: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const user = await this.repository.findByIdForUpdate(manager, userId);
+      if (!user) throw new AppException('USER_NOT_FOUND');
+      await this.repository.saveWithAudit(
+        manager,
+        user,
+        this.auditContext(userId, userId, 'auth.recovery_codes.regenerated'),
       );
     });
   }

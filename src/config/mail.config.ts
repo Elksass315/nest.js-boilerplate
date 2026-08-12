@@ -17,6 +17,9 @@ export const mailEnvironmentSchema = {
   MAIL_SMTP_PASSWORD: Joi.string().allow('').max(512).default(''),
   MAIL_MAX_RETRIES: Joi.number().integer().min(1).max(10).default(5),
   MAIL_RETRY_DELAY_MS: Joi.number().integer().min(1000).max(300000).default(30000),
+  MAIL_WORKER_CONCURRENCY: Joi.number().integer().min(1).max(50).default(5),
+  MAIL_SMTP_CONNECTION_TIMEOUT_MS: Joi.number().integer().min(1000).max(60000).default(10000),
+  MAIL_SMTP_SOCKET_TIMEOUT_MS: Joi.number().integer().min(1000).max(120000).default(30000),
   MAIL_BRANDING_PRIMARY_COLOR: Joi.string()
     .pattern(/^#[0-9A-Fa-f]{6}$/)
     .default('#4F46E5'),
@@ -44,6 +47,9 @@ export function createMailConfig(environment: Record<string, unknown>): MailConf
     smtpPassword: readString(environment, 'MAIL_SMTP_PASSWORD'),
     maxRetries: readNumber(environment, 'MAIL_MAX_RETRIES'),
     retryDelayMs: readNumber(environment, 'MAIL_RETRY_DELAY_MS'),
+    workerConcurrency: readNumber(environment, 'MAIL_WORKER_CONCURRENCY'),
+    smtpConnectionTimeoutMs: readNumber(environment, 'MAIL_SMTP_CONNECTION_TIMEOUT_MS'),
+    smtpSocketTimeoutMs: readNumber(environment, 'MAIL_SMTP_SOCKET_TIMEOUT_MS'),
     branding: {
       primaryColor: readString(environment, 'MAIL_BRANDING_PRIMARY_COLOR'),
       secondaryColor: readString(environment, 'MAIL_BRANDING_SECONDARY_COLOR'),

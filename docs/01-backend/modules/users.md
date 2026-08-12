@@ -46,6 +46,10 @@ this module; foreign keys preserve referential integrity without cross-module en
 Updates run in service-owned transactions. Status/role mutations increment `authVersion` so later
 token validation can invalidate stale authorization state.
 
+Status and role mutations enqueue correlated security emails after persistence succeeds. Payloads
+contain only the target user's public display data and the safe resulting state; audit records and
+logs never contain message bodies or full mail-job payloads.
+
 The last-active-super-admin rule is serialized with PostgreSQL transaction advisory lock
 `users:last-super-admin`, preventing concurrent status or role changes from removing all active
 super administrators.

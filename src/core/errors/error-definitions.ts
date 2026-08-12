@@ -66,6 +66,36 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.refreshTokenReused',
     fallbackMessage: 'Refresh token reuse was detected and the session was revoked',
   },
+  INVALID_TWO_STEP_CHALLENGE: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidTwoStepChallenge',
+    fallbackMessage: 'The two-step challenge is invalid or has expired',
+  },
+  INVALID_TWO_STEP_CODE: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidTwoStepCode',
+    fallbackMessage: 'The two-step verification code is incorrect',
+  },
+  INVALID_RECOVERY_CODE: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidRecoveryCode',
+    fallbackMessage: 'The recovery code is invalid or has already been used',
+  },
+  TWO_STEP_ATTEMPTS_EXCEEDED: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.twoStepAttemptsExceeded',
+    fallbackMessage: 'Too many two-step verification attempts',
+  },
+  TWO_STEP_ALREADY_ENABLED: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.twoStepAlreadyEnabled',
+    fallbackMessage: 'Email two-step verification is already enabled',
+  },
+  TWO_STEP_NOT_ENABLED: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.twoStepNotEnabled',
+    fallbackMessage: 'Email two-step verification is not enabled',
+  },
   EMAIL_NOT_VERIFIED: {
     status: HttpStatus.FORBIDDEN,
     messageKey: 'errors.emailNotVerified',

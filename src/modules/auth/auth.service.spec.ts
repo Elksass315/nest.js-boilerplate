@@ -63,6 +63,13 @@ describe(AuthService.name, () => {
     rotateRefresh: jest.fn(),
     revokeAllForUser: jest.fn(),
     findPage: jest.fn(),
+    issueTwoStepChallenge: jest.fn(),
+    findTwoStepChallengeForUpdate: jest.fn(),
+    saveTwoStepChallenge: jest.fn(),
+    replaceRecoveryCodes: jest.fn(),
+    findRecoveryCodesForUpdate: jest.fn(),
+    consumeRecoveryCode: jest.fn(),
+    deleteRecoveryCodes: jest.fn(),
   };
   const crypto = {
     hashPassword: jest.fn(),
@@ -71,6 +78,10 @@ describe(AuthService.name, () => {
     opaqueToken: jest.fn(),
     hashToken: jest.fn(),
     signAccessToken: jest.fn(),
+    hashSecret: jest.fn(),
+    verifySecret: jest.fn(),
+    numericCode: jest.fn(),
+    recoveryCodes: jest.fn(),
   };
   const users = {
     createPendingUser: jest.fn(),
@@ -80,10 +91,17 @@ describe(AuthService.name, () => {
     recordFailedLogin: jest.fn(),
     recordSuccessfulLogin: jest.fn(),
     changePassword: jest.fn(),
+    setEmailTwoStep: jest.fn(),
+    auditRecoveryCodesRegenerated: jest.fn(),
   };
   const mail = {
     sendEmailVerification: jest.fn(),
     sendPasswordReset: jest.fn(),
+    sendTwoStepCode: jest.fn(),
+    sendNewSession: jest.fn(),
+    sendForcedSessionRevocation: jest.fn(),
+    sendPasswordChanged: jest.fn(),
+    sendTwoStepChanged: jest.fn(),
   };
   const dataSource = {
     transaction: jest.fn(async (work: (manager: object) => Promise<unknown>) => work({})),
@@ -99,6 +117,9 @@ describe(AuthService.name, () => {
       'auth.maxActiveSessions': 5,
       'auth.maxFailedLoginAttempts': 5,
       'auth.loginLockSeconds': 900,
+      'auth.twoStepCodeTtlSeconds': 300,
+      'auth.twoStepMaxAttempts': 5,
+      'auth.recoveryCodeCount': 10,
     };
     const module = await Test.createTestingModule({
       providers: [
@@ -120,6 +141,10 @@ describe(AuthService.name, () => {
     crypto.hashToken.mockReturnValue('h'.repeat(64));
     crypto.signAccessToken.mockResolvedValue('access-token');
     crypto.verifyPassword.mockResolvedValue(true);
+    crypto.hashSecret.mockResolvedValue('$argon2id$secret');
+    crypto.verifySecret.mockResolvedValue(true);
+    crypto.numericCode.mockReturnValue('482913');
+    crypto.recoveryCodes.mockReturnValue(['7F3A-91BC-2D44-8E10']);
     users.createPendingUser.mockResolvedValue(user);
     users.recordSuccessfulLogin.mockResolvedValue(user);
     users.findByIdForAuthentication.mockResolvedValue(user);
@@ -185,6 +210,105 @@ describe(AuthService.name, () => {
       tokenType: 'Bearer',
       expiresIn: 900,
     });
+  });
+
+  it('issues an emailed challenge instead of a session when two-step is enabled', async () => {
+    const protectedUser = { ...user, emailTwoStepEnabled: true };
+    users.findForAuthentication.mockResolvedValue(protectedUser);
+    users.recordSuccessfulLogin.mockResolvedValue(protectedUser);
+
+    const result = await service.login(user.email, 'correct-password');
+
+    expect(result).toEqual({
+      requiresTwoStep: true,
+      challengeToken: 'r'.repeat(43),
+      expiresIn: 300,
+    });
+    expect(repository.issueTwoStepChallenge).toHaveBeenCalledWith(
+      expect.anything(),
+      user.id,
+      'login',
+      'h'.repeat(64),
+      '$argon2id$secret',
+      expect.any(Date),
+    );
+    expect(mail.sendTwoStepCode).toHaveBeenCalledWith(
+      expect.objectContaining({ code: '482913', purpose: 'login' }),
+    );
+    expect(repository.createSession).not.toHaveBeenCalled();
+  });
+
+  it('consumes a valid email challenge and creates the protected session', async () => {
+    const protectedUser = { ...user, emailTwoStepEnabled: true };
+    users.findByIdForAuthentication.mockResolvedValue(protectedUser);
+    repository.findTwoStepChallengeForUpdate.mockResolvedValue({
+      userId: user.id,
+      purpose: 'login',
+      codeHash: '$argon2id$secret',
+      attempts: 0,
+      consumedAt: null,
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    });
+
+    const result = await service.completeLoginTwoStep('c'.repeat(43), {
+      method: 'email_code',
+      code: '482913',
+    });
+
+    expect(result.accessToken).toBe('access-token');
+    expect(repository.saveTwoStepChallenge).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ consumedAt: expect.any(Date) }),
+    );
+    expect(mail.sendNewSession).toHaveBeenCalled();
+  });
+
+  it('persists failed two-step attempts before returning a stable error', async () => {
+    const challenge = {
+      userId: user.id,
+      purpose: 'login',
+      codeHash: '$argon2id$secret',
+      attempts: 0,
+      consumedAt: null,
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    };
+    repository.findTwoStepChallengeForUpdate.mockResolvedValue(challenge);
+    crypto.verifySecret.mockResolvedValue(false);
+
+    await expectErrorCode(
+      service.completeLoginTwoStep('c'.repeat(43), {
+        method: 'email_code',
+        code: '000000',
+      }),
+      'INVALID_TWO_STEP_CODE',
+    );
+
+    expect(challenge.attempts).toBe(1);
+    expect(repository.saveTwoStepChallenge).toHaveBeenCalled();
+  });
+
+  it('enables two-step, replaces recovery codes, and revokes existing sessions', async () => {
+    repository.findTwoStepChallengeForUpdate.mockResolvedValue({
+      userId: user.id,
+      purpose: 'enable',
+      codeHash: '$argon2id$secret',
+      attempts: 0,
+      consumedAt: null,
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    });
+    users.setEmailTwoStep.mockResolvedValue({ ...user, emailTwoStepEnabled: true });
+
+    const result = await service.enableTwoStep(user.id, 'c'.repeat(43), '482913');
+
+    expect(result.recoveryCodes).toEqual(['7F3A-91BC-2D44-8E10']);
+    expect(repository.replaceRecoveryCodes).toHaveBeenCalledWith(expect.anything(), user.id, [
+      '$argon2id$secret',
+    ]);
+    expect(users.setEmailTwoStep).toHaveBeenCalledWith(user.id, true);
+    expect(repository.revokeAllForUser).toHaveBeenCalled();
+    expect(mail.sendTwoStepChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true }),
+    );
   });
 
   it('uses a dummy verification for unknown credentials', async () => {

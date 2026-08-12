@@ -2,9 +2,9 @@
 
 ## Purpose and scope
 
-`mail` owns typed mail-job production, template rendering, sender/branding configuration, retry and
-retention policy, and correlation propagation. It does not own auth token generation or SMTP worker
-process lifecycle. The worker consumes the same job/template contract in the email-security slice.
+`mail` owns typed mail-job production, template rendering, sender/branding configuration, delivery
+records, retry/retention policy, SMTP delivery, worker lifecycle, and correlation propagation. It
+does not own auth tokens, two-step policy, or user state.
 
 ## Structure and public surface
 
@@ -19,8 +19,9 @@ always renders shared `partials/header.hbs` and `partials/footer.hbs`. Typed con
 primary/secondary colors, optional logo, company name, and support email. Handlebars escapes all
 context values; only the already-rendered body occupies the layout's intentional raw slot.
 
-Current templates are `email-verification` and `reset-password`. New templates must use the common
-layout, receive synthetic renderer tests, and never embed environment-specific hosts.
+Templates cover email verification, password reset, two-step codes, new sessions, forced session
+revocation, password changes, two-step changes, account-status changes, and role changes. Every
+template uses the common layout, has renderer tests, and never embeds environment-specific hosts.
 
 ## Queue and security policy
 
@@ -29,12 +30,19 @@ retention, and 24-hour failed-job retention. Each job carries `x-correlation-id`
 contains the recipient and one-time action URL until processing; logs must never include those
 fields, passwords, message bodies, SMTP credentials, or raw tokens.
 
-`MAIL_ENABLED=false` skips job production safely. SMTP connection variables are validated and owned
-by mail configuration but consumed only by the separate worker. Production deployment must run that
-worker before enabling mail.
+`MAIL_ENABLED=false` skips job production and SMTP startup safely. The separate `mail-worker`
+process verifies SMTP before consuming jobs, uses configured concurrency, and closes BullMQ/SMTP
+connections gracefully on SIGINT/SIGTERM. BullMQ retries errors five times with exponential backoff;
+completed jobs expire after one hour and failed jobs after 24 hours.
+
+`mail_deliveries` tracks queued, processing, sent, and terminal failure states. It stores a hashed
+recipient fingerprint, masked recipient, template, safe error code, attempt count, provider,
+correlation ID, and timestamps. It never stores a message body, token, code, SMTP response, or full
+recipient. Worker logs contain only delivery/job/template identifiers, attempt, correlation ID, and
+safe error type.
 
 ## Test strategy and change impact
 
-Tests verify queue payload policy, correlation propagation, disabled behavior, action URLs, shared
-header/footer rendering, branding, and HTML escaping. The email-security branch adds SMTP/Mailpit,
-worker retry, delivery logging, and integration coverage without changing auth contracts.
+Tests verify queue payload policy, correlation propagation, disabled behavior, action URLs, every
+security template, shared header/footer rendering, escaping, worker retry/failure behavior, delivery
+state, and SMTP delivery through Mailpit.

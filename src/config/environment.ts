@@ -9,7 +9,7 @@ import { createRedisConfig, redisEnvironmentSchema } from '@/redis/config/redis.
 
 import { appEnvironmentSchema, createAppConfig } from './app.config';
 import { authEnvironmentSchema, createAuthConfig } from './auth.config';
-import type { AppConfiguration } from './configuration.types';
+import type { AppConfiguration, MailWorkerConfiguration } from './configuration.types';
 import { corsEnvironmentSchema, createCorsConfig } from './cors.config';
 import { createI18nConfig, i18nEnvironmentSchema, parseSupportedLanguages } from './i18n.config';
 import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config';
@@ -43,11 +43,28 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'SWAGGER_DOCS_ACCESS cannot be public in staging or production',
     'environment.swaggerUnusedCredentials':
       'SWAGGER_DOCS_USERNAME and SWAGGER_DOCS_PASSWORD must be empty unless SWAGGER_DOCS_ACCESS is basic',
+    'environment.smtpCredentials':
+      'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
   });
 
 const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...databaseEnvironmentSchema,
 });
+
+const mailWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
+  ...appEnvironmentSchema,
+  ...loggingEnvironmentSchema,
+  ...mailEnvironmentSchema,
+  ...databaseEnvironmentSchema,
+  ...redisEnvironmentSchema,
+})
+  .custom(validateMailWorkerContradictions)
+  .messages({
+    'environment.redisPassword':
+      'REDIS_PASSWORD must contain at least 16 characters in staging and production',
+    'environment.smtpCredentials':
+      'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
+  });
 
 function validateApiContradictions(
   environment: Record<string, unknown>,
@@ -84,6 +101,9 @@ function validateApiContradictions(
   if (isManaged && (typeof redisPassword !== 'string' || redisPassword.length < 16)) {
     return helpers.error('environment.redisPassword');
   }
+  if (!smtpCredentialsAgree(environment)) {
+    return helpers.error('environment.smtpCredentials');
+  }
   if (
     typeof fallbackLanguage !== 'string' ||
     typeof supportedLanguages !== 'string' ||
@@ -92,6 +112,32 @@ function validateApiContradictions(
     return helpers.error('environment.fallbackLanguage');
   }
   return environment;
+}
+
+function validateMailWorkerContradictions(
+  environment: Record<string, unknown>,
+  helpers: Joi.CustomHelpers,
+): Record<string, unknown> | Joi.ErrorReport {
+  const nodeEnvironment = environment['NODE_ENV'];
+  const redisPassword = environment['REDIS_PASSWORD'];
+  if (
+    (nodeEnvironment === 'staging' || nodeEnvironment === 'production') &&
+    (typeof redisPassword !== 'string' || redisPassword.length < 16)
+  ) {
+    return helpers.error('environment.redisPassword');
+  }
+  if (!smtpCredentialsAgree(environment)) {
+    return helpers.error('environment.smtpCredentials');
+  }
+  return environment;
+}
+
+function smtpCredentialsAgree(environment: Record<string, unknown>): boolean {
+  const username = environment['MAIL_SMTP_USERNAME'];
+  const password = environment['MAIL_SMTP_PASSWORD'];
+  const hasUsername = typeof username === 'string' && username.length > 0;
+  const hasPassword = typeof password === 'string' && password.length > 0;
+  return hasUsername === hasPassword;
 }
 
 function validateWithSchema(
@@ -140,4 +186,21 @@ export function loadDatabaseConfiguration(
   input: Record<string, unknown> = process.env,
 ): DatabaseConfig {
   return createDatabaseConfig(validateDatabaseEnvironment(input));
+}
+
+export function validateMailWorkerEnvironment(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  return validateWithSchema(mailWorkerEnvironmentSchema, input);
+}
+
+export function loadMailWorkerConfiguration(): MailWorkerConfiguration {
+  const environment = validateMailWorkerEnvironment(process.env);
+  return {
+    app: createAppConfig(environment),
+    logging: createLoggingConfig(environment),
+    mail: createMailConfig(environment),
+    database: createDatabaseConfig(environment),
+    redis: createRedisConfig(environment),
+  };
 }

@@ -11,13 +11,21 @@ import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
 import { AuthRefreshTokenEntity } from './entities/auth-refresh-token.entity';
+import { AuthRecoveryCodeEntity } from './entities/auth-recovery-code.entity';
 import { AuthSessionEntity } from './entities/auth-session.entity';
+import { AuthTwoStepChallengeEntity } from './entities/auth-two-step-challenge.entity';
 import { AccessTokenGuard } from './guards/access-token.guard';
 import { SessionsController } from './sessions.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AuthSessionEntity, AuthRefreshTokenEntity, AuthActionTokenEntity]),
+    TypeOrmModule.forFeature([
+      AuthSessionEntity,
+      AuthRefreshTokenEntity,
+      AuthActionTokenEntity,
+      AuthTwoStepChallengeEntity,
+      AuthRecoveryCodeEntity,
+    ]),
     UsersModule,
     MailModule,
   ],

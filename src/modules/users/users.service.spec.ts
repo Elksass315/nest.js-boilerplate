@@ -3,6 +3,7 @@ import { getDataSourceToken } from '@nestjs/typeorm';
 
 import { RequestContextService } from '@/core/request-context/request-context.service';
 import { AuthorizationService, type RoleDefinition } from '@/modules/authorization';
+import { MailService } from '@/modules/mail';
 
 import { UserEntity } from './entities/user.entity';
 import { UsersRepository } from './users.repository';
@@ -68,6 +69,10 @@ describe(UsersService.name, () => {
     getRequestId: jest.fn(() => 'request-1'),
     getCorrelationId: jest.fn(() => 'correlation-1'),
   };
+  const mail = {
+    sendAccountStatusChanged: jest.fn(),
+    sendRoleChanged: jest.fn(),
+  };
   const dataSource = {
     transaction: jest.fn(async (work: (manager: never) => Promise<unknown>) => work({} as never)),
   };
@@ -79,6 +84,7 @@ describe(UsersService.name, () => {
         UsersService,
         { provide: UsersRepository, useValue: repository },
         { provide: AuthorizationService, useValue: authorization },
+        { provide: MailService, useValue: mail },
         { provide: RequestContextService, useValue: context },
         { provide: getDataSourceToken(), useValue: dataSource },
       ],
@@ -161,6 +167,23 @@ describe(UsersService.name, () => {
         correlationId: 'correlation-1',
       }),
     );
+    expect(mail.sendRoleChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ email: user.email, roles: ['user'] }),
+    );
+  });
+
+  it('notifies the user after a status change is persisted', async () => {
+    repository.findById.mockResolvedValue(user);
+    repository.hasRole.mockResolvedValue(false);
+    repository.updateStatus.mockResolvedValue(
+      Object.assign(new UserEntity(), user, { status: 'suspended' as const }),
+    );
+
+    await service.updateStatus(user.id, 'suspended', superAdminRole.id);
+
+    expect(mail.sendAccountStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ email: user.email, status: 'suspended' }),
+    );
   });
 
   it('activates verified users and records correlated authentication state', async () => {
@@ -213,6 +236,28 @@ describe(UsersService.name, () => {
       expect.anything(),
       mutable,
       expect.objectContaining({ eventType: 'auth.password.changed' }),
+    );
+  });
+
+  it('changes email two-step state, increments authVersion, and audits correlation', async () => {
+    const mutable = Object.assign(new UserEntity(), user);
+    repository.findByIdForUpdate.mockResolvedValue(mutable);
+    repository.saveWithAudit.mockImplementation((_manager: unknown, value: UserEntity) =>
+      Promise.resolve(value),
+    );
+
+    const updated = await service.setEmailTwoStep(user.id, true);
+
+    expect(updated.emailTwoStepEnabled).toBe(true);
+    expect(updated.authVersion).toBe(2);
+    expect(repository.saveWithAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ emailTwoStepEnabled: true, authVersion: 2 }),
+      expect.objectContaining({
+        eventType: 'auth.two_step.enabled',
+        requestId: 'request-1',
+        correlationId: 'correlation-1',
+      }),
     );
   });
 });

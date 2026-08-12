@@ -43,6 +43,16 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      mailpit:
+        image: axllent/mailpit:v1.30.5@sha256:b868afa176bfd6cce2323ea316cd99ccad77915e51e595748f6d786700ecf109
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-cmd "/mailpit readyz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       NODE_ENV: test
       APP_NAME: NestJS SaaS API
@@ -69,6 +79,11 @@ jobs:
       REDIS_CONNECT_TIMEOUT_MS: 5000
       RATE_LIMIT_TTL_MS: 60000
       RATE_LIMIT_MAX: 100
+      MAIL_ENABLED: true
+      MAIL_SMTP_HOST: localhost
+      MAIL_SMTP_PORT: 1025
+      MAIL_SMTP_SECURE: false
+      MAIL_ACTION_BASE_URL: http://localhost:3000
     steps:
       - name: Check out repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
