@@ -37,6 +37,40 @@ export interface I18nConfig {
   headerLanguage: string;
 }
 
+export interface AuthConfig {
+  accessTokenSecret: string;
+  tokenIssuer: string;
+  tokenAudience: string;
+  accessTokenTtlSeconds: number;
+  sessionTtlSeconds: number;
+  verificationTokenTtlSeconds: number;
+  passwordResetTokenTtlSeconds: number;
+  maxActiveSessions: number;
+  maxFailedLoginAttempts: number;
+  loginLockSeconds: number;
+}
+
+export interface MailConfig {
+  enabled: boolean;
+  fromAddress: string;
+  fromName: string;
+  actionBaseUrl: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUsername: string;
+  smtpPassword: string;
+  maxRetries: number;
+  retryDelayMs: number;
+  branding: {
+    primaryColor: string;
+    secondaryColor: string;
+    logoUrl: string;
+    companyName: string;
+    supportEmail: string;
+  };
+}
+
 export interface AppConfiguration {
   app: AppConfig;
   cors: CorsConfig;
@@ -44,6 +78,8 @@ export interface AppConfiguration {
   swagger: SwaggerConfig;
   rateLimit: RateLimitConfig;
   i18n: I18nConfig;
+  auth: AuthConfig;
+  mail: MailConfig;
   database: DatabaseConfig;
   redis: RedisConfig;
 }

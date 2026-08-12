@@ -41,9 +41,14 @@ runner. Applied seed content must never be edited; policy changes require a new 
 
 ## Security and observability
 
-The principal carries only user ID, auth version, role keys, and permission keys. The future auth
-guard builds it from validated session/account state. Authorization errors use the global localized
-error contract and retain request/correlation IDs. No credentials or personal data enter RBAC logs.
+The authenticated principal is populated by the auth access-token guard and contains current user
+ID, optional session ID, auth version, role keys, and resolved permissions. The session ID is present
+for token-authenticated requests and allows logout/session workflows without exposing persistence
+entities. Authorization continues to trust only the current principal produced from live user and
+session state.
+
+Authorization errors use the global localized error contract and retain request/correlation IDs. No
+credentials or personal data enter RBAC logs.
 
 ## Test strategy and change impact
 

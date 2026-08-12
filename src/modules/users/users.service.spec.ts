@@ -56,6 +56,8 @@ describe(UsersService.name, () => {
     lockSuperAdminPolicy: jest.fn(),
     hasRole: jest.fn(),
     countActiveUsersWithRole: jest.fn(),
+    findByIdForUpdate: jest.fn(),
+    saveWithAudit: jest.fn(),
   };
   const authorization = {
     resolveRoles: jest.fn(),
@@ -158,6 +160,59 @@ describe(UsersService.name, () => {
         actorUserId: superAdminRole.id,
         correlationId: 'correlation-1',
       }),
+    );
+  });
+
+  it('activates verified users and records correlated authentication state', async () => {
+    const pending = Object.assign(new UserEntity(), user, {
+      status: 'pending_verification' as const,
+      emailVerifiedAt: null,
+    });
+    repository.findByIdForUpdate.mockResolvedValue(pending);
+    repository.saveWithAudit.mockImplementation((_manager: unknown, value: UserEntity) =>
+      Promise.resolve(value),
+    );
+
+    const verified = await service.verifyEmail(user.id);
+    expect(verified.status).toBe('active');
+    expect(repository.saveWithAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ emailVerifiedAt: expect.any(Date) }),
+      expect.objectContaining({ eventType: 'auth.email.verified', correlationId: 'correlation-1' }),
+    );
+  });
+
+  it('locks repeated failed logins and clears counters after success', async () => {
+    const mutable = Object.assign(new UserEntity(), user, {
+      failedLoginCount: 4,
+      lockedUntil: null,
+    });
+    repository.findByIdForUpdate.mockResolvedValue(mutable);
+    repository.saveWithAudit.mockImplementation((_manager: unknown, value: UserEntity) =>
+      Promise.resolve(value),
+    );
+
+    await service.recordFailedLogin(user.id, 5, 900);
+    expect(mutable.lockedUntil).toBeInstanceOf(Date);
+
+    const authenticated = await service.recordSuccessfulLogin(user.id);
+    expect(authenticated.failedLoginCount).toBe(0);
+    expect(authenticated.lockedUntil).toBeNull();
+  });
+
+  it('changes a password, increments authVersion, and audits the event', async () => {
+    const mutable = Object.assign(new UserEntity(), user);
+    repository.findByIdForUpdate.mockResolvedValue(mutable);
+    repository.saveWithAudit.mockResolvedValue(mutable);
+
+    await service.changePassword(user.id, '$argon2id$new', 'auth.password.changed');
+
+    expect(mutable.passwordHash).toBe('$argon2id$new');
+    expect(mutable.authVersion).toBe(2);
+    expect(repository.saveWithAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      mutable,
+      expect.objectContaining({ eventType: 'auth.password.changed' }),
     );
   });
 });

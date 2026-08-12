@@ -3,8 +3,8 @@
 Copy `.env.example` for development. Managed environments inject secrets outside Git.
 
 Configuration is namespaced and typed by domain: app, CORS, logging, Swagger, rate limits, i18n,
-database, and Redis. Each domain owns its schema fragment, loader, contract, tests, and environment
-documentation. One composed validator creates the API configuration.
+database, Redis, auth, and mail. Each domain owns its schema fragment, loader, contract, tests, and
+environment documentation. One composed validator creates the API configuration.
 
 Executables validate only their dependencies:
 
@@ -14,8 +14,17 @@ Executables validate only their dependencies:
 - Future workers validate app identity, logging, Redis, and their owned settings.
 
 Raw `process.env` access is restricted to configuration and CLI entrypoints. Application code uses
-typed `ConfigService` paths such as `app.port` and `database.host`. Missing, malformed, insecure, or
-contradictory values fail before dependency connections.
+typed `ConfigService` paths such as `app.port`, `auth.accessTokenTtlSeconds`, and `mail.branding`.
+Missing, malformed, insecure, or contradictory values fail before dependency connections.
+
+`AUTH_ACCESS_TOKEN_SECRET` is mandatory and contains at least 32 characters. Access tokens default
+to 15 minutes; absolute session lifetime defaults to 14 days. Verification tokens default to one
+day, reset tokens to 30 minutes, active sessions to five, and password lockout to five failed
+attempts for 15 minutes.
+
+Mail configuration owns queue name, sender, public action URL, SMTP worker connection values, retry
+policy, and branding. `MAIL_ENABLED=false` safely suppresses queue production. When enabled, auth
+queues named HBS templates with correlation context; no SMTP password or token is logged.
 
 When configuration changes, update schema, tests, `.env.example`, Compose/CI/deployment inputs, and
 this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments

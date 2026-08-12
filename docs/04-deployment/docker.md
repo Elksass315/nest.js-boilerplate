@@ -18,3 +18,8 @@ and does not run migrations or seeds in its entrypoint. Deployment runs the hard
 `seed` one-shot services before rolling out the API. Local PostgreSQL and Redis ports bind only to
 `127.0.0.1`; deployment definitions expose neither service. `pnpm docker:reset -- --confirm` is the only
 supported destructive local volume reset.
+
+Redis uses append-only persistence and `noeviction`. BullMQ must never run against an eviction
+policy because evicted queue keys can corrupt job state. Capacity alerts and scaling must address
+memory pressure before Redis reaches its configured limit; deployment must not switch to an LRU/LFU
+policy while queues are enabled.

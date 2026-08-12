@@ -41,6 +41,46 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.lastSuperAdmin',
     fallbackMessage: 'At least one active super administrator must remain',
   },
+  INVALID_CREDENTIALS: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidCredentials',
+    fallbackMessage: 'Email or password is incorrect',
+  },
+  ACCOUNT_LOCKED: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.accountLocked',
+    fallbackMessage: 'The account is temporarily locked',
+  },
+  INVALID_OR_EXPIRED_TOKEN: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidOrExpiredToken',
+    fallbackMessage: 'The token is invalid or has expired',
+  },
+  INVALID_REFRESH_TOKEN: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidRefreshToken',
+    fallbackMessage: 'The refresh token is invalid or expired',
+  },
+  REFRESH_TOKEN_REUSED: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.refreshTokenReused',
+    fallbackMessage: 'Refresh token reuse was detected and the session was revoked',
+  },
+  EMAIL_NOT_VERIFIED: {
+    status: HttpStatus.FORBIDDEN,
+    messageKey: 'errors.emailNotVerified',
+    fallbackMessage: 'Verify the email address before signing in',
+  },
+  ACCOUNT_SUSPENDED: {
+    status: HttpStatus.FORBIDDEN,
+    messageKey: 'errors.accountSuspended',
+    fallbackMessage: 'The account is suspended',
+  },
+  SESSION_NOT_FOUND: {
+    status: HttpStatus.NOT_FOUND,
+    messageKey: 'errors.sessionNotFound',
+    fallbackMessage: 'The requested session was not found',
+  },
   UNAUTHORIZED: {
     status: HttpStatus.UNAUTHORIZED,
     messageKey: 'errors.unauthorized',

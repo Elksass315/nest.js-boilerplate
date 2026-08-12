@@ -21,3 +21,9 @@ audits, roles, permissions, and role-permission mappings with explicit checks, i
 keys. Seed `002-rbac` installs deterministic fixed RBAC definitions. The seed contains no user or
 bootstrap-super-admin credentials; that optional behavior requires explicit seed configuration in a
 later auth change.
+
+Auth migration `1786665600000-CreateAuthSessions` creates absolute-lifetime sessions, append-only
+rotating refresh-token records, and single-use verification/reset action tokens. Unique token
+hashes, status/purpose checks, ownership foreign keys, and stable session indexes are enforced in
+PostgreSQL. Only SHA-256 token hashes are stored. Migration reversal removes auth action tokens,
+refresh tokens, then sessions without modifying users or RBAC state.

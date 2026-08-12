@@ -25,3 +25,9 @@ Identity foundation errors distinguish missing users/roles, normalized-email con
 last-active-super-admin invariant. They use `USER_NOT_FOUND`, `ROLE_NOT_FOUND`,
 `EMAIL_ALREADY_REGISTERED`, and `LAST_SUPER_ADMIN`; repositories never leak PostgreSQL constraint
 names or credential/account internals.
+
+Authentication errors are condition-specific without leaking secrets or distinguishing unknown
+recovery emails. Invalid credentials and action/refresh tokens use 401; verified-account policy
+failures use 403; session ownership failures use 404. `REFRESH_TOKEN_REUSED` also signals that the
+affected session was revoked. Exact English fallbacks remain aligned across the registry, Swagger,
+translations, and error catalog.
