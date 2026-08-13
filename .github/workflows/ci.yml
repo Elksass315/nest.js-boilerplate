@@ -122,6 +122,7 @@ jobs:
           pnpm test:tools
           pnpm migration:show
           pnpm migration:run
+          pnpm seed:run
           pnpm test:e2e
           pnpm build
 

@@ -5,7 +5,9 @@ Jenkins deploys an already-tested image by digest; it never builds or rsyncs sou
 
 Pull-request CI runs frozen install, formatting, lint, strict type checking, architecture/API docs
 checks, tests and coverage, dependency policies, Compose/Docker builds, secret scanning, and image
-scanning. Main and scheduled workflows add CodeQL, SBOM, license, and deeper scans.
+scanning. Integration setup applies migrations and immutable seeds before E2E so fixed reference data,
+including RBAC roles and permissions, matches a real deployment. Main and scheduled workflows add
+CodeQL, SBOM, license, and deeper scans.
 
 The secret-scan job examines full Git history with Gitleaks. Confirmed false positives are ignored
 only by their exact finding fingerprint in `.gitleaksignore`; broad path, rule, commit, or regular
