@@ -29,7 +29,17 @@ export class TemplateRendererService implements OnModuleInit {
     this.layout = Handlebars.compile(
       readFileSync(path.join(this.directory, 'layouts', 'base.hbs'), 'utf8'),
     );
-    for (const template of ['email-verification', 'reset-password'] as const) {
+    for (const template of [
+      'email-verification',
+      'reset-password',
+      'two-step-code',
+      'new-session',
+      'session-revoked',
+      'password-changed',
+      'two-step-changed',
+      'account-status-changed',
+      'role-changed',
+    ] as const) {
       this.templates.set(
         template,
         Handlebars.compile(

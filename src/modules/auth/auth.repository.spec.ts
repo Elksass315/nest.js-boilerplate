@@ -4,8 +4,10 @@ import type { EntityManager } from 'typeorm';
 
 import { AuthRepository } from './auth.repository';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
+import { AuthRecoveryCodeEntity } from './entities/auth-recovery-code.entity';
 import { AuthRefreshTokenEntity } from './entities/auth-refresh-token.entity';
 import { AuthSessionEntity } from './entities/auth-session.entity';
+import { AuthTwoStepChallengeEntity } from './entities/auth-two-step-challenge.entity';
 
 describe(AuthRepository.name, () => {
   const session = Object.assign(new AuthSessionEntity(), {
@@ -48,10 +50,24 @@ describe(AuthRepository.name, () => {
     findOne: jest.fn(),
     createQueryBuilder: jest.fn(() => actionQuery),
   };
+  const challengeStore = {
+    create: jest.fn((value: object) => Object.assign(new AuthTwoStepChallengeEntity(), value)),
+    save: jest.fn((value: AuthTwoStepChallengeEntity) => Promise.resolve(value)),
+    findOne: jest.fn(),
+    createQueryBuilder: jest.fn(() => actionQuery),
+  };
+  const recoveryStore = {
+    create: jest.fn((value: object) => Object.assign(new AuthRecoveryCodeEntity(), value)),
+    save: jest.fn((value: AuthRecoveryCodeEntity) => Promise.resolve(value)),
+    find: jest.fn(),
+    delete: jest.fn(),
+  };
   const manager = {
     getRepository: jest.fn((entity: unknown) => {
       if (entity === AuthSessionEntity) return sessionStore;
       if (entity === AuthRefreshTokenEntity) return refreshStore;
+      if (entity === AuthTwoStepChallengeEntity) return challengeStore;
+      if (entity === AuthRecoveryCodeEntity) return recoveryStore;
       return actionStore;
     }),
     query: jest.fn().mockResolvedValue([]),
@@ -144,5 +160,30 @@ describe(AuthRepository.name, () => {
     const revoked = Object.assign(new AuthSessionEntity(), session, { revokedAt: new Date() });
     await repository.revokeSession(manager, revoked, 'logout');
     expect(sessionStore.save).not.toHaveBeenCalled();
+  });
+
+  it('replaces challenges and stores only hashed recovery codes', async () => {
+    await repository.issueTwoStepChallenge(
+      manager,
+      session.userId,
+      'enable',
+      't'.repeat(64),
+      '$argon2id$code',
+      session.expiresAt,
+    );
+    expect(actionQuery.execute).toHaveBeenCalled();
+    expect(challengeStore.save).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'enable', tokenHash: 't'.repeat(64) }),
+    );
+
+    await repository.replaceRecoveryCodes(manager, session.userId, [
+      '$argon2id$recovery-1',
+      '$argon2id$recovery-2',
+    ]);
+    expect(recoveryStore.delete).toHaveBeenCalledWith({ userId: session.userId });
+    expect(recoveryStore.save).toHaveBeenCalledWith([
+      expect.objectContaining({ codeHash: '$argon2id$recovery-1' }),
+      expect.objectContaining({ codeHash: '$argon2id$recovery-2' }),
+    ]);
   });
 });

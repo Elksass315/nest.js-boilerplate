@@ -2,8 +2,9 @@
 
 A production-ready, single-tenant NestJS 11 foundation with strict TypeScript, PostgreSQL,
 TypeORM, Redis, structured logging, health checks, hardened containers, and enforced engineering
-workflows. Phase 2 adds fixed RBAC, users, credential authentication, rotating sessions, and the
-correlated mail-job producer while preserving the flat modular-monolith architecture.
+workflows. Phase 2 adds fixed RBAC, users, credential authentication, rotating sessions, email
+two-step verification, recovery codes, and a correlated SMTP mail worker while preserving the flat
+modular-monolith architecture.
 
 ## Requirements
 
@@ -25,6 +26,7 @@ On macOS/Linux, use `cp .env.example .env`. The API listens on `http://localhost
 - Liveness: `GET /health/live`
 - Readiness: `GET /health/ready`
 - Swagger in development: `/docs` (`SWAGGER_DOCS_ACCESS=public`)
+- Mailpit UI in development: `http://localhost:8025`
 - Future business endpoints: `/api/v1`
 
 Useful commands:

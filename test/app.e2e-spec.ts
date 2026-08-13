@@ -1,13 +1,17 @@
-import type { INestApplication } from '@nestjs/common';
+import type { INestApplication, INestApplicationContext } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
 import request from 'supertest';
+import { DataSource } from 'typeorm';
 
 import { createApplication } from '../src/bootstrap';
 import { AuthService } from '../src/modules/auth';
+import { MailWorkerModule } from '../src/mail-worker.module';
 
 jest.setTimeout(30_000);
 
 describe('platform foundation (e2e)', () => {
   let app: INestApplication;
+  let mailWorker: INestApplicationContext;
   const originalSwaggerAccess = process.env['SWAGGER_DOCS_ACCESS'];
   const originalAuthSecret = process.env['AUTH_ACCESS_TOKEN_SECRET'];
   const originalMailEnabled = process.env['MAIL_ENABLED'];
@@ -15,12 +19,17 @@ describe('platform foundation (e2e)', () => {
   beforeAll(async () => {
     process.env['SWAGGER_DOCS_ACCESS'] = 'public';
     process.env['AUTH_ACCESS_TOKEN_SECRET'] = 'e2e-only-access-token-secret-at-least-32-characters';
-    process.env['MAIL_ENABLED'] = 'false';
+    process.env['MAIL_ENABLED'] = 'true';
+    process.env['MAIL_SMTP_HOST'] = process.env['MAIL_SMTP_HOST'] ?? 'localhost';
+    process.env['MAIL_SMTP_PORT'] = process.env['MAIL_SMTP_PORT'] ?? '1025';
     app = await createApplication();
     await app.init();
+    mailWorker = await NestFactory.createApplicationContext(MailWorkerModule, { logger: false });
+    await fetch('http://127.0.0.1:8025/api/v1/messages', { method: 'DELETE' });
   });
 
   afterAll(async () => {
+    await mailWorker.close();
     await app.close();
     if (originalSwaggerAccess === undefined) {
       delete process.env['SWAGGER_DOCS_ACCESS'];
@@ -132,6 +141,8 @@ describe('platform foundation (e2e)', () => {
     expect(document.paths).toHaveProperty('/api/v1/authorization/roles');
     expect(document.paths).toHaveProperty('/api/v1/auth/register');
     expect(document.paths).toHaveProperty('/api/v1/auth/refresh');
+    expect(document.paths).toHaveProperty('/api/v1/auth/login/two-step');
+    expect(document.paths).toHaveProperty('/api/v1/auth/two-step/enable/confirm');
     expect(document.paths).toHaveProperty('/api/v1/sessions');
     expect(document.paths?.['/api/v1/users/{id}/roles']?.put?.responses?.['404']?.content).toEqual(
       expect.objectContaining({
@@ -146,7 +157,7 @@ describe('platform foundation (e2e)', () => {
   });
 
   it('registers, verifies, logs in, lists sessions, rotates refresh, and detects reuse', async () => {
-    const email = 'identity-e2e@example.com';
+    const email = `identity-e2e-${String(Date.now())}@example.com`;
     const password = 'Correct-Horse-Battery-2026!';
     await request(app.getHttpServer())
       .post('/api/v1/auth/register')
@@ -154,6 +165,12 @@ describe('platform foundation (e2e)', () => {
       .send({ fullName: 'Identity E2E', email, password })
       .expect('x-correlation-id', 'e2e-auth-register')
       .expect(201);
+
+    await waitForMailSubject('Verify your email address');
+    await expect(waitForSentDelivery(app.get(DataSource), 'email-verification')).resolves.toEqual({
+      status: 'sent',
+      correlation_id: 'e2e-auth-register',
+    });
 
     const delivery = await app.get(AuthService).resendVerification(email);
     expect(delivery).not.toBeNull();
@@ -201,5 +218,108 @@ describe('platform foundation (e2e)', () => {
         correlationId: 'e2e-refresh-reuse',
       }),
     );
+
+    const enrollmentLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email, password })
+      .expect(200);
+    const enrollment = await request(app.getHttpServer())
+      .post('/api/v1/auth/two-step/enable/request')
+      .set('authorization', `Bearer ${String(enrollmentLogin.body.accessToken)}`)
+      .set('x-correlation-id', 'e2e-two-step-enrollment')
+      .send({ currentPassword: password })
+      .expect(200);
+    const enrollmentMail = await waitForMailSubject('Your security code');
+    const enrollmentCode = extractEmailCode(enrollmentMail.HTML);
+    const enabled = await request(app.getHttpServer())
+      .post('/api/v1/auth/two-step/enable/confirm')
+      .set('authorization', `Bearer ${String(enrollmentLogin.body.accessToken)}`)
+      .send({ challengeToken: enrollment.body.challengeToken, code: enrollmentCode })
+      .expect(200);
+    expect(enabled.body.recoveryCodes).toHaveLength(10);
+
+    const protectedLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email, password })
+      .expect(200);
+    expect(protectedLogin.body).toEqual(
+      expect.objectContaining({ requiresTwoStep: true, challengeToken: expect.any(String) }),
+    );
+    const recoveryCode = String(enabled.body.recoveryCodes[0]);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login/two-step')
+      .send({
+        method: 'recovery_code',
+        challengeToken: protectedLogin.body.challengeToken,
+        recoveryCode,
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual(expect.objectContaining({ accessToken: expect.any(String) }));
+      });
+
+    const secondProtectedLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email, password })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login/two-step')
+      .send({
+        method: 'recovery_code',
+        challengeToken: secondProtectedLogin.body.challengeToken,
+        recoveryCode,
+      })
+      .expect(401)
+      .expect(({ body }) => {
+        expect(body).toEqual(expect.objectContaining({ code: 'INVALID_RECOVERY_CODE' }));
+      });
   });
 });
+
+interface MailpitMessage {
+  ID: string;
+  Subject: string;
+}
+
+interface MailpitMessageDetails extends MailpitMessage {
+  HTML: string;
+}
+
+async function waitForMailSubject(subject: string): Promise<MailpitMessageDetails> {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const response = await fetch('http://127.0.0.1:8025/api/v1/messages');
+    if (response.ok) {
+      const result = (await response.json()) as { messages?: MailpitMessage[] };
+      const message = result.messages?.find((candidate) => candidate.Subject === subject);
+      if (message) {
+        const details = await fetch(`http://127.0.0.1:8025/api/v1/message/${message.ID}`);
+        if (details.ok) return (await details.json()) as MailpitMessageDetails;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`Mailpit did not receive expected subject: ${subject}`);
+}
+
+function extractEmailCode(html: string): string {
+  const code = /\b\d{6}\b/.exec(html)?.[0];
+  if (!code) throw new Error('Expected a six-digit code in the Mailpit message');
+  return code;
+}
+
+async function waitForSentDelivery(
+  dataSource: DataSource,
+  template: string,
+): Promise<{ status: string; correlation_id: string | null }> {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const rows: { status: string; correlation_id: string | null }[] = await dataSource.query(
+      'SELECT status, correlation_id FROM mail_deliveries WHERE template = $1 ORDER BY created_at DESC LIMIT 1',
+      [template],
+    );
+    if (rows[0]?.status === 'sent') return rows[0];
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Mail delivery did not reach sent status: ${template}`);
+}

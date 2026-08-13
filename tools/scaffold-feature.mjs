@@ -125,7 +125,7 @@ function run() {
     return;
   }
 
-  const branchError = validateWritableBranch(currentBranch());
+  const branchError = validateWritableBranch(currentBranch(options.root));
   if (branchError) {
     throw new Error(branchError);
   }

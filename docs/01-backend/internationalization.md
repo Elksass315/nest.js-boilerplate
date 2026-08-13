@@ -15,3 +15,7 @@ is added.
 Auth keys cover invalid credentials, lockout, verification, refresh reuse, suspension, and session
 lookup. Raw tokens, email addresses, and validation-field values are never interpolated into stable
 localized top-level messages.
+
+Email two-step keys cover invalid challenges, email codes, recovery codes, bounded-attempt failures,
+and enabled-state conflicts. These translations remain generic: challenge tokens, codes, recipient
+addresses, attempt values, and account state are never interpolated into the localized message.

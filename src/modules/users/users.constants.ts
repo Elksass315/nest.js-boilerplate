@@ -10,4 +10,7 @@ export type SecurityAuditEvent =
   | 'auth.login.failed'
   | 'auth.login.succeeded'
   | 'auth.password.changed'
-  | 'auth.password.reset';
+  | 'auth.password.reset'
+  | 'auth.two_step.enabled'
+  | 'auth.two_step.disabled'
+  | 'auth.recovery_codes.regenerated';

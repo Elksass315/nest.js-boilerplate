@@ -11,6 +11,14 @@ function run(args) {
   return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 }
 
+function initializeWritableRepository(root) {
+  const init = spawnSync('git', ['init', '--initial-branch=feature/scaffold-fixture'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  assert.equal(init.status, 0, init.stderr);
+}
+
 test('prints a dry run without writing files', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'nestjs-scaffold-'));
   try {
@@ -35,6 +43,7 @@ test('accepts a single-word feature name without a root option', () => {
 test('creates service-only and persistence-aware features', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'nestjs-scaffold-'));
   try {
+    initializeWritableRepository(root);
     assert.equal(run(['reporting', '--root', root]).status, 0);
     assert.equal(existsSync(path.join(root, 'src/modules/reporting/reporting.service.ts')), true);
     assert.equal(existsSync(path.join(root, 'docs/01-backend/modules/reporting.md')), true);
@@ -64,6 +73,7 @@ test('creates service-only and persistence-aware features', () => {
 test('rejects invalid names and refuses overwrites', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'nestjs-scaffold-'));
   try {
+    initializeWritableRepository(root);
     assert.notEqual(run(['Invalid_Name', '--root', root]).status, 0);
     assert.equal(run(['billing', '--root', root]).status, 0);
     assert.notEqual(run(['billing', '--root', root]).status, 0);

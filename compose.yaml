@@ -33,6 +33,24 @@ services:
       - backend-internal
       - backend-external
 
+  mail-worker:
+    image: ${APP_IMAGE:-nestjs-saas:local}
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    command: ['node', '--enable-source-maps', 'dist/mail-worker.js']
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend-internal
+      - backend-external
+
   postgres:
     image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
     environment:

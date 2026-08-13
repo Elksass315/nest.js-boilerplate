@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -34,6 +34,25 @@ export class AuthCryptoService {
       memoryCost: 19_456,
       timeCost: 2,
       parallelism: 1,
+    });
+  }
+
+  public hashSecret(secret: string): Promise<string> {
+    return this.hashPassword(secret);
+  }
+
+  public verifySecret(hash: string, secret: string): Promise<boolean> {
+    return this.verifyPassword(hash, secret);
+  }
+
+  public numericCode(): string {
+    return randomInt(0, 1_000_000).toString().padStart(6, '0');
+  }
+
+  public recoveryCodes(count: number): string[] {
+    return Array.from({ length: count }, () => {
+      const value = randomBytes(8).toString('hex').toUpperCase();
+      return `${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}-${value.slice(12)}`;
     });
   }
 

@@ -3,6 +3,7 @@ import {
   loadApiConfiguration,
   validateApiEnvironment,
   validateDatabaseEnvironment,
+  validateMailWorkerEnvironment,
 } from './environment';
 
 const validEnvironment = {
@@ -36,6 +37,44 @@ describe('environment validation', () => {
     expect(validateDatabaseEnvironment(validEnvironment)).toEqual(
       expect.objectContaining({ DATABASE_HOST: 'localhost', DATABASE_PORT: 5432 }),
     );
+  });
+
+  it('validates the mail worker without API, CORS, Swagger, or auth settings', () => {
+    const worker = validateMailWorkerEnvironment({
+      DATABASE_HOST: 'localhost',
+      DATABASE_NAME: 'mail_worker_test',
+      DATABASE_PASSWORD: 'local-password',
+      DATABASE_USERNAME: 'app',
+      REDIS_HOST: 'localhost',
+      MAIL_ENABLED: true,
+      MAIL_SMTP_HOST: 'mailpit',
+    });
+
+    expect(worker).toEqual(
+      expect.objectContaining({
+        MAIL_ENABLED: true,
+        MAIL_WORKER_CONCURRENCY: 5,
+        MAIL_SMTP_CONNECTION_TIMEOUT_MS: 10000,
+      }),
+    );
+    expect(worker).not.toHaveProperty('AUTH_ACCESS_TOKEN_SECRET');
+  });
+
+  it('rejects incomplete SMTP credentials in API and worker profiles', () => {
+    expect(() =>
+      validateApiEnvironment({
+        ...validEnvironment,
+        MAIL_SMTP_USERNAME: 'smtp-user',
+        MAIL_SMTP_PASSWORD: '',
+      }),
+    ).toThrow('MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set');
+    expect(() =>
+      validateMailWorkerEnvironment({
+        ...validEnvironment,
+        MAIL_SMTP_USERNAME: '',
+        MAIL_SMTP_PASSWORD: 'smtp-password',
+      }),
+    ).toThrow('MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set');
   });
 
   it('rejects public Swagger access in managed environments', () => {

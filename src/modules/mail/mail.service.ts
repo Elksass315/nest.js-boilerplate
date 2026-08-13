@@ -6,10 +6,17 @@ import type { Queue } from 'bullmq';
 import type { AppConfiguration } from '@/config/configuration.types';
 import { RequestContextService } from '@/core/request-context/request-context.service';
 
+import { MailRepository } from './mail.repository';
 import {
   MAIL_QUEUE,
+  type AccountStatusChangedMailInput,
   type MailJob,
+  type MailTemplate,
   type PasswordResetMailInput,
+  type RoleChangedMailInput,
+  type SecurityMailInput,
+  type TwoStepChangedMailInput,
+  type TwoStepCodeMailInput,
   type VerificationMailInput,
 } from './mail.types';
 
@@ -19,49 +26,131 @@ export class MailService {
     @InjectQueue(MAIL_QUEUE) private readonly queue: Queue<MailJob>,
     private readonly config: ConfigService<AppConfiguration, true>,
     private readonly requestContext: RequestContextService,
+    private readonly repository: MailRepository,
   ) {}
 
   public sendEmailVerification(input: VerificationMailInput): Promise<void> {
-    return this.enqueue(input, 'email-verification', 'Verify your email address', 'verify-email');
+    return this.enqueueAction(
+      input,
+      'email-verification',
+      'Verify your email address',
+      'verify-email',
+    );
   }
 
   public sendPasswordReset(input: PasswordResetMailInput): Promise<void> {
-    return this.enqueue(input, 'reset-password', 'Reset your password', 'reset-password');
+    return this.enqueueAction(input, 'reset-password', 'Reset your password', 'reset-password');
   }
 
-  private async enqueue(
+  public sendTwoStepCode(input: TwoStepCodeMailInput): Promise<void> {
+    return this.enqueue(input.email, 'two-step-code', 'Your security code', {
+      name: input.fullName,
+      code: input.code,
+      expiresInMinutes: Math.ceil(input.expiresInSeconds / 60),
+      purpose: input.purpose,
+    });
+  }
+
+  public sendNewSession(input: SecurityMailInput): Promise<void> {
+    return this.enqueue(input.email, 'new-session', 'New sign-in to your account', {
+      name: input.fullName,
+      occurredAt: input.occurredAt.toISOString(),
+    });
+  }
+
+  public sendForcedSessionRevocation(input: SecurityMailInput): Promise<void> {
+    return this.enqueue(input.email, 'session-revoked', 'A session was revoked', {
+      name: input.fullName,
+      occurredAt: input.occurredAt.toISOString(),
+    });
+  }
+
+  public sendPasswordChanged(input: SecurityMailInput): Promise<void> {
+    return this.enqueue(input.email, 'password-changed', 'Your password was changed', {
+      name: input.fullName,
+      occurredAt: input.occurredAt.toISOString(),
+    });
+  }
+
+  public sendTwoStepChanged(input: TwoStepChangedMailInput): Promise<void> {
+    return this.enqueue(
+      input.email,
+      'two-step-changed',
+      `Email two-step verification was ${input.enabled ? 'enabled' : 'disabled'}`,
+      {
+        name: input.fullName,
+        enabled: input.enabled,
+        occurredAt: input.occurredAt.toISOString(),
+      },
+    );
+  }
+
+  public sendAccountStatusChanged(input: AccountStatusChangedMailInput): Promise<void> {
+    return this.enqueue(input.email, 'account-status-changed', 'Your account status changed', {
+      name: input.fullName,
+      status: input.status,
+      occurredAt: input.occurredAt.toISOString(),
+    });
+  }
+
+  public sendRoleChanged(input: RoleChangedMailInput): Promise<void> {
+    return this.enqueue(input.email, 'role-changed', 'Your account roles changed', {
+      name: input.fullName,
+      roles: input.roles.join(', '),
+      occurredAt: input.occurredAt.toISOString(),
+    });
+  }
+
+  private async enqueueAction(
     input: VerificationMailInput,
-    template: MailJob['template'],
+    template: 'email-verification' | 'reset-password',
     subject: string,
     actionPath: string,
   ): Promise<void> {
-    if (!this.config.getOrThrow('mail.enabled', { infer: true })) return;
     const actionUrl = new URL(
       actionPath,
       this.config.getOrThrow('mail.actionBaseUrl', { infer: true }),
     );
     actionUrl.searchParams.set('token', input.token);
+    await this.enqueue(input.email, template, subject, {
+      name: input.fullName,
+      actionUrl: actionUrl.toString(),
+      expiresInMinutes: Math.ceil(input.expiresInSeconds / 60),
+    });
+  }
+
+  private async enqueue(
+    recipient: string,
+    template: MailTemplate,
+    subject: string,
+    context: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.config.getOrThrow('mail.enabled', { infer: true })) return;
+    const correlationId = this.requestContext.getCorrelationId() ?? null;
+    const delivery = await this.repository.createDelivery(recipient, template, correlationId);
     const job: MailJob = {
-      to: input.email,
+      deliveryId: delivery.id,
+      to: recipient,
       fromAddress: this.config.getOrThrow('mail.fromAddress', { infer: true }),
       fromName: this.config.getOrThrow('mail.fromName', { infer: true }),
       subject,
       template,
-      context: {
-        name: input.fullName,
-        actionUrl: actionUrl.toString(),
-        expiresInMinutes: Math.ceil(input.expiresInSeconds / 60),
-      },
-      correlationId: this.requestContext.getCorrelationId() ?? null,
+      context,
+      correlationId,
     };
-    await this.queue.add('send-mail', job, {
-      attempts: this.config.getOrThrow('mail.maxRetries', { infer: true }),
-      backoff: {
-        type: 'exponential',
-        delay: this.config.getOrThrow('mail.retryDelayMs', { infer: true }),
-      },
-      removeOnComplete: { age: 3600 },
-      removeOnFail: { age: 86400 },
-    });
+    try {
+      await this.queue.add('send-mail', job, {
+        attempts: this.config.getOrThrow('mail.maxRetries', { infer: true }),
+        backoff: {
+          type: 'exponential',
+          delay: this.config.getOrThrow('mail.retryDelayMs', { infer: true }),
+        },
+        removeOnComplete: { age: 3600 },
+        removeOnFail: { age: 86400 },
+      });
+    } catch (error) {
+      await this.repository.markFailed(delivery.id, 0, 'QUEUE_ENQUEUE_FAILED');
+      throw error;
+    }
   }
 }

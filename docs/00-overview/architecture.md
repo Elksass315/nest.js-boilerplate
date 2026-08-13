@@ -2,8 +2,9 @@
 
 The application is a production-oriented, single-tenant NestJS modular monolith. PostgreSQL is the
 system of record and Redis provides platform coordination. Phase 2 includes users, fixed RBAC,
-credential authentication, rotating sessions, and a mail-job producer. Two-step verification, the
-SMTP worker, general notifications, storage, billing, and other capabilities remain deferred.
+credential authentication, rotating sessions, email two-step verification, recovery codes, and a
+separate SMTP mail worker. General notifications, storage, billing, and other capabilities remain
+deferred.
 
 Platform code owns bootstrap, validated configuration, errors, logging, database and Redis
 connectivity, health, security defaults, and reusable HTTP behavior. Business behavior belongs to

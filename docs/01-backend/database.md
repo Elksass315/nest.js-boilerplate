@@ -27,3 +27,8 @@ rotating refresh-token records, and single-use verification/reset action tokens.
 hashes, status/purpose checks, ownership foreign keys, and stable session indexes are enforced in
 PostgreSQL. Only SHA-256 token hashes are stored. Migration reversal removes auth action tokens,
 refresh tokens, then sessions without modifying users or RBAC state.
+
+Identity email-security migration `1786752000000-CreateIdentityEmailSecurity` creates hashed,
+expiring two-step challenges, hashed single-use recovery codes, and mail-delivery state. Delivery
+records store only a SHA-256 recipient fingerprint plus a masked address; queue payloads retain the
+full recipient only for the bounded Redis job lifetime. Reversal removes these three owned tables.

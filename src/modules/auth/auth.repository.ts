@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, MoreThan, type Repository } from 'typeorm';
 
-import type { AuthTokenPurpose, SessionRevokeReason } from './auth.constants';
+import type { AuthTokenPurpose, SessionRevokeReason, TwoStepPurpose } from './auth.constants';
+import { AuthRecoveryCodeEntity } from './entities/auth-recovery-code.entity';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
 import { AuthRefreshTokenEntity } from './entities/auth-refresh-token.entity';
 import { AuthSessionEntity } from './entities/auth-session.entity';
+import { AuthTwoStepChallengeEntity } from './entities/auth-two-step-challenge.entity';
 
 @Injectable()
 export class AuthRepository {
@@ -197,5 +199,93 @@ export class AuthRepository {
   ): Promise<void> {
     token.consumedAt = new Date();
     await manager.getRepository(AuthActionTokenEntity).save(token);
+  }
+
+  public async issueTwoStepChallenge(
+    manager: EntityManager,
+    userId: string,
+    purpose: TwoStepPurpose,
+    tokenHash: string,
+    codeHash: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await manager
+      .getRepository(AuthTwoStepChallengeEntity)
+      .createQueryBuilder()
+      .update()
+      .set({ consumedAt: new Date() })
+      .where('user_id = :userId AND purpose = :purpose AND consumed_at IS NULL', {
+        userId,
+        purpose,
+      })
+      .execute();
+    await manager.getRepository(AuthTwoStepChallengeEntity).save(
+      manager.getRepository(AuthTwoStepChallengeEntity).create({
+        userId,
+        purpose,
+        tokenHash,
+        codeHash,
+        attempts: 0,
+        expiresAt,
+        consumedAt: null,
+      }),
+    );
+  }
+
+  public findTwoStepChallengeForUpdate(
+    manager: EntityManager,
+    tokenHash: string,
+  ): Promise<AuthTwoStepChallengeEntity | null> {
+    return manager.getRepository(AuthTwoStepChallengeEntity).findOne({
+      where: { tokenHash },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  public async saveTwoStepChallenge(
+    manager: EntityManager,
+    challenge: AuthTwoStepChallengeEntity,
+  ): Promise<void> {
+    await manager.getRepository(AuthTwoStepChallengeEntity).save(challenge);
+  }
+
+  public async replaceRecoveryCodes(
+    manager: EntityManager,
+    userId: string,
+    codeHashes: readonly string[],
+  ): Promise<void> {
+    await manager.getRepository(AuthRecoveryCodeEntity).delete({ userId });
+    await manager.getRepository(AuthRecoveryCodeEntity).save(
+      codeHashes.map((codeHash) =>
+        manager.getRepository(AuthRecoveryCodeEntity).create({
+          userId,
+          codeHash,
+          consumedAt: null,
+        }),
+      ),
+    );
+  }
+
+  public findRecoveryCodesForUpdate(
+    manager: EntityManager,
+    userId: string,
+  ): Promise<AuthRecoveryCodeEntity[]> {
+    return manager.getRepository(AuthRecoveryCodeEntity).find({
+      where: { userId, consumedAt: IsNull() },
+      order: { createdAt: 'ASC', id: 'ASC' },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  public async consumeRecoveryCode(
+    manager: EntityManager,
+    recoveryCode: AuthRecoveryCodeEntity,
+  ): Promise<void> {
+    recoveryCode.consumedAt = new Date();
+    await manager.getRepository(AuthRecoveryCodeEntity).save(recoveryCode);
+  }
+
+  public async deleteRecoveryCodes(manager: EntityManager, userId: string): Promise<void> {
+    await manager.getRepository(AuthRecoveryCodeEntity).delete({ userId });
   }
 }

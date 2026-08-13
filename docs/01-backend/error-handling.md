@@ -31,3 +31,11 @@ recovery emails. Invalid credentials and action/refresh tokens use 401; verified
 failures use 403; session ownership failures use 404. `REFRESH_TOKEN_REUSED` also signals that the
 affected session was revoked. Exact English fallbacks remain aligned across the registry, Swagger,
 translations, and error catalog.
+
+Email two-step failures use stable, non-secret-bearing codes. Invalid, expired, consumed,
+wrong-purpose, or wrong-owner challenges return `INVALID_TWO_STEP_CHALLENGE`. Incorrect email and
+recovery proofs return `INVALID_TWO_STEP_CODE` and `INVALID_RECOVERY_CODE`; the latter does not
+reveal whether a recovery code ever existed. A challenge reaching its configured attempt bound
+returns `TWO_STEP_ATTEMPTS_EXCEEDED`. Enrollment-state conflicts use
+`TWO_STEP_ALREADY_ENABLED` and `TWO_STEP_NOT_ENABLED`. Controllers document every reachable code
+with the exact registered English message.

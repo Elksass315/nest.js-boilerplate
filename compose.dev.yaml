@@ -14,6 +14,39 @@ services:
     environment:
       NODE_ENV: development
 
+  mail-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: development
+    image: nestjs-saas:development
+    command: pnpm start:worker:mail:dev
+    volumes:
+      - .:/app
+      - api_node_modules:/app/node_modules
+    environment:
+      NODE_ENV: development
+    depends_on:
+      mailpit:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:v1.30.5@sha256:b868afa176bfd6cce2323ea316cd99ccad77915e51e595748f6d786700ecf109
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:${MAILPIT_SMTP_HOST_PORT:-1025}:1025
+      - 127.0.0.1:${MAILPIT_UI_HOST_PORT:-8025}:8025
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend-internal
+      - backend-external
+
   postgres:
     ports:
       - 127.0.0.1:${DATABASE_HOST_PORT:-5432}:5432

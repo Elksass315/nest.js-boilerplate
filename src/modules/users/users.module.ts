@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthorizationModule } from '@/modules/authorization';
+import { MailModule } from '@/modules/mail';
 
 import { UserRoleEntity } from './entities/user-role.entity';
 import { UserSecurityAuditEntity } from './entities/user-security-audit.entity';
@@ -14,6 +15,7 @@ import { UsersService } from './users.service';
   imports: [
     TypeOrmModule.forFeature([UserEntity, UserRoleEntity, UserSecurityAuditEntity]),
     AuthorizationModule,
+    MailModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, UsersRepository],
