@@ -33,7 +33,7 @@ ENV HUSKY=0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --prod --frozen-lockfile --ignore-scripts \
-    && pnpm rebuild argon2
+    && pnpm rebuild argon2 sharp
 
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production

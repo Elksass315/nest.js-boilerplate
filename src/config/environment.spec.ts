@@ -29,6 +29,9 @@ describe('environment validation', () => {
       );
       expect(result.database.sslEnabled).toBe(false);
       expect(result.redis.db).toBe(0);
+      expect(result.files.userAvatar).toEqual(
+        expect.objectContaining({ maxBytes: 5_242_880, maxPixels: 25_000_000 }),
+      );
     } finally {
       process.env = original;
     }
@@ -76,6 +79,7 @@ describe('environment validation', () => {
       expect.objectContaining({
         FILES_WRITE_DRIVER: 'local',
         FILES_WORKER_CONCURRENCY: 5,
+        FILES_USER_AVATAR_MAX_BYTES: 5_242_880,
       }),
     );
     expect(worker).not.toHaveProperty('AUTH_ACCESS_TOKEN_SECRET');

@@ -1,6 +1,7 @@
 import type { Readable } from 'node:stream';
 
 import type { DataStore } from '@tus/server';
+import type { EntityManager } from 'typeorm';
 
 import type { FileStorageDriver } from '@/config/configuration.types';
 
@@ -49,6 +50,38 @@ export interface StoredFile {
   pendingDeleteStorageKey: string | null;
   requestId: string;
   correlationId: string;
+}
+
+export interface UploadedFileContent {
+  fileId: string;
+  originalName: string;
+  declaredMimeType: string;
+  sizeBytes: number;
+  bytes: Buffer;
+}
+
+export interface PreparedFileContent {
+  fileId: string;
+  provider: FileStorageDriver;
+  storageKey: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksumSha256: string;
+}
+
+export interface PublicFileDescriptor {
+  fileId: string;
+  publicId: string;
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
+export interface FileClaimTransaction {
+  manager: EntityManager;
+  prepared: PreparedFileContent;
+  uploaderId: string;
+  purpose: string;
 }
 
 export interface StorageWriteInput {

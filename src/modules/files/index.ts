@@ -3,8 +3,11 @@ export { FilesService } from './files.service';
 export { FilesMigrationService } from './files-migration.service';
 export type { FileMigrationOptions, FileMigrationResult } from './files.types';
 export type {
+  FileClaimTransaction,
   FilePurposePolicy,
+  PreparedFileContent,
+  PublicFileDescriptor,
   PublicFileAccess,
-  StoredFile,
   TusRequestContext,
+  UploadedFileContent,
 } from './files.types';

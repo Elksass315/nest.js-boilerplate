@@ -38,6 +38,8 @@ never introduce DDD layers speculatively.
     never accept a client storage key or import filesystem, S3, tus-store, file repository, or file
     entity internals. Propagate request/correlation IDs through processing, cleanup, migration, and
     owning-feature audits.
+    Image consumers must compare declared MIME, extension, and decoded format; bound bytes,
+    dimensions, and pixels; reject animation; and re-encode without metadata before publication.
 12. After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,
     applicable focused tests, and build are mandatory blocking gates. It adds architecture, i18n,
     docs, tooling, dependency, and Compose checks from the diff and rejects governed changes missing

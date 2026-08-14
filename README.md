@@ -29,6 +29,8 @@ On macOS/Linux, use `cp .env.example .env`. The API listens on `http://localhost
 - Swagger in development: `/docs` (`SWAGGER_DOCS_ACCESS=public`)
 - Mailpit UI in development: `http://localhost:8025`
 - Public ready files: `/api/v1/files/public/:publicId`
+- Authenticated avatar uploads: `/api/v1/users/me/avatar/uploads`
+- Avatar attachment: `PATCH /api/v1/users/me/avatar`
 - Future business endpoints: `/api/v1`
 
 Useful commands:

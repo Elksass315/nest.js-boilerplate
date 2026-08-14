@@ -32,6 +32,14 @@ OPTIONS may advertise protocol capabilities anonymously. Every stateful consumer
 an authenticated uploader and correlation context; ownership and purpose are rechecked for an
 existing upload. Upload completion records SHA-256 before the file may be claimed.
 
+The public service also exposes bounded owned-upload reads, processed-byte staging, transactional
+claim/deletion operations, and batched public descriptors. Consumers never receive a provider
+instance. Processed content is written to a deterministic server-generated `ready/<file-id>` key
+before a transaction. This lets expired-upload cleanup recover a processed object left behind by
+an interruption before the database claim. The key remains immutable after a successful claim
+locks and switches the file row. The previous raw provider/key remains in pending-cleanup fields so
+the worker can remove it after commit and recover a failed enqueue through the sweeper.
+
 ## Data and migrations
 
 `stored_files` records provider/key, random public ID, original name, media type, size, SHA-256,
@@ -83,7 +91,9 @@ Example lifecycle rule:
 
 Unit tests cover configuration contradictions, provider selection, local traversal, reads/writes,
 checksums, cleanup retries, migration confirmation/dry run/copy verification, public access, and
-storage readiness. Integration and E2E suites exercise PostgreSQL, Redis/BullMQ, local storage, and
+storage readiness. Avatar-consumer tests additionally cover bounded reads, immutable staging,
+transactional claims, cleanup recovery, and public descriptor mapping. Integration and E2E suites
+exercise PostgreSQL, Redis/BullMQ, local storage, and
 S3-compatible multipart behavior. Rollback drops only `stored_files`; physical object retention
 must be handled operationally before reversing the migration.
 

@@ -39,3 +39,9 @@ checksums, safe failure state, and correlation context. Online provider moves ar
 commands, hold their own advisory lock, process bounded ready-file batches, and never run during API,
 worker, schema migration, seed, or deployment startup. The row retains a pending old-provider/key
 pair until source deletion succeeds so interrupted moves remain readable and recoverable.
+
+Avatar migration `1786924800000-AddUserAvatar` adds nullable, unique `users.avatar_file_id` with a
+foreign key to `stored_files` and `ON DELETE SET NULL`. The migration imports neither feature
+entity; users and files continue to access persistence only through their owning repositories and
+public services. Reversal drops the foreign key, uniqueness constraint, and column without deleting
+stored bytes.

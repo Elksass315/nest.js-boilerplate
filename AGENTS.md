@@ -47,6 +47,9 @@ repository-wide rules.
   forbidden outside `src/modules/files`. Storage keys are server-generated, files default to
   protected, and every upload uses a fixed server-side purpose policy. Preserve correlation IDs
   through upload processing, cleanup, provider migration, and owning-feature audits.
+- Image consumers verify declared MIME, extension, and decoded format; bound source bytes,
+  dimensions, and decoded pixels; reject animation; and decode/re-encode without metadata before
+  making a file public. Never trust client metadata or publish raw uploads.
 - Put application policy in `src/core`, Nest/HTTP primitives in `src/common`, proven framework-light
   reuse in `src/shared`, and ambient declarations in `src/types`. Do not create generic buckets.
 - After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,

@@ -51,6 +51,8 @@ Use only the sections that match the requested capability.
   declared MIME allowlist. Storage keys remain server-generated and visibility starts protected.
 - Processing, cleanup, migration, audit, Swagger, configuration, Compose, and correlation behavior
   are updated together when applicable.
+- Image publication validates MIME/extension/detected format, bytes, dimensions, pixels, animation,
+  and decoding; sanitized bytes use a new server-generated immutable key and contain no metadata.
 
 ## Verification
 

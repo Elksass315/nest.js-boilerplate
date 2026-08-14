@@ -84,6 +84,7 @@ export class UsersRepository {
         authVersion: 1,
         failedLoginCount: 0,
         lockedUntil: null,
+        avatarFileId: null,
       }),
     );
     await manager

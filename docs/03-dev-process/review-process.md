@@ -17,6 +17,10 @@ imports, and missing purpose limits. Review correlation propagation through uplo
 cleanup, provider migration, and owning-feature audits, plus matching configuration, Compose,
 migration, Swagger, tests, and module documentation.
 
+Image-consumer reviews additionally require byte-bounded decoding, detected-format verification,
+dimension and decoded-pixel limits, animation rejection where unsupported, and safe re-encoding
+before publication. Raw uploads must never become public business assets.
+
 Use `pnpm validate:change` after each coding prompt. Formatting, strict lint, type checking,
 applicable focused tests, and build are mandatory blocking gates. The command derives additional
 checks from the current Git diff and rejects governed code, configuration, API, agent, database,

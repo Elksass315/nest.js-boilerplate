@@ -40,4 +40,7 @@ export class UserEntity extends AppBaseEntity {
 
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
   public lockedUntil!: Date | null;
+
+  @Column({ name: 'avatar_file_id', type: 'uuid', nullable: true, unique: true })
+  public avatarFileId!: string | null;
 }

@@ -17,10 +17,14 @@ import {
   FILE_DELETE_JOB,
   FILE_MIGRATION_SOURCE_DELETE_JOB,
   FILE_QUEUE,
+  type FileClaimTransaction,
   type FileJob,
+  type PreparedFileContent,
   type PublicFileAccess,
+  type PublicFileDescriptor,
   type StoredFile,
   type TusRequestContext,
+  type UploadedFileContent,
 } from './files.types';
 import { StorageProviderFactory } from './providers/storage-provider.factory';
 import { RedisTusLocker } from './redis-tus-locker';
@@ -62,7 +66,22 @@ export class FilesService {
     const uploadId = uploadIdFromPath(request.path, context.routePath);
     const existing = uploadId ? await this.repository.findById(uploadId) : null;
     const provider = this.providers.resolve(existing?.provider ?? this.writeDriver);
-    const [{ Server }, datastore] = await Promise.all([loadTusRuntime(), provider.tusStore()]);
+    let runtime: Awaited<ReturnType<typeof loadTusRuntime>>;
+    let datastore: Awaited<ReturnType<typeof provider.tusStore>>;
+    try {
+      [runtime, datastore] = await Promise.all([loadTusRuntime(), provider.tusStore()]);
+    } catch (error) {
+      this.logger.error(
+        {
+          provider: provider.driver,
+          correlationId: context.correlationId,
+          errorType: errorName(error),
+        },
+        'Resumable upload storage initialization failed',
+      );
+      throw new AppException('FILE_STORAGE_UNAVAILABLE');
+    }
+    const { Server } = runtime;
     const server = new Server({
       path: context.routePath,
       datastore,
@@ -131,9 +150,18 @@ export class FilesService {
       onResponseError: (_incoming, error): { status_code: number; body: string } => {
         const statusCode = 'status_code' in error ? error.status_code : 500;
         const code = error instanceof TusHookError ? error.code : codeForTusStatus(statusCode);
+        const responseStatus = code === 'FILE_STORAGE_UNAVAILABLE' ? 503 : statusCode;
         return {
-          status_code: statusCode,
-          body: JSON.stringify({ code, message: messageForTusCode(code) }),
+          status_code: responseStatus,
+          body: JSON.stringify({
+            statusCode: responseStatus,
+            code,
+            message: messageForTusCode(code),
+            timestamp: new Date().toISOString(),
+            path: request.originalUrl,
+            requestId: context.requestId,
+            correlationId: context.correlationId,
+          }),
         };
       },
     });
@@ -154,6 +182,139 @@ export class FilesService {
 
   public findById(id: string): Promise<StoredFile | null> {
     return this.repository.findById(id);
+  }
+
+  public async readUploadedForOwner(
+    fileId: string,
+    uploaderId: string,
+    purpose: string,
+    maxBytes: number,
+  ): Promise<UploadedFileContent> {
+    const file = await this.repository.findById(fileId);
+    this.assertClaimable(file, uploaderId, purpose);
+    const sizeBytes = Number(file.sizeBytes);
+    if (!Number.isSafeInteger(sizeBytes) || sizeBytes > maxBytes) {
+      throw new AppException('FILE_TOO_LARGE');
+    }
+    try {
+      const stream = await this.providers.resolve(file.provider).read(file.storageKey);
+      return {
+        fileId: file.id,
+        originalName: file.originalName,
+        declaredMimeType: file.mimeType,
+        sizeBytes,
+        bytes: await readBounded(stream, maxBytes),
+      };
+    } catch (error) {
+      if (error instanceof FileTooLargeStreamError) throw new AppException('FILE_TOO_LARGE');
+      this.logger.error(
+        { fileId: file.id, provider: file.provider, errorType: errorName(error) },
+        'Uploaded file read failed',
+      );
+      throw new AppException('FILE_STORAGE_UNAVAILABLE');
+    }
+  }
+
+  public async prepareReplacement(
+    fileId: string,
+    uploaderId: string,
+    purpose: string,
+    bytes: Buffer,
+    mimeType: string,
+  ): Promise<PreparedFileContent> {
+    const file = await this.repository.findById(fileId);
+    this.assertClaimable(file, uploaderId, purpose);
+    const prepared: PreparedFileContent = {
+      fileId,
+      provider: file.provider,
+      // A deterministic, per-upload key makes a crash between object creation and
+      // the database claim recoverable by the normal expired-upload cleanup path.
+      storageKey: `ready/${fileId}`,
+      mimeType,
+      sizeBytes: bytes.byteLength,
+      checksumSha256: createHash('sha256').update(bytes).digest('hex'),
+    };
+    try {
+      const provider = this.providers.resolve(prepared.provider);
+      if (await provider.exists(prepared.storageKey)) {
+        const existingChecksum = await sha256Stream(await provider.read(prepared.storageKey));
+        if (existingChecksum !== prepared.checksumSha256) {
+          throw new Error('Prepared object checksum mismatch');
+        }
+        return prepared;
+      }
+      await provider.write({
+        key: prepared.storageKey,
+        body: bytes,
+        contentLength: prepared.sizeBytes,
+        mimeType,
+        checksumSha256: prepared.checksumSha256,
+      });
+      return prepared;
+    } catch (error) {
+      this.logger.error(
+        { fileId, provider: prepared.provider, errorType: errorName(error) },
+        'Processed file write failed',
+      );
+      throw new AppException('FILE_STORAGE_UNAVAILABLE');
+    }
+  }
+
+  public async discardPrepared(prepared: PreparedFileContent): Promise<void> {
+    try {
+      await this.providers.resolve(prepared.provider).delete(prepared.storageKey);
+    } catch (error) {
+      this.logger.error(
+        { fileId: prepared.fileId, provider: prepared.provider, errorType: errorName(error) },
+        'Unclaimed processed file cleanup failed',
+      );
+    }
+  }
+
+  public async claimPrepared(transaction: FileClaimTransaction): Promise<PublicFileDescriptor> {
+    const file = await this.repository.findByIdForUpdate(
+      transaction.manager,
+      transaction.prepared.fileId,
+    );
+    this.assertClaimable(file, transaction.uploaderId, transaction.purpose);
+    if (file.provider !== transaction.prepared.provider) {
+      throw new AppException('FILE_STORAGE_UNAVAILABLE');
+    }
+    return this.repository.claimPrepared(transaction.manager, file, transaction.prepared);
+  }
+
+  public async markDeletingForOwner(
+    manager: FileClaimTransaction['manager'],
+    fileId: string,
+    uploaderId: string,
+    purpose: string,
+  ): Promise<void> {
+    const file = await this.repository.findByIdForUpdate(manager, fileId);
+    if (!file) return;
+    if (file.uploadedBy !== uploaderId || file.purpose !== purpose) {
+      throw new AppException('FILE_OWNERSHIP_MISMATCH');
+    }
+    await this.repository.markDeletingInTransaction(manager, file.id);
+  }
+
+  public findPublicDescriptors(ids: readonly string[]): Promise<PublicFileDescriptor[]> {
+    return this.repository.findReadyPublicByIds(ids);
+  }
+
+  public async enqueueClaimCleanup(
+    claimedFileId: string,
+    replacedFileId: string | null,
+    correlationId: string,
+  ): Promise<void> {
+    const tasks = [this.enqueueMigrationSourceDeletion(claimedFileId, correlationId)];
+    if (replacedFileId) tasks.push(this.enqueueDeletion(replacedFileId, correlationId));
+    const results = await Promise.allSettled(tasks);
+    if (results.some(({ status }) => status === 'rejected')) {
+      this.logger.error(
+        { fileId: claimedFileId, correlationId },
+        'File cleanup enqueue will be recovered by the sweeper',
+      );
+    }
   }
 
   public async getPublicAccess(publicId: string): Promise<PublicFileAccess> {
@@ -197,6 +358,17 @@ export class FilesService {
     );
   }
 
+  public async scheduleDeletion(fileId: string, correlationId: string): Promise<void> {
+    try {
+      await this.enqueueDeletion(fileId, correlationId);
+    } catch (error) {
+      this.logger.error(
+        { fileId, correlationId, errorType: errorName(error) },
+        'File deletion enqueue will be recovered by the sweeper',
+      );
+    }
+  }
+
   public async deletePhysicalFile(fileId: string): Promise<void> {
     const file = await this.repository.findById(fileId);
     if (!file) return;
@@ -204,6 +376,9 @@ export class FilesService {
     try {
       if (file.storageKey === file.id) {
         await (await provider.tusStore()).remove(file.id);
+        // Recover a processed object left behind if the API stopped after image
+        // sanitization but before the transactional file claim.
+        await provider.delete(`ready/${file.id}`);
       } else {
         await provider.delete(file.storageKey);
       }
@@ -286,10 +461,16 @@ export class FilesService {
     await Promise.all(this.providers.enabled().map((provider) => provider.checkHealth()));
   }
 
-  public providerFor(
-    file: Pick<StoredFile, 'provider'>,
-  ): ReturnType<StorageProviderFactory['resolve']> {
-    return this.providers.resolve(file.provider);
+  private assertClaimable(
+    file: StoredFile | null,
+    uploaderId: string,
+    purpose: string,
+  ): asserts file is StoredFile {
+    if (!file) throw new AppException('FILE_NOT_FOUND');
+    if (file.uploadedBy !== uploaderId) throw new AppException('FILE_OWNERSHIP_MISMATCH');
+    if (file.purpose !== purpose) throw new AppException('FILE_TYPE_NOT_ALLOWED');
+    if (file.expiresAt.getTime() <= Date.now()) throw new AppException('FILE_UPLOAD_EXPIRED');
+    if (file.status !== 'uploaded') throw new AppException('FILE_NOT_READY');
   }
 }
 
@@ -372,6 +553,28 @@ function sha256Stream(stream: Readable): Promise<string> {
     });
     stream.once('end', () => {
       resolve(hash.digest('hex'));
+    });
+    stream.once('error', reject);
+  });
+}
+
+class FileTooLargeStreamError extends Error {}
+
+function readBounded(stream: Readable, maximumBytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    stream.on('data', (chunk: Buffer | string) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buffer.byteLength;
+      if (total > maximumBytes) {
+        stream.destroy(new FileTooLargeStreamError());
+        return;
+      }
+      chunks.push(buffer);
+    });
+    stream.once('end', () => {
+      resolve(Buffer.concat(chunks, total));
     });
     stream.once('error', reject);
   });
