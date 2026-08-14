@@ -87,6 +87,12 @@ export interface FilesConfig {
   workerConcurrency: number;
   maxRetries: number;
   retryDelayMs: number;
+  userAvatar: {
+    maxBytes: number;
+    maxWidth: number;
+    maxHeight: number;
+    maxPixels: number;
+  };
   s3: {
     bucket: string;
     region: string;

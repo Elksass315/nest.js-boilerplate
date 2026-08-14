@@ -6,20 +6,33 @@ import { buildOffsetPage, type OffsetPage } from '@/common/pagination';
 import { AppException } from '@/core/errors/app.exception';
 import { RequestContextService } from '@/core/request-context/request-context.service';
 import { AuthorizationService, type RoleDefinition } from '@/modules/authorization';
+import { FilesService, type PreparedFileContent, type PublicFileDescriptor } from '@/modules/files';
 import { MailService } from '@/modules/mail';
 import { isPlainRecord } from '@/shared/helpers/is-plain-record';
 
 import type { UserResponseDto } from './dto/user-response.dto';
+import { AvatarImageService } from './avatar-image.service';
 import type { UserEntity } from './entities/user.entity';
 import type { CreatePendingUserInput, UserWithRoles } from './users.types';
 import type { UserStatus } from './users.constants';
 import { UsersRepository, type SecurityAuditInput } from './users.repository';
+
+type AvatarClaimResult =
+  | { user: UserEntity; avatar: null; replacedFileId: null; idempotent: true }
+  | {
+      user: UserEntity;
+      avatar: PublicFileDescriptor;
+      replacedFileId: string | null;
+      idempotent: false;
+    };
 
 @Injectable()
 export class UsersService {
   public constructor(
     private readonly repository: UsersRepository,
     private readonly authorization: AuthorizationService,
+    private readonly files: FilesService,
+    private readonly avatarImages: AvatarImageService,
     private readonly mail: MailService,
     private readonly requestContext: RequestContextService,
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -28,8 +41,15 @@ export class UsersService {
   public async list(page: number, limit: number): Promise<OffsetPage<UserResponseDto>> {
     const [users, total] = await this.repository.findPage(page, limit);
     const roles = await this.rolesByUserId(users.map(({ id }) => id));
+    const avatars = await this.avatarsByFileId(users.map(({ avatarFileId }) => avatarFileId));
     return buildOffsetPage(
-      users.map((user) => this.toResponse(user, roles.get(user.id) ?? [])),
+      users.map((user) =>
+        this.toResponse(
+          user,
+          roles.get(user.id) ?? [],
+          user.avatarFileId ? (avatars.get(user.avatarFileId) ?? null) : null,
+        ),
+      ),
       total,
       page,
       limit,
@@ -38,7 +58,7 @@ export class UsersService {
 
   public async getById(id: string): Promise<UserResponseDto> {
     const user = await this.requireUser(id);
-    return this.toResponse(user, await this.rolesForUser(id));
+    return this.responseFor(user, await this.rolesForUser(id));
   }
 
   public getSelf(userId: string): Promise<UserResponseDto> {
@@ -53,7 +73,70 @@ export class UsersService {
       }),
     );
     if (!user) throw new AppException('USER_NOT_FOUND');
-    return this.toResponse(user, await this.rolesForUser(user.id));
+    return this.responseFor(user, await this.rolesForUser(user.id));
+  }
+
+  public async replaceOwnAvatar(userId: string, fileId: string): Promise<UserResponseDto> {
+    const existing = await this.requireUser(userId);
+    if (existing.avatarFileId === fileId) {
+      return this.responseFor(existing, await this.rolesForUser(userId));
+    }
+
+    const limits = this.avatarImages.getLimits();
+    const uploaded = await this.files.readUploadedForOwner(
+      fileId,
+      userId,
+      'user_avatar',
+      limits.maxBytes,
+    );
+    const sanitized = await this.avatarImages.sanitize(uploaded);
+    const prepared = await this.files.prepareReplacement(
+      fileId,
+      userId,
+      'user_avatar',
+      sanitized.bytes,
+      sanitized.mimeType,
+    );
+
+    const result = await this.claimAvatarTransaction(userId, fileId, prepared).catch(
+      async (error: unknown) => {
+        await this.files.discardPrepared(prepared);
+        throw error;
+      },
+    );
+    if (result.idempotent) {
+      await this.files.discardPrepared(prepared);
+      return this.responseFor(result.user, await this.rolesForUser(userId));
+    }
+    await this.files.enqueueClaimCleanup(
+      fileId,
+      result.replacedFileId,
+      this.requestContext.getCorrelationId() ?? 'unavailable',
+    );
+    return this.toResponse(result.user, await this.rolesForUser(userId), result.avatar);
+  }
+
+  public async deleteOwnAvatar(userId: string): Promise<void> {
+    const result = await this.dataSource.transaction(async (manager) => {
+      const user = await this.repository.findByIdForUpdate(manager, userId);
+      if (!user) throw new AppException('USER_NOT_FOUND');
+      const fileId = user.avatarFileId;
+      if (!fileId) return null;
+      await this.files.markDeletingForOwner(manager, fileId, userId, 'user_avatar');
+      user.avatarFileId = null;
+      await this.repository.saveWithAudit(
+        manager,
+        user,
+        this.auditContext(userId, userId, 'user.avatar.changed', { action: 'removed' }),
+      );
+      return fileId;
+    });
+    if (result) {
+      await this.files.scheduleDeletion(
+        result,
+        this.requestContext.getCorrelationId() ?? 'unavailable',
+      );
+    }
   }
 
   public async updateStatus(
@@ -91,7 +174,7 @@ export class UsersService {
       status,
       occurredAt: new Date(),
     });
-    return this.toResponse(user, await this.rolesForUser(user.id));
+    return this.responseFor(user, await this.rolesForUser(user.id));
   }
 
   public async replaceRoles(
@@ -131,7 +214,7 @@ export class UsersService {
       roles: requestedRoles.map(({ key }) => key),
       occurredAt: new Date(),
     });
-    return this.toResponse(user, requestedRoles);
+    return this.responseFor(user, requestedRoles);
   }
 
   public async createPendingUser(input: CreatePendingUserInput): Promise<UserWithRoles> {
@@ -276,6 +359,40 @@ export class UsersService {
     return user;
   }
 
+  private claimAvatarTransaction(
+    userId: string,
+    fileId: string,
+    prepared: PreparedFileContent,
+  ): Promise<AvatarClaimResult> {
+    return this.dataSource.transaction(async (manager) => {
+      const user = await this.repository.findByIdForUpdate(manager, userId);
+      if (!user) throw new AppException('USER_NOT_FOUND');
+      if (user.avatarFileId === fileId) {
+        return { user, avatar: null, replacedFileId: null, idempotent: true } as const;
+      }
+      const avatar = await this.files.claimPrepared({
+        manager,
+        prepared,
+        uploaderId: userId,
+        purpose: 'user_avatar',
+      });
+      const replacedFileId = user.avatarFileId;
+      if (replacedFileId) {
+        await this.files.markDeletingForOwner(manager, replacedFileId, userId, 'user_avatar');
+      }
+      user.avatarFileId = fileId;
+      const saved = await this.repository.saveWithAudit(
+        manager,
+        user,
+        this.auditContext(userId, userId, 'user.avatar.changed', {
+          action: 'replaced',
+          hadPreviousAvatar: replacedFileId !== null,
+        }),
+      );
+      return { user: saved, avatar, replacedFileId, idempotent: false } as const;
+    });
+  }
+
   private async rolesForUser(userId: string): Promise<RoleDefinition[]> {
     return (await this.rolesByUserId([userId])).get(userId) ?? [];
   }
@@ -296,7 +413,30 @@ export class UsersService {
     );
   }
 
-  private toResponse(user: UserEntity, roles: readonly RoleDefinition[]): UserResponseDto {
+  private async responseFor(
+    user: UserEntity,
+    roles: readonly RoleDefinition[],
+  ): Promise<UserResponseDto> {
+    const avatar = user.avatarFileId
+      ? ((await this.files.findPublicDescriptors([user.avatarFileId]))[0] ?? null)
+      : null;
+    return this.toResponse(user, roles, avatar);
+  }
+
+  private async avatarsByFileId(
+    fileIds: readonly (string | null)[],
+  ): Promise<Map<string, PublicFileDescriptor>> {
+    const ids = [...new Set(fileIds.filter((id): id is string => id !== null))];
+    return new Map(
+      (await this.files.findPublicDescriptors(ids)).map((avatar) => [avatar.fileId, avatar]),
+    );
+  }
+
+  private toResponse(
+    user: UserEntity,
+    roles: readonly RoleDefinition[],
+    avatar: PublicFileDescriptor | null,
+  ): UserResponseDto {
     return {
       id: user.id,
       fullName: user.fullName,
@@ -305,6 +445,14 @@ export class UsersService {
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       emailTwoStepEnabled: user.emailTwoStepEnabled,
       roles: roles.map(({ key }) => key),
+      avatar: avatar
+        ? {
+            fileId: avatar.fileId,
+            url: avatar.url,
+            mimeType: avatar.mimeType,
+            size: avatar.sizeBytes,
+          }
+        : null,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -323,6 +471,7 @@ export class UsersService {
       authVersion: user.authVersion,
       failedLoginCount: user.failedLoginCount,
       lockedUntil: user.lockedUntil,
+      avatarFileId: user.avatarFileId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       roles,

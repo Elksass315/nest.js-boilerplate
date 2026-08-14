@@ -26,6 +26,14 @@ export const filesEnvironmentSchema = {
   FILES_WORKER_CONCURRENCY: Joi.number().integer().min(1).max(20).default(5),
   FILES_MAX_RETRIES: Joi.number().integer().min(1).max(10).default(5),
   FILES_RETRY_DELAY_MS: Joi.number().integer().min(1000).max(300000).default(30000),
+  FILES_USER_AVATAR_MAX_BYTES: Joi.number().integer().min(1024).max(10_485_760).default(5_242_880),
+  FILES_USER_AVATAR_MAX_WIDTH: Joi.number().integer().min(32).max(16384).default(8192),
+  FILES_USER_AVATAR_MAX_HEIGHT: Joi.number().integer().min(32).max(16384).default(8192),
+  FILES_USER_AVATAR_MAX_PIXELS: Joi.number()
+    .integer()
+    .min(1024)
+    .max(100_000_000)
+    .default(25_000_000),
   FILES_S3_BUCKET: Joi.string().allow('').max(255).default(''),
   FILES_S3_REGION: Joi.string().trim().min(1).max(100).default('us-east-1'),
   FILES_S3_ENDPOINT: Joi.string()
@@ -61,6 +69,12 @@ export function createFilesConfig(environment: Record<string, unknown>): FilesCo
     workerConcurrency: readNumber(environment, 'FILES_WORKER_CONCURRENCY'),
     maxRetries: readNumber(environment, 'FILES_MAX_RETRIES'),
     retryDelayMs: readNumber(environment, 'FILES_RETRY_DELAY_MS'),
+    userAvatar: {
+      maxBytes: readNumber(environment, 'FILES_USER_AVATAR_MAX_BYTES'),
+      maxWidth: readNumber(environment, 'FILES_USER_AVATAR_MAX_WIDTH'),
+      maxHeight: readNumber(environment, 'FILES_USER_AVATAR_MAX_HEIGHT'),
+      maxPixels: readNumber(environment, 'FILES_USER_AVATAR_MAX_PIXELS'),
+    },
     s3: {
       bucket: readString(environment, 'FILES_S3_BUCKET'),
       region: readString(environment, 'FILES_S3_REGION'),

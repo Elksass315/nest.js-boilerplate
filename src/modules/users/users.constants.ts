@@ -4,6 +4,7 @@ export type UserStatus = (typeof USER_STATUSES)[number];
 export type SecurityAuditEvent =
   | 'user.created'
   | 'user.profile.updated'
+  | 'user.avatar.changed'
   | 'user.status.changed'
   | 'user.roles.changed'
   | 'auth.email.verified'

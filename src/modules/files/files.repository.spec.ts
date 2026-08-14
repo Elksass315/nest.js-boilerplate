@@ -47,6 +47,13 @@ describe(FilesRepository.name, () => {
   };
   const runner = { connect: jest.fn(), query: jest.fn(), release: jest.fn() };
   const dataSource = { createQueryRunner: jest.fn(() => runner) };
+  const managerFiles = {
+    findOne: jest.fn(),
+    findOneByOrFail: jest.fn(),
+    save: jest.fn(),
+    update: jest.fn(),
+  };
+  const manager = { getRepository: jest.fn(() => managerFiles) };
   let repository: FilesRepository;
 
   beforeEach(() => {
@@ -61,6 +68,9 @@ describe(FilesRepository.name, () => {
     files.create.mockReturnValue(entity);
     files.save.mockResolvedValue(entity);
     files.update.mockResolvedValue({ affected: 1 });
+    managerFiles.findOne.mockResolvedValue(entity);
+    managerFiles.findOneByOrFail.mockResolvedValue(entity);
+    managerFiles.save.mockImplementation((value: FileEntity) => Promise.resolve(value));
     repository = new FilesRepository(
       files as unknown as Repository<FileEntity>,
       dataSource as unknown as DataSource,
@@ -96,6 +106,33 @@ describe(FilesRepository.name, () => {
       expect.objectContaining({ publicId: entity.publicId }),
     );
     await expect(repository.findById('missing')).resolves.toBeNull();
+  });
+
+  it('locks, claims, and lists public-ready file descriptors', async () => {
+    files.find.mockResolvedValue([
+      Object.assign(new FileEntity(), entity, { status: 'ready', visibility: 'public' }),
+    ]);
+    await expect(repository.findByIdForUpdate(manager as never, entity.id)).resolves.toEqual(
+      expect.objectContaining({ id: entity.id }),
+    );
+    await expect(repository.findReadyPublicByIds([entity.id])).resolves.toEqual([
+      expect.objectContaining({ fileId: entity.id, url: expect.stringContaining(entity.publicId) }),
+    ]);
+    await expect(
+      repository.claimPrepared(manager as never, entity, {
+        fileId: entity.id,
+        provider: 'local',
+        storageKey: 'ready/new',
+        mimeType: 'image/png',
+        sizeBytes: 20,
+        checksumSha256: 'new-checksum',
+      }),
+    ).resolves.toEqual(expect.objectContaining({ sizeBytes: 20 }));
+    await repository.markDeletingInTransaction(manager as never, entity.id);
+    expect(managerFiles.update).toHaveBeenCalledWith(
+      { id: entity.id, status: 'ready' },
+      expect.objectContaining({ status: 'deleting' }),
+    );
   });
 
   it('updates every lifecycle state and removes metadata', async () => {

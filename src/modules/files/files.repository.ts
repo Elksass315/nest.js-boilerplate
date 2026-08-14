@@ -3,12 +3,17 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, LessThan, Repository } from 'typeorm';
-import type { QueryRunner } from 'typeorm';
+import type { EntityManager, QueryRunner } from 'typeorm';
 
 import type { FileStorageDriver } from '@/config/configuration.types';
 
 import { FileEntity } from './entities/file.entity';
-import type { StoredFile, TusRequestContext } from './files.types';
+import type {
+  PreparedFileContent,
+  PublicFileDescriptor,
+  StoredFile,
+  TusRequestContext,
+} from './files.types';
 
 @Injectable()
 export class FilesRepository {
@@ -53,6 +58,49 @@ export class FilesRepository {
   public async findById(id: string): Promise<StoredFile | null> {
     const entity = await this.files.findOneBy({ id });
     return entity ? this.toStoredFile(entity) : null;
+  }
+
+  public async findByIdForUpdate(manager: EntityManager, id: string): Promise<StoredFile | null> {
+    const entity = await manager.getRepository(FileEntity).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    return entity ? this.toStoredFile(entity) : null;
+  }
+
+  public async findReadyPublicByIds(ids: readonly string[]): Promise<PublicFileDescriptor[]> {
+    if (ids.length === 0) return [];
+    const entities = await this.files.find({
+      where: { id: In([...ids]), status: 'ready', visibility: 'public' },
+    });
+    return entities.map((entity) => this.toPublicDescriptor(entity));
+  }
+
+  public async claimPrepared(
+    manager: EntityManager,
+    file: StoredFile,
+    prepared: PreparedFileContent,
+  ): Promise<PublicFileDescriptor> {
+    const repository = manager.getRepository(FileEntity);
+    const entity = await repository.findOneByOrFail({ id: file.id });
+    entity.pendingDeleteProvider = file.provider;
+    entity.pendingDeleteStorageKey = file.storageKey;
+    entity.provider = prepared.provider;
+    entity.storageKey = prepared.storageKey;
+    entity.mimeType = prepared.mimeType;
+    entity.sizeBytes = String(prepared.sizeBytes);
+    entity.checksumSha256 = prepared.checksumSha256;
+    entity.visibility = 'public';
+    entity.status = 'ready';
+    entity.claimedAt = new Date();
+    entity.failureCode = null;
+    return this.toPublicDescriptor(await repository.save(entity));
+  }
+
+  public async markDeletingInTransaction(manager: EntityManager, id: string): Promise<void> {
+    await manager
+      .getRepository(FileEntity)
+      .update({ id, status: 'ready' }, { status: 'deleting', deleteRequestedAt: new Date() });
   }
 
   public async findPublic(publicId: string): Promise<StoredFile | null> {
@@ -205,6 +253,16 @@ export class FilesRepository {
       pendingDeleteStorageKey: entity.pendingDeleteStorageKey,
       requestId: entity.requestId,
       correlationId: entity.correlationId,
+    };
+  }
+
+  private toPublicDescriptor(entity: FileEntity): PublicFileDescriptor {
+    return {
+      fileId: entity.id,
+      publicId: entity.publicId,
+      url: `/api/v1/files/public/${entity.publicId}`,
+      mimeType: entity.mimeType,
+      sizeBytes: Number(entity.sizeBytes),
     };
   }
 }

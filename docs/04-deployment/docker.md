@@ -29,6 +29,9 @@ uses `dist/mail-worker.js`, exposes no port, verifies SMTP before consuming jobs
 gracefully. Local PostgreSQL, Redis, and Mailpit UI ports bind only to `127.0.0.1`; deployment
 definitions expose none of those dependencies. `pnpm docker:reset -- --confirm` is the only supported
 destructive local volume reset.
+Production dependency installation ignores arbitrary lifecycle scripts and explicitly rebuilds only
+the approved native `argon2` and `sharp` packages. CI must build and scan the runtime image so the
+Sharp/libvips binary matches the pinned Node 24 Debian runtime.
 
 Redis uses append-only persistence and `noeviction`. BullMQ must never run against an eviction
 policy because evicted queue keys can corrupt job state. Capacity alerts and scaling must address

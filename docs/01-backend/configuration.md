@@ -39,6 +39,10 @@ must appear in `FILES_READ_DRIVERS`. Enabling S3 requires a bucket and region; e
 must be supplied as a pair, while empty keys use the AWS runtime credential chain. KMS encryption
 requires a key ID. Managed deployments should use S3 and configure bucket-default encryption;
 local storage requires a shared persistent filesystem for multiple replicas.
+Avatar purpose limits are separately typed through `FILES_USER_AVATAR_MAX_BYTES`,
+`FILES_USER_AVATAR_MAX_WIDTH`, `FILES_USER_AVATAR_MAX_HEIGHT`, and
+`FILES_USER_AVATAR_MAX_PIXELS`. Defaults are 5 MiB, 8192 pixels per dimension, and 25 million
+decoded pixels; configuration remains bounded before Sharp receives untrusted image data.
 
 When configuration changes, update schema, tests, `.env.example`, Compose/CI/deployment inputs, and
 this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments

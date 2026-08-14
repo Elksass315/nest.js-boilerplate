@@ -24,6 +24,10 @@ describe(FilesService.name, () => {
     withCleanupLock: jest.fn((work: () => Promise<unknown>) => work()),
     findCleanupCandidates: jest.fn(),
     findPendingMigrationSourceCleanup: jest.fn(),
+    findByIdForUpdate: jest.fn(),
+    findReadyPublicByIds: jest.fn(),
+    claimPrepared: jest.fn(),
+    markDeletingInTransaction: jest.fn(),
   };
   const local = provider();
   const providers = {
@@ -137,6 +141,97 @@ describe(FilesService.name, () => {
     expect(repository.clearPendingMigrationSource).toHaveBeenCalledWith('file-1');
     await service.checkStorageHealth();
     expect(local.checkHealth).toHaveBeenCalled();
+  });
+
+  it('reads, stages, and atomically claims bounded owned upload content', async () => {
+    const upload = storedFile({
+      status: 'uploaded',
+      visibility: 'protected',
+      expiresAt: new Date('2099-08-15T00:00:00Z'),
+    });
+    repository.findById.mockResolvedValue(upload);
+    repository.findByIdForUpdate.mockResolvedValue(upload);
+    local.read.mockResolvedValue(Readable.from('avatar'));
+    local.exists.mockResolvedValue(false);
+    local.write.mockResolvedValue(undefined);
+    repository.claimPrepared.mockResolvedValue({
+      fileId: upload.id,
+      publicId: upload.publicId,
+      url: `/api/v1/files/public/${upload.publicId}`,
+      mimeType: 'image/png',
+      sizeBytes: 9,
+    });
+
+    const content = await service.readUploadedForOwner(
+      upload.id,
+      upload.uploadedBy,
+      upload.purpose,
+      10,
+    );
+    const prepared = await service.prepareReplacement(
+      upload.id,
+      upload.uploadedBy,
+      upload.purpose,
+      Buffer.from('sanitized'),
+      'image/png',
+    );
+    await service.claimPrepared({
+      manager: {} as never,
+      prepared,
+      uploaderId: upload.uploadedBy,
+      purpose: upload.purpose,
+    });
+
+    expect(content.bytes.toString()).toBe('avatar');
+    expect(prepared.storageKey).toBe('ready/file-1');
+    expect(local.write).toHaveBeenCalledWith(
+      expect.objectContaining({ key: prepared.storageKey, checksumSha256: expect.any(String) }),
+    );
+    expect(repository.claimPrepared).toHaveBeenCalled();
+  });
+
+  it('reuses a matching recoverable processed object after interruption', async () => {
+    const upload = storedFile({
+      status: 'uploaded',
+      visibility: 'protected',
+      expiresAt: new Date('2099-08-15T00:00:00Z'),
+    });
+    repository.findById.mockResolvedValue(upload);
+    local.exists.mockResolvedValue(true);
+    local.read.mockResolvedValue(Readable.from('sanitized'));
+
+    await expect(
+      service.prepareReplacement(
+        upload.id,
+        upload.uploadedBy,
+        upload.purpose,
+        Buffer.from('sanitized'),
+        'image/png',
+      ),
+    ).resolves.toEqual(expect.objectContaining({ storageKey: 'ready/file-1' }));
+    expect(local.write).not.toHaveBeenCalled();
+  });
+
+  it('rejects ownership and size violations before processing storage bytes', async () => {
+    repository.findById.mockResolvedValue(
+      storedFile({ status: 'uploaded', expiresAt: new Date('2099-08-15T00:00:00Z') }),
+    );
+    await expect(
+      service.readUploadedForOwner('file-1', 'other-user', 'user_avatar', 10),
+    ).rejects.toBeInstanceOf(AppException);
+    await expect(
+      service.readUploadedForOwner('file-1', 'user-1', 'user_avatar', 1),
+    ).rejects.toBeInstanceOf(AppException);
+    expect(local.read).not.toHaveBeenCalled();
+  });
+
+  it('keeps enqueue failures recoverable after database commit', async () => {
+    queue.add.mockRejectedValueOnce(new Error('redis unavailable'));
+    await expect(service.scheduleDeletion('file-1', 'correlation-1')).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ fileId: 'file-1', correlationId: 'correlation-1' }),
+      expect.stringContaining('recovered by the sweeper'),
+    );
   });
 });
 

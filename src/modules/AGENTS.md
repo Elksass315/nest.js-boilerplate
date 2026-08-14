@@ -29,3 +29,5 @@ Run `pnpm branch:write-check` before any write. Use `$build-nestjs-feature` and
   and delegate byte transfer to the public `FilesService`. Never import storage providers, tus
   stores, storage entities, or the AWS SDK across the files-module boundary. Use a fixed purpose,
   private visibility by default, and server-generated keys.
+- Image consumers reject MIME/extension/decoded-format mismatches, animation, excessive dimensions
+  and decoded pixels, then re-encode in an allowed format without metadata before attachment.

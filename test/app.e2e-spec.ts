@@ -1,5 +1,6 @@
 import type { INestApplication, INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import sharp from 'sharp';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 
@@ -144,6 +145,9 @@ describe('platform foundation (e2e)', () => {
     expect(document.paths).toHaveProperty('/api/v1/auth/login/two-step');
     expect(document.paths).toHaveProperty('/api/v1/auth/two-step/enable/confirm');
     expect(document.paths).toHaveProperty('/api/v1/sessions');
+    expect(document.paths).toHaveProperty('/api/v1/users/me/avatar/uploads');
+    expect(document.paths).toHaveProperty('/api/v1/users/me/avatar/uploads/{uploadId}');
+    expect(document.paths).toHaveProperty('/api/v1/users/me/avatar');
     expect(document.paths?.['/api/v1/users/{id}/roles']?.put?.responses?.['404']?.content).toEqual(
       expect.objectContaining({
         'application/json': expect.objectContaining({
@@ -154,6 +158,103 @@ describe('platform foundation (e2e)', () => {
         }),
       }),
     );
+  });
+
+  it('resumes, sanitizes, publishes, and removes an authenticated user avatar', async () => {
+    const email = `avatar-e2e-${String(Date.now())}@example.com`;
+    const password = 'Correct-Horse-Battery-2026!';
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ fullName: 'Avatar E2E', email, password })
+      .expect(201);
+    const verification = await app.get(AuthService).resendVerification(email);
+    if (!verification) throw new Error('Expected avatar-user verification delivery');
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verification/confirm')
+      .send({ token: verification.token })
+      .expect(200);
+    const login = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email, password })
+      .expect(200);
+    const authorization = `Bearer ${String(login.body.accessToken)}`;
+    const avatar = await sharp({
+      create: { width: 32, height: 32, channels: 3, background: '#2366aa' },
+    })
+      .withMetadata({ comment: 'must not survive sanitization' })
+      .png()
+      .toBuffer();
+
+    await request(app.getHttpServer())
+      .post('/api/v1/users/me/avatar/uploads')
+      .set('Tus-Resumable', '1.0.0')
+      .set('Upload-Length', String(avatar.byteLength))
+      .set(
+        'Upload-Metadata',
+        `filename ${Buffer.from('avatar.png').toString('base64')},filetype ${Buffer.from('image/png').toString('base64')}`,
+      )
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .options('/api/v1/users/me/avatar/uploads')
+      .expect('Tus-Resumable', '1.0.0')
+      .expect(204);
+
+    const creation = await request(app.getHttpServer())
+      .post('/api/v1/users/me/avatar/uploads')
+      .set('authorization', authorization)
+      .set('x-correlation-id', 'e2e-avatar-upload')
+      .set('Tus-Resumable', '1.0.0')
+      .set('Upload-Length', String(avatar.byteLength))
+      .set(
+        'Upload-Metadata',
+        `filename ${Buffer.from('avatar.png').toString('base64')},filetype ${Buffer.from('image/png').toString('base64')}`,
+      )
+      .expect('x-correlation-id', 'e2e-avatar-upload')
+      .expect(201);
+    const location = String(creation.headers['location']);
+    expect(location).toMatch(/^\/api\/v1\/users\/me\/avatar\/uploads\/[0-9a-f-]{36}$/i);
+    const fileId = location.slice(location.lastIndexOf('/') + 1);
+
+    await request(app.getHttpServer())
+      .head(location)
+      .set('authorization', authorization)
+      .set('Tus-Resumable', '1.0.0')
+      .expect('Upload-Offset', '0')
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(location)
+      .set('authorization', authorization)
+      .set('Tus-Resumable', '1.0.0')
+      .set('Upload-Offset', '0')
+      .set('Content-Type', 'application/offset+octet-stream')
+      .send(avatar)
+      .expect('Upload-Offset', String(avatar.byteLength))
+      .expect(204);
+
+    const attached = await request(app.getHttpServer())
+      .patch('/api/v1/users/me/avatar')
+      .set('authorization', authorization)
+      .set('x-correlation-id', 'e2e-avatar-claim')
+      .send({ fileId })
+      .expect('x-correlation-id', 'e2e-avatar-claim')
+      .expect(200);
+    expect(attached.body.avatar).toEqual(
+      expect.objectContaining({ fileId, mimeType: 'image/png', url: expect.any(String) }),
+    );
+    await request(app.getHttpServer())
+      .get(String(attached.body.avatar.url))
+      .expect('content-type', /image\/png/)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .delete('/api/v1/users/me/avatar')
+      .set('authorization', authorization)
+      .expect(204);
+    await request(app.getHttpServer())
+      .delete('/api/v1/users/me/avatar')
+      .set('authorization', authorization)
+      .expect(204);
   });
 
   it('registers, verifies, logs in, lists sessions, rotates refresh, and detects reuse', async () => {
