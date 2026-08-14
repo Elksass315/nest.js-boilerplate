@@ -3,6 +3,7 @@ import {
   loadApiConfiguration,
   validateApiEnvironment,
   validateDatabaseEnvironment,
+  validateFileWorkerEnvironment,
   validateMailWorkerEnvironment,
 } from './environment';
 
@@ -58,6 +59,47 @@ describe('environment validation', () => {
       }),
     );
     expect(worker).not.toHaveProperty('AUTH_ACCESS_TOKEN_SECRET');
+  });
+
+  it('validates the file worker without API, CORS, Swagger, auth, or mail settings', () => {
+    const worker = validateFileWorkerEnvironment({
+      DATABASE_HOST: 'localhost',
+      DATABASE_NAME: 'file_worker_test',
+      DATABASE_PASSWORD: 'local-password',
+      DATABASE_USERNAME: 'app',
+      REDIS_HOST: 'localhost',
+      FILES_WRITE_DRIVER: 'local',
+      FILES_READ_DRIVERS: 'local',
+    });
+
+    expect(worker).toEqual(
+      expect.objectContaining({
+        FILES_WRITE_DRIVER: 'local',
+        FILES_WORKER_CONCURRENCY: 5,
+      }),
+    );
+    expect(worker).not.toHaveProperty('AUTH_ACCESS_TOKEN_SECRET');
+    expect(worker).not.toHaveProperty('MAIL_SMTP_HOST');
+  });
+
+  it('rejects incomplete S3 file storage configuration', () => {
+    expect(() =>
+      validateFileWorkerEnvironment({
+        ...validEnvironment,
+        FILES_WRITE_DRIVER: 's3',
+        FILES_READ_DRIVERS: 'local,s3',
+        FILES_S3_BUCKET: '',
+      }),
+    ).toThrow('FILES_READ_DRIVERS must include FILES_WRITE_DRIVER');
+  });
+
+  it('rejects a relative local file storage root', () => {
+    expect(() =>
+      validateFileWorkerEnvironment({
+        ...validEnvironment,
+        FILES_LOCAL_ROOT: 'storage/files',
+      }),
+    ).toThrow('FILES_LOCAL_ROOT must be absolute');
   });
 
   it('rejects incomplete SMTP credentials in API and worker profiles', () => {

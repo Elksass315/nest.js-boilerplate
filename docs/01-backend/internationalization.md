@@ -19,3 +19,8 @@ localized top-level messages.
 Email two-step keys cover invalid challenges, email codes, recovery codes, bounded-attempt failures,
 and enabled-state conflicts. These translations remain generic: challenge tokens, codes, recipient
 addresses, attempt values, and account state are never interpolated into the localized message.
+
+File keys cover missing/hidden files, upload expiry, incomplete state, purpose size/type/image
+validation, and storage outages. They never interpolate original filenames, object keys, paths,
+buckets, uploader identity, or provider diagnostics. tus protocol headers remain language-neutral;
+client-visible JSON error messages use the same registered English fallbacks as the global filter.

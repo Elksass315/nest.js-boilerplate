@@ -42,6 +42,11 @@ repository-wide rules.
   meaningfully different request shapes, document each shape as a named `@ApiBody` example.
 - Every business collection endpoint is paginated. Use page/limit by default; cursor pagination
   requires a documented high-volume or stable-traversal reason. Never return a raw array.
+- Business features own their upload routes and authenticate every stateful upload request. They
+  consume only the public `FilesService`; direct filesystem, S3 SDK, or tus-store access is
+  forbidden outside `src/modules/files`. Storage keys are server-generated, files default to
+  protected, and every upload uses a fixed server-side purpose policy. Preserve correlation IDs
+  through upload processing, cleanup, provider migration, and owning-feature audits.
 - Put application policy in `src/core`, Nest/HTTP primitives in `src/common`, proven framework-light
   reuse in `src/shared`, and ambient declarations in `src/types`. Do not create generic buckets.
 - After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,

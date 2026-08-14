@@ -56,6 +56,19 @@ for (const filePath of walk(MODULES_ROOT).filter((file) => file.endsWith('.ts'))
   const sourceFeature = featureName(filePath);
   const source = readFileSync(filePath, 'utf8');
 
+  if (sourceFeature !== 'files') {
+    if (/['"]@(?:aws-sdk\/client-s3|tus\/(?:server|file-store|s3-store))['"]/.test(source)) {
+      violations.push(
+        `${path.relative(process.cwd(), filePath)} accesses a storage implementation outside the files module`,
+      );
+    }
+    if (/\b(?:createReadStream|createWriteStream)\b/.test(source)) {
+      violations.push(
+        `${path.relative(process.cwd(), filePath)} performs direct file streaming outside the files module`,
+      );
+    }
+  }
+
   for (const match of source.matchAll(importPattern)) {
     const specifier = match[1];
     if (!specifier) {

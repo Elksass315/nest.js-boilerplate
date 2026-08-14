@@ -9,11 +9,16 @@ import { createRedisConfig, redisEnvironmentSchema } from '@/redis/config/redis.
 
 import { appEnvironmentSchema, createAppConfig } from './app.config';
 import { authEnvironmentSchema, createAuthConfig } from './auth.config';
-import type { AppConfiguration, MailWorkerConfiguration } from './configuration.types';
+import type {
+  AppConfiguration,
+  FileWorkerConfiguration,
+  MailWorkerConfiguration,
+} from './configuration.types';
 import { corsEnvironmentSchema, createCorsConfig } from './cors.config';
 import { createI18nConfig, i18nEnvironmentSchema, parseSupportedLanguages } from './i18n.config';
 import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config';
 import { createMailConfig, mailEnvironmentSchema } from './mail.config';
+import { createFilesConfig, filesEnvironmentSchema, parseFileStorageDrivers } from './files.config';
 import { createRateLimitConfig, rateLimitEnvironmentSchema } from './rate-limit.config';
 import { createSwaggerConfig, swaggerEnvironmentSchema } from './swagger.config';
 
@@ -26,6 +31,7 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...rateLimitEnvironmentSchema,
   ...i18nEnvironmentSchema,
   ...mailEnvironmentSchema,
+  ...filesEnvironmentSchema,
   ...databaseEnvironmentSchema,
   ...redisEnvironmentSchema,
 })
@@ -45,6 +51,8 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'SWAGGER_DOCS_USERNAME and SWAGGER_DOCS_PASSWORD must be empty unless SWAGGER_DOCS_ACCESS is basic',
     'environment.smtpCredentials':
       'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
+    'environment.filesDrivers':
+      'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
   });
 
 const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
@@ -64,6 +72,21 @@ const mailWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'REDIS_PASSWORD must contain at least 16 characters in staging and production',
     'environment.smtpCredentials':
       'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
+  });
+
+const fileWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
+  ...appEnvironmentSchema,
+  ...loggingEnvironmentSchema,
+  ...filesEnvironmentSchema,
+  ...databaseEnvironmentSchema,
+  ...redisEnvironmentSchema,
+})
+  .custom(validateFileWorkerContradictions)
+  .messages({
+    'environment.redisPassword':
+      'REDIS_PASSWORD must contain at least 16 characters in staging and production',
+    'environment.filesDrivers':
+      'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
   });
 
 function validateApiContradictions(
@@ -104,6 +127,9 @@ function validateApiContradictions(
   if (!smtpCredentialsAgree(environment)) {
     return helpers.error('environment.smtpCredentials');
   }
+  if (!filesConfigurationAgrees(environment)) {
+    return helpers.error('environment.filesDrivers');
+  }
   if (
     typeof fallbackLanguage !== 'string' ||
     typeof supportedLanguages !== 'string' ||
@@ -112,6 +138,30 @@ function validateApiContradictions(
     return helpers.error('environment.fallbackLanguage');
   }
   return environment;
+}
+
+function filesConfigurationAgrees(environment: Record<string, unknown>): boolean {
+  const writeDriver = environment['FILES_WRITE_DRIVER'];
+  const readValue = environment['FILES_READ_DRIVERS'];
+  if (typeof writeDriver !== 'string' || typeof readValue !== 'string') return false;
+  let readDrivers: string[];
+  try {
+    readDrivers = parseFileStorageDrivers(readValue);
+  } catch {
+    return false;
+  }
+  if (!readDrivers.includes(writeDriver)) return false;
+  if (!readDrivers.includes('s3')) return true;
+  const bucket = environment['FILES_S3_BUCKET'];
+  const accessKey = environment['FILES_S3_ACCESS_KEY_ID'];
+  const secretKey = environment['FILES_S3_SECRET_ACCESS_KEY'];
+  const encryption = environment['FILES_S3_SERVER_SIDE_ENCRYPTION'];
+  const kmsKey = environment['FILES_S3_KMS_KEY_ID'];
+  const credentialsAgree =
+    (typeof accessKey === 'string' && accessKey.length > 0) ===
+    (typeof secretKey === 'string' && secretKey.length > 0);
+  const kmsAgrees = encryption !== 'aws:kms' || (typeof kmsKey === 'string' && kmsKey.length > 0);
+  return typeof bucket === 'string' && bucket.length > 0 && credentialsAgree && kmsAgrees;
 }
 
 function validateMailWorkerContradictions(
@@ -128,6 +178,24 @@ function validateMailWorkerContradictions(
   }
   if (!smtpCredentialsAgree(environment)) {
     return helpers.error('environment.smtpCredentials');
+  }
+  return environment;
+}
+
+function validateFileWorkerContradictions(
+  environment: Record<string, unknown>,
+  helpers: Joi.CustomHelpers,
+): Record<string, unknown> | Joi.ErrorReport {
+  const nodeEnvironment = environment['NODE_ENV'];
+  const redisPassword = environment['REDIS_PASSWORD'];
+  if (
+    (nodeEnvironment === 'staging' || nodeEnvironment === 'production') &&
+    (typeof redisPassword !== 'string' || redisPassword.length < 16)
+  ) {
+    return helpers.error('environment.redisPassword');
+  }
+  if (!filesConfigurationAgrees(environment)) {
+    return helpers.error('environment.filesDrivers');
   }
   return environment;
 }
@@ -177,6 +245,7 @@ export function loadApiConfiguration(): AppConfiguration {
     rateLimit: createRateLimitConfig(environment),
     i18n: createI18nConfig(environment),
     mail: createMailConfig(environment),
+    files: createFilesConfig(environment),
     database: createDatabaseConfig(environment),
     redis: createRedisConfig(environment),
   };
@@ -200,6 +269,23 @@ export function loadMailWorkerConfiguration(): MailWorkerConfiguration {
     app: createAppConfig(environment),
     logging: createLoggingConfig(environment),
     mail: createMailConfig(environment),
+    database: createDatabaseConfig(environment),
+    redis: createRedisConfig(environment),
+  };
+}
+
+export function validateFileWorkerEnvironment(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  return validateWithSchema(fileWorkerEnvironmentSchema, input);
+}
+
+export function loadFileWorkerConfiguration(): FileWorkerConfiguration {
+  const environment = validateFileWorkerEnvironment(process.env);
+  return {
+    app: createAppConfig(environment),
+    logging: createLoggingConfig(environment),
+    files: createFilesConfig(environment),
     database: createDatabaseConfig(environment),
     redis: createRedisConfig(environment),
   };

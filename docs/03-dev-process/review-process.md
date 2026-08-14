@@ -11,6 +11,12 @@ For every API route, reviewers compare implementation, DTOs, tests, Swagger, and
 - concrete response examples;
 - named examples for each meaningfully different accepted request body.
 
+File-consumer reviews additionally reject generic upload endpoints, unauthenticated stateful tus
+requests, client-selected storage keys, public-by-default files, direct provider/repository/entity
+imports, and missing purpose limits. Review correlation propagation through uploads, workers,
+cleanup, provider migration, and owning-feature audits, plus matching configuration, Compose,
+migration, Swagger, tests, and module documentation.
+
 Use `pnpm validate:change` after each coding prompt. Formatting, strict lint, type checking,
 applicable focused tests, and build are mandatory blocking gates. The command derives additional
 checks from the current Git diff and rejects governed code, configuration, API, agent, database,

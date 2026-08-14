@@ -3,7 +3,7 @@
 Copy `.env.example` for development. Managed environments inject secrets outside Git.
 
 Configuration is namespaced and typed by domain: app, CORS, logging, Swagger, rate limits, i18n,
-database, Redis, auth, and mail. Each domain owns its schema fragment, loader, contract, tests, and
+database, Redis, auth, mail, and files. Each domain owns its schema fragment, loader, contract, tests, and
 environment documentation. One composed validator creates the API configuration.
 
 Executables validate only their dependencies:
@@ -12,6 +12,8 @@ Executables validate only their dependencies:
 - Migration commands validate database settings only.
 - Seed commands validate database and seed settings.
 - Mail workers validate app identity, logging, Redis, database, and mail settings only.
+- File workers and file-migration commands validate app identity, logging, Redis, database, and
+  file storage settings only.
 
 Raw `process.env` access is restricted to configuration and CLI entrypoints. Application code uses
 typed `ConfigService` paths such as `app.port`, `auth.accessTokenTtlSeconds`, and `mail.branding`.
@@ -30,6 +32,13 @@ Mail configuration owns sender, public action URL, SMTP connection timeouts, wor
 retry policy, and branding. `MAIL_ENABLED=false` safely suppresses queue production and worker SMTP
 startup. When enabled, auth queues named HBS templates with correlation context; no SMTP password,
 token, code, body, or full recipient is logged.
+
+File configuration owns the write driver, enabled read drivers, absolute resolved local root,
+upload expiry, signed-URL lifetime, cleanup concurrency/retries, and S3 settings. The write driver
+must appear in `FILES_READ_DRIVERS`. Enabling S3 requires a bucket and region; explicit access keys
+must be supplied as a pair, while empty keys use the AWS runtime credential chain. KMS encryption
+requires a key ID. Managed deployments should use S3 and configure bucket-default encryption;
+local storage requires a shared persistent filesystem for multiple replicas.
 
 When configuration changes, update schema, tests, `.env.example`, Compose/CI/deployment inputs, and
 this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments

@@ -111,6 +111,56 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.sessionNotFound',
     fallbackMessage: 'The requested session was not found',
   },
+  FILE_NOT_FOUND: {
+    status: HttpStatus.NOT_FOUND,
+    messageKey: 'errors.fileNotFound',
+    fallbackMessage: 'The requested file was not found',
+  },
+  FILE_OWNERSHIP_MISMATCH: {
+    status: HttpStatus.FORBIDDEN,
+    messageKey: 'errors.fileOwnershipMismatch',
+    fallbackMessage: 'The file does not belong to the authenticated user',
+  },
+  FILE_OFFSET_MISMATCH: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.fileOffsetMismatch',
+    fallbackMessage: 'The upload offset does not match the stored offset',
+  },
+  TUS_VERSION_UNSUPPORTED: {
+    status: HttpStatus.PRECONDITION_FAILED,
+    messageKey: 'errors.tusVersionUnsupported',
+    fallbackMessage: 'The tus protocol version is not supported',
+  },
+  FILE_UPLOAD_EXPIRED: {
+    status: HttpStatus.GONE,
+    messageKey: 'errors.fileUploadExpired',
+    fallbackMessage: 'The file upload has expired',
+  },
+  FILE_NOT_READY: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.fileNotReady',
+    fallbackMessage: 'The file is not ready to use',
+  },
+  FILE_TOO_LARGE: {
+    status: HttpStatus.PAYLOAD_TOO_LARGE,
+    messageKey: 'errors.fileTooLarge',
+    fallbackMessage: 'The file exceeds the allowed size',
+  },
+  FILE_TYPE_NOT_ALLOWED: {
+    status: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+    messageKey: 'errors.fileTypeNotAllowed',
+    fallbackMessage: 'The file type is not allowed',
+  },
+  FILE_INVALID_IMAGE: {
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    messageKey: 'errors.fileInvalidImage',
+    fallbackMessage: 'The uploaded image is invalid',
+  },
+  FILE_STORAGE_UNAVAILABLE: {
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    messageKey: 'errors.fileStorageUnavailable',
+    fallbackMessage: 'File storage is temporarily unavailable',
+  },
   UNAUTHORIZED: {
     status: HttpStatus.UNAUTHORIZED,
     messageKey: 'errors.unauthorized',

@@ -4,6 +4,9 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/main.ts',
+    '!src/file-worker.ts',
+    '!src/files-migration.ts',
+    '!src/mail-worker.ts',
     '!src/bootstrap.ts',
     '!src/**/*.module.ts',
     '!src/**/*.interface.ts',
