@@ -4,6 +4,7 @@ import type { RedisConfig } from '@/redis/config/redis.config';
 export type NodeEnvironment = 'development' | 'test' | 'staging' | 'production';
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
 export type SwaggerDocsAccess = 'public' | 'basic' | 'disabled';
+export type FileStorageDriver = 'local' | 's3';
 
 export interface AppConfig {
   nodeEnv: NodeEnvironment;
@@ -77,6 +78,28 @@ export interface MailConfig {
   };
 }
 
+export interface FilesConfig {
+  writeDriver: FileStorageDriver;
+  readDrivers: FileStorageDriver[];
+  localRoot: string;
+  uploadExpirationMs: number;
+  signedUrlTtlSeconds: number;
+  workerConcurrency: number;
+  maxRetries: number;
+  retryDelayMs: number;
+  s3: {
+    bucket: string;
+    region: string;
+    endpoint: string;
+    forcePathStyle: boolean;
+    cdnUrl: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    serverSideEncryption: 'AES256' | 'aws:kms';
+    kmsKeyId: string;
+  };
+}
+
 export interface AppConfiguration {
   app: AppConfig;
   cors: CorsConfig;
@@ -86,6 +109,7 @@ export interface AppConfiguration {
   i18n: I18nConfig;
   auth: AuthConfig;
   mail: MailConfig;
+  files: FilesConfig;
   database: DatabaseConfig;
   redis: RedisConfig;
 }
@@ -93,4 +117,9 @@ export interface AppConfiguration {
 export type MailWorkerConfiguration = Pick<
   AppConfiguration,
   'app' | 'logging' | 'mail' | 'database' | 'redis'
+>;
+
+export type FileWorkerConfiguration = Pick<
+  AppConfiguration,
+  'app' | 'logging' | 'files' | 'database' | 'redis'
 >;

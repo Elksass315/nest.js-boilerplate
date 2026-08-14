@@ -33,7 +33,12 @@ never introduce DDD layers speculatively.
    outbound work.
 10. Add explicit migrations and immutable ordered seeds when stored state or reference data changes.
     Never enable synchronization or run migrations/seeds during API startup.
-11. After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,
+11. For file consumers, keep upload routes in the consuming feature, authenticate every stateful
+    tus request, and call only the public `FilesService`. Define a fixed purpose/size/MIME policy;
+    never accept a client storage key or import filesystem, S3, tus-store, file repository, or file
+    entity internals. Propagate request/correlation IDs through processing, cleanup, migration, and
+    owning-feature audits.
+12. After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,
     applicable focused tests, and build are mandatory blocking gates. It adds architecture, i18n,
     docs, tooling, dependency, and Compose checks from the diff and rejects governed changes missing
     their authoritative documentation companion. Run full `pnpm validate` once before PR/release
@@ -49,4 +54,6 @@ never introduce DDD layers speculatively.
 - Do not import another feature's entity, repository, or internal path.
 - Do not expose entities, raw arrays, or undocumented pagination contracts.
 - Do not add generic utility buckets or packages that existing platform code replaces.
+- Do not add generic upload endpoints, unauthenticated stateful uploads, client-selected storage
+  keys, or direct storage-provider access outside the files module.
 - Do not hand off stale Swagger, error translations, module docs, configuration examples, or tests.

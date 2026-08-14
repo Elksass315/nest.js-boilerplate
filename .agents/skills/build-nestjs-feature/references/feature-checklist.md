@@ -43,6 +43,15 @@ Use only the sections that match the requested capability.
 - Synchronization remains disabled; constraints and indexes enforce real invariants.
 - Query, transaction, migration, and seed failure paths are covered.
 
+## File consumers
+
+- Upload routes are owned by the consuming feature; there is no generic upload endpoint.
+- POST, HEAD, PATCH, and DELETE tus requests require authentication and ownership checks.
+- The feature calls only the public `FilesService` and supplies a fixed purpose, maximum size, and
+  declared MIME allowlist. Storage keys remain server-generated and visibility starts protected.
+- Processing, cleanup, migration, audit, Swagger, configuration, Compose, and correlation behavior
+  are updated together when applicable.
+
 ## Verification
 
 - Tests cover success and relevant validation, conflict, not-found, authorization, and dependency failures.

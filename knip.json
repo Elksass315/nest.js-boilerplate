@@ -3,6 +3,8 @@
   "entry": [
     "src/main.ts",
     "src/mail-worker.ts",
+    "src/file-worker.ts",
+    "src/modules/files/tus-loader.cjs",
     "src/database/data-source.ts",
     "src/database/migrations/*.ts",
     "src/common/pagination/index.ts",
@@ -11,7 +13,7 @@
     "test/**/*.ts",
     "tools/**/*.mjs"
   ],
-  "project": ["src/**/*.ts", "test/**/*.ts", "tools/**/*.mjs"],
+  "project": ["src/**/*.ts", "src/**/*.cjs", "test/**/*.ts", "tools/**/*.mjs"],
   "ignoreDependencies": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/github",

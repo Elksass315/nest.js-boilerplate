@@ -25,3 +25,7 @@ Run `pnpm branch:write-check` before any write. Use `$build-nestjs-feature` and
   applicable, conflict, not-found, and dependency-failure paths.
 - Register stable errors centrally, add English translations, and propagate request/correlation IDs
   through logs, jobs, audits, and outbound calls.
+- Upload routes stay in the consuming feature, require authentication for POST/HEAD/PATCH/DELETE,
+  and delegate byte transfer to the public `FilesService`. Never import storage providers, tus
+  stores, storage entities, or the AWS SDK across the files-module boundary. Use a fixed purpose,
+  private visibility by default, and server-generated keys.

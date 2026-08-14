@@ -32,3 +32,10 @@ Identity email-security migration `1786752000000-CreateIdentityEmailSecurity` cr
 expiring two-step challenges, hashed single-use recovery codes, and mail-delivery state. Delivery
 records store only a SHA-256 recipient fingerprint plus a masked address; queue payloads retain the
 full recipient only for the bounded Redis job lifetime. Reversal removes these three owned tables.
+
+File migration `1786838400000-CreateFileStorage` creates `stored_files` with provider/key and public
+identifier uniqueness, lifecycle/visibility/provider checks, uploader ownership, expiry indexes,
+checksums, safe failure state, and correlation context. Online provider moves are separate explicit
+commands, hold their own advisory lock, process bounded ready-file batches, and never run during API,
+worker, schema migration, seed, or deployment startup. The row retains a pending old-provider/key
+pair until source deletion succeeds so interrupted moves remain readable and recoverable.

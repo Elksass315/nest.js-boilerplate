@@ -40,16 +40,17 @@ export class HealthController {
   @Get('ready')
   @ApiOperation({
     summary: 'Check whether required platform services are ready',
-    description: 'Checks PostgreSQL and Redis and reports a stable 503 error when either fails.',
+    description:
+      'Checks PostgreSQL, Redis, and every enabled file read provider and reports a stable 503 error when one fails.',
   })
   @ApiOkResponse({
-    description: 'PostgreSQL and Redis are reachable.',
+    description: 'PostgreSQL, Redis, and enabled file storage providers are reachable.',
     content: {
       'application/json': {
         example: {
           status: 'ok',
           timestamp: '2026-08-11T12:00:00.000Z',
-          checks: { database: 'up', redis: 'up' },
+          checks: { database: 'up', redis: 'up', storage: 'up' },
         },
       },
     },
@@ -70,7 +71,7 @@ export class HealthController {
               path: '/health/ready',
               requestId: '01J5EXAMPLE0000000000000000',
               correlationId: '01J5CORRELATION000000000000',
-              details: { checks: { database: 'down', redis: 'up' } },
+              details: { checks: { database: 'down', redis: 'up', storage: 'up' } },
             },
           },
           redisUnavailable: {
@@ -83,7 +84,20 @@ export class HealthController {
               path: '/health/ready',
               requestId: '01J5EXAMPLE0000000000000001',
               correlationId: '01J5CORRELATION000000000000',
-              details: { checks: { database: 'up', redis: 'down' } },
+              details: { checks: { database: 'up', redis: 'down', storage: 'up' } },
+            },
+          },
+          storageUnavailable: {
+            summary: 'An enabled file provider is unavailable',
+            value: {
+              statusCode: 503,
+              code: 'SERVICE_NOT_READY',
+              message: 'One or more required services are unavailable',
+              timestamp: '2026-08-14T12:00:00.000Z',
+              path: '/health/ready',
+              requestId: '01J5EXAMPLE0000000000000002',
+              correlationId: '01J5CORRELATION000000000000',
+              details: { checks: { database: 'up', redis: 'up', storage: 'down' } },
             },
           },
         },

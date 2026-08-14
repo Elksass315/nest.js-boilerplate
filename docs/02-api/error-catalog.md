@@ -20,14 +20,24 @@
 | 404    | `USER_NOT_FOUND`             | `The requested user was not found`                             | A referenced user identifier does not exist.                              |
 | 404    | `ROLE_NOT_FOUND`             | `One or more requested roles were not found`                   | A required or requested fixed role does not exist.                        |
 | 404    | `SESSION_NOT_FOUND`          | `The requested session was not found`                          | The session is absent or not owned by the caller.                         |
+| 404    | `FILE_NOT_FOUND`             | `The requested file was not found`                             | A file is missing or unavailable for the requested operation.             |
+| 403    | `FILE_OWNERSHIP_MISMATCH`    | `The file does not belong to the authenticated user`           | A stateful upload request targets another user's file.                    |
+| 409    | `FILE_OFFSET_MISMATCH`       | `The upload offset does not match the stored offset`           | A tus PATCH offset differs from the stored upload offset.                 |
+| 412    | `TUS_VERSION_UNSUPPORTED`    | `The tus protocol version is not supported`                    | The client sends an unsupported tus protocol version.                     |
+| 410    | `FILE_UPLOAD_EXPIRED`        | `The file upload has expired`                                  | A resumable upload exceeded its server expiry.                            |
 | 409    | `RESOURCE_CONFLICT`          | `The request conflicts with the current resource state`        | A state, uniqueness, foreign-key, or check conflict occurs.               |
+| 409    | `FILE_NOT_READY`             | `The file is not ready for use`                                | A business feature tries to claim an incomplete file.                     |
 | 409    | `EMAIL_ALREADY_REGISTERED`   | `An account with this email already exists`                    | Registration races or duplicates the normalized email.                    |
 | 409    | `LAST_SUPER_ADMIN`           | `At least one active super administrator must remain`          | A role/status change would remove the final active owner.                 |
 | 409    | `TWO_STEP_ALREADY_ENABLED`   | `Email two-step verification is already enabled`               | Enrollment is requested for an enabled account.                           |
 | 409    | `TWO_STEP_NOT_ENABLED`       | `Email two-step verification is not enabled`                   | Disable/regeneration is requested without enrollment.                     |
 | 422    | `VALIDATION_ERROR`           | `Input validation failed`                                      | A well-formed DTO fails validation.                                       |
+| 413    | `FILE_TOO_LARGE`             | `The file exceeds the allowed size`                            | Upload length exceeds the fixed purpose policy.                           |
+| 415    | `FILE_TYPE_NOT_ALLOWED`      | `The file type is not allowed`                                 | Declared or detected media type violates the purpose policy.              |
+| 422    | `FILE_INVALID_IMAGE`         | `The image could not be processed safely`                      | Image decoding, dimensions, animation, or pixel limits fail.              |
 | 429    | `TOO_MANY_REQUESTS`          | `Too many requests`                                            | Rate-limit policy rejects the request.                                    |
-| 503    | `SERVICE_NOT_READY`          | `One or more required services are unavailable`                | PostgreSQL or Redis readiness fails.                                      |
+| 503    | `SERVICE_NOT_READY`          | `One or more required services are unavailable`                | PostgreSQL, Redis, or enabled storage readiness fails.                    |
+| 503    | `FILE_STORAGE_UNAVAILABLE`   | `File storage is temporarily unavailable`                      | An enabled file provider cannot complete the operation.                   |
 | 500    | `INTERNAL_SERVER_ERROR`      | `An unexpected error occurred`                                 | An unhandled or unknown persistence failure reaches the API.              |
 
 Swagger basic-auth failures occur before the Nest pipeline and return their own documented

@@ -80,7 +80,7 @@ pipeline {
                                 docker compose --env-file "$env_file" \
                                 -f "$deploy_path/compose.yaml" \
                                 -f "$deploy_path/compose.deploy.yaml" \
-                                up --detach --no-build --wait api postgres redis
+                                up --detach --no-build --wait api mail-worker file-worker postgres redis
                         fi
                         exit "$exit_code"
                     }
@@ -92,7 +92,7 @@ pipeline {
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
                         -f "$deploy_path/compose.deploy.yaml" \
-                        pull api migrate seed
+                        pull api mail-worker file-worker migrate seed
 
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
@@ -107,7 +107,7 @@ pipeline {
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
                         -f "$deploy_path/compose.deploy.yaml" \
-                        up --detach --no-build --wait api postgres redis
+                        up --detach --no-build --wait api mail-worker file-worker postgres redis
 
                     api_port="$(grep -E '^API_HOST_PORT=' "$env_file" | tail -n 1 | cut -d= -f2 || true)"
                     api_port="${api_port:-3000}"

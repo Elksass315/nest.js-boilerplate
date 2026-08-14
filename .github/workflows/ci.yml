@@ -53,6 +53,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      localstack:
+        image: localstack/localstack:2026.7@sha256:f7b778d03717b58c3adce81a740bfafff5c6f9d639159bbf08da557c9ac1b513
+        env:
+          SERVICES: s3
+          DEBUG: 0
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl --fail http://localhost:4566/_localstack/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     env:
       NODE_ENV: test
       APP_NAME: NestJS SaaS API
@@ -84,6 +96,15 @@ jobs:
       MAIL_SMTP_PORT: 1025
       MAIL_SMTP_SECURE: false
       MAIL_ACTION_BASE_URL: http://localhost:3000
+      FILES_WRITE_DRIVER: s3
+      FILES_READ_DRIVERS: local,s3
+      FILES_LOCAL_ROOT: /tmp/nestjs-saas-files
+      FILES_S3_BUCKET: app-files
+      FILES_S3_REGION: us-east-1
+      FILES_S3_ENDPOINT: http://localhost:4566
+      FILES_S3_FORCE_PATH_STYLE: true
+      FILES_S3_ACCESS_KEY_ID: test
+      FILES_S3_SECRET_ACCESS_KEY: test
     steps:
       - name: Check out repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -104,6 +125,12 @@ jobs:
 
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Create the private S3 test bucket
+        run: >-
+          node -e "const {S3Client,CreateBucketCommand}=require('@aws-sdk/client-s3');
+          const client=new S3Client({region:process.env.FILES_S3_REGION,endpoint:process.env.FILES_S3_ENDPOINT,forcePathStyle:true,credentials:{accessKeyId:'test',secretAccessKey:'test'}});
+          client.send(new CreateBucketCommand({Bucket:process.env.FILES_S3_BUCKET})).catch((error)=>{if(error.name!=='BucketAlreadyOwnedByYou'&&error.name!=='BucketAlreadyExists')throw error})"
 
       - name: Run static quality gates
         run: |

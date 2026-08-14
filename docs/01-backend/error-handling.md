@@ -39,3 +39,9 @@ reveal whether a recovery code ever existed. A challenge reaching its configured
 returns `TWO_STEP_ATTEMPTS_EXCEEDED`. Enrollment-state conflicts use
 `TWO_STEP_ALREADY_ENABLED` and `TWO_STEP_NOT_ENABLED`. Controllers document every reachable code
 with the exact registered English message.
+
+File storage errors distinguish hidden/missing public files, expired uploads, incomplete claims,
+size/type/image-policy failures, and provider outages without leaking a storage key, local path,
+bucket, filename, or provider response. tus transport failures use protocol-compatible HTTP
+statuses while retaining stable codes such as `FILE_NOT_FOUND`, `FILE_UPLOAD_EXPIRED`,
+`FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, and `FILE_STORAGE_UNAVAILABLE`.

@@ -4,7 +4,9 @@ The application is a production-oriented, single-tenant NestJS modular monolith.
 system of record and Redis provides platform coordination. Phase 2 includes users, fixed RBAC,
 credential authentication, rotating sessions, email two-step verification, recovery codes, and a
 separate SMTP mail worker. General notifications, storage, billing, and other capabilities remain
-deferred.
+deferred. Phase 3 introduces a reusable files module with authenticated feature-owned tus uploads,
+private local/S3 storage, stable public identifiers, online provider migration, and a separate
+cleanup worker. Business features never access providers or file persistence directly.
 
 Platform code owns bootstrap, validated configuration, errors, logging, database and Redis
 connectivity, health, security defaults, and reusable HTTP behavior. Business behavior belongs to

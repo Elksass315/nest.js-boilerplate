@@ -10,5 +10,6 @@ export interface ReadinessResponse {
   checks: {
     database: 'up';
     redis: 'up';
+    storage: 'up';
   };
 }
