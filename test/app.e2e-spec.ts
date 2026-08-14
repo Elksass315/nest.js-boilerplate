@@ -181,7 +181,7 @@ describe('platform foundation (e2e)', () => {
     const avatar = await sharp({
       create: { width: 32, height: 32, channels: 3, background: '#2366aa' },
     })
-      .withMetadata({ comment: 'must not survive sanitization' })
+      .withMetadata({ exif: { IFD0: { Copyright: 'must not survive sanitization' } } })
       .png()
       .toBuffer();
 
