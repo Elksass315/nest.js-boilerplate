@@ -9,7 +9,8 @@ scanning. Integration setup applies migrations and immutable seeds before E2E so
 including RBAC roles and permissions, matches a real deployment. Main and scheduled workflows add
 CodeQL, SBOM, license, and deeper scans. File-storage integration runs against local storage and a
 digest-pinned LocalStack S3 service before deployment. CI creates a private bucket explicitly and
-uses path-style S3 access with synthetic credentials.
+uses path-style S3 access with synthetic credentials. The selected LocalStack image must remain a
+verified token-free Community release so fork and pull-request CI never depends on a paid secret.
 
 The secret-scan job examines full Git history with Gitleaks. Confirmed false positives are ignored
 only by their exact finding fingerprint in `.gitleaksignore`; broad path, rule, commit, or regular
