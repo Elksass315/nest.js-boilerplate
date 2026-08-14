@@ -10,6 +10,17 @@ describe('logger options', () => {
 
     expect(createRequestId(request, response)).toBe('request-123');
     expect(response.setHeader).toHaveBeenCalledWith('x-request-id', 'request-123');
+    expect(response.setHeader).toHaveBeenCalledWith('x-correlation-id', 'request-123');
+  });
+
+  it('preserves a safe correlation ID independently of the request ID', () => {
+    const response = { setHeader: jest.fn() } as unknown as ServerResponse;
+    const request = {
+      headers: { 'x-request-id': 'request-123', 'x-correlation-id': 'workflow-456' },
+    } as unknown as IncomingMessage;
+
+    expect(createRequestId(request, response)).toBe('request-123');
+    expect(response.setHeader).toHaveBeenCalledWith('x-correlation-id', 'workflow-456');
   });
 
   it('replaces unsafe request IDs', () => {
@@ -28,12 +39,18 @@ describe('logger options', () => {
   it('configures request metadata, health filtering, and serializers', () => {
     const options = createLoggerOptions('debug').pinoHttp as Options;
 
-    expect(options.customProps?.({ id: 42 } as IncomingMessage, {} as ServerResponse)).toEqual({
+    expect(
+      options.customProps?.(
+        { id: 42, correlationId: 'correlation-1' } as unknown as IncomingMessage,
+        {} as ServerResponse,
+      ),
+    ).toEqual({
       requestId: '42',
+      correlationId: 'correlation-1',
     });
     expect(
       options.customProps?.({ id: { source: 'test' } } as IncomingMessage, {} as ServerResponse),
-    ).toEqual({ requestId: '{"source":"test"}' });
+    ).toEqual({ requestId: '{"source":"test"}', correlationId: '{"source":"test"}' });
 
     const autoLogging = options.autoLogging;
     if (typeof autoLogging !== 'object') {

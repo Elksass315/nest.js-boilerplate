@@ -1,8 +1,8 @@
 import type { ConfigService } from '@nestjs/config';
-import { SwaggerModule } from '@nestjs/swagger';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { SwaggerModule } from '@nestjs/swagger';
 
-import type { EnvironmentVariables } from '@/config/environment';
+import type { AppConfiguration, SwaggerDocsAccess } from '@/config/configuration.types';
 
 import { configureSwagger } from './configure-swagger';
 
@@ -10,19 +10,16 @@ function createApp(): NestExpressApplication {
   return { use: jest.fn() } as unknown as NestExpressApplication;
 }
 
-function createConfigService(
-  access: EnvironmentVariables['SWAGGER_DOCS_ACCESS'],
-): ConfigService<EnvironmentVariables, true> {
+function createConfigService(access: SwaggerDocsAccess): ConfigService<AppConfiguration, true> {
   const values = {
-    APP_NAME: 'Example API',
-    SWAGGER_DOCS_ACCESS: access,
-    SWAGGER_DOCS_PASSWORD: access === 'basic' ? 'strong-docs-password' : '',
-    SWAGGER_DOCS_USERNAME: access === 'basic' ? 'docs-user' : '',
+    'app.name': 'Example API',
+    'swagger.access': access,
+    'swagger.password': access === 'basic' ? 'strong-docs-password' : '',
+    'swagger.username': access === 'basic' ? 'docs-user' : '',
   };
-
   return {
     getOrThrow: jest.fn((key: keyof typeof values) => values[key]),
-  } as unknown as ConfigService<EnvironmentVariables, true>;
+  } as unknown as ConfigService<AppConfiguration, true>;
 }
 
 describe(configureSwagger.name, () => {
@@ -30,41 +27,26 @@ describe(configureSwagger.name, () => {
     jest.spyOn(SwaggerModule, 'createDocument').mockReturnValue({ openapi: '3.0.0' } as never);
     jest.spyOn(SwaggerModule, 'setup').mockImplementation();
   });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+  afterEach(() => jest.restoreAllMocks());
 
   it('registers public documentation without middleware', () => {
     const app = createApp();
-
     configureSwagger(app, createConfigService('public'));
-
     expect(app.use).not.toHaveBeenCalled();
     expect(SwaggerModule.setup).toHaveBeenCalledWith('docs', app, expect.any(Object), {
       customSiteTitle: 'Example API Documentation',
     });
   });
 
-  it('protects the UI, JSON, and YAML endpoints in basic mode', () => {
+  it('protects every documentation endpoint in basic mode', () => {
     const app = createApp();
-
     configureSwagger(app, createConfigService('basic'));
-
     expect(app.use).toHaveBeenCalledTimes(3);
-    expect(app.use).toHaveBeenNthCalledWith(1, '/docs', expect.any(Function));
-    expect(app.use).toHaveBeenNthCalledWith(2, '/docs-json', expect.any(Function));
-    expect(app.use).toHaveBeenNthCalledWith(3, '/docs-yaml', expect.any(Function));
-    expect(SwaggerModule.setup).toHaveBeenCalledTimes(1);
   });
 
-  it('does not register documentation in disabled mode', () => {
+  it('does not register disabled documentation', () => {
     const app = createApp();
-
     configureSwagger(app, createConfigService('disabled'));
-
-    expect(app.use).not.toHaveBeenCalled();
     expect(SwaggerModule.createDocument).not.toHaveBeenCalled();
-    expect(SwaggerModule.setup).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,8 @@
 - Do not create generic shared buckets or cross-feature persistence channels.
 - Keep TypeScript strict, TypeORM synchronization disabled, and migrations outside API startup.
 - Version controllers explicitly and maintain complete Swagger and module documentation.
+- Enforce purpose-specific core/common/shared/types boundaries and canonical collection pagination.
+- Propagate correlation IDs through all related synchronous and asynchronous work.
 
 `pnpm arch:check` enforces dependency boundaries and API-controller contract metadata. Intentional
 exceptions require an ADR documenting evidence, risk controls, validation, and rollback.

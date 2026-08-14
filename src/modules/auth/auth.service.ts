@@ -1,0 +1,564 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, type EntityManager } from 'typeorm';
+
+import { buildOffsetPage, type OffsetPage } from '@/common/pagination';
+import type { AppConfiguration } from '@/config/configuration.types';
+import { AppException } from '@/core/errors/app.exception';
+import { MailService } from '@/modules/mail';
+import { UsersService, type UserWithRoles } from '@/modules/users';
+
+import type { TwoStepPurpose } from './auth.constants';
+import { AuthCryptoService } from './auth-crypto.service';
+import { AuthRepository } from './auth.repository';
+import type { MessageResponseDto } from './dto/message-response.dto';
+import type { SessionResponseDto } from './dto/session-response.dto';
+import type { TokenPairResponseDto } from './dto/token-pair-response.dto';
+import type { RecoveryCodesResponseDto, TwoStepChallengeResponseDto } from './dto/two-step.dto';
+
+interface ActionDelivery {
+  userId: string;
+  email: string;
+  token: string;
+}
+
+type LoginResult = TokenPairResponseDto | TwoStepChallengeResponseDto;
+type LoginTwoStepCredential =
+  { method: 'email_code'; code: string } | { method: 'recovery_code'; recoveryCode: string };
+type TwoStepProofResult =
+  | { kind: 'invalid_challenge' }
+  | { kind: 'attempts_exceeded' }
+  | { kind: 'invalid_code' }
+  | { kind: 'invalid_recovery' }
+  | { kind: 'success'; userId: string };
+
+@Injectable()
+export class AuthService {
+  private readonly accessTtl: number;
+  private readonly sessionTtl: number;
+  private readonly verificationTtl: number;
+  private readonly resetTtl: number;
+  private readonly maxSessions: number;
+  private readonly maxAttempts: number;
+  private readonly lockSeconds: number;
+  private readonly twoStepTtl: number;
+  private readonly twoStepMaxAttempts: number;
+  private readonly recoveryCodeCount: number;
+
+  public constructor(
+    private readonly repository: AuthRepository,
+    private readonly crypto: AuthCryptoService,
+    private readonly users: UsersService,
+    private readonly mail: MailService,
+    config: ConfigService<AppConfiguration, true>,
+    @InjectDataSource() private readonly dataSource: DataSource,
+  ) {
+    this.accessTtl = config.getOrThrow('auth.accessTokenTtlSeconds', { infer: true });
+    this.sessionTtl = config.getOrThrow('auth.sessionTtlSeconds', { infer: true });
+    this.verificationTtl = config.getOrThrow('auth.verificationTokenTtlSeconds', { infer: true });
+    this.resetTtl = config.getOrThrow('auth.passwordResetTokenTtlSeconds', { infer: true });
+    this.maxSessions = config.getOrThrow('auth.maxActiveSessions', { infer: true });
+    this.maxAttempts = config.getOrThrow('auth.maxFailedLoginAttempts', { infer: true });
+    this.lockSeconds = config.getOrThrow('auth.loginLockSeconds', { infer: true });
+    this.twoStepTtl = config.getOrThrow('auth.twoStepCodeTtlSeconds', { infer: true });
+    this.twoStepMaxAttempts = config.getOrThrow('auth.twoStepMaxAttempts', { infer: true });
+    this.recoveryCodeCount = config.getOrThrow('auth.recoveryCodeCount', { infer: true });
+  }
+
+  public async register(
+    fullName: string,
+    email: string,
+    password: string,
+  ): Promise<ActionDelivery> {
+    const normalizedEmail = this.normalizeEmail(email);
+    const passwordHash = await this.crypto.hashPassword(password);
+    const user = await this.users.createPendingUser({
+      fullName: fullName.trim(),
+      email: normalizedEmail,
+      normalizedEmail,
+      passwordHash,
+    });
+    const delivery = await this.issueAction(user, 'email_verification', this.verificationTtl);
+    await this.mail.sendEmailVerification({
+      email: delivery.email,
+      fullName: user.fullName,
+      token: delivery.token,
+      expiresInSeconds: this.verificationTtl,
+    });
+    return delivery;
+  }
+
+  public async resendVerification(email: string): Promise<ActionDelivery | null> {
+    const user = await this.users.findForAuthentication(this.normalizeEmail(email));
+    if (!user || user.emailVerifiedAt || user.status === 'suspended') return null;
+    const delivery = await this.issueAction(user, 'email_verification', this.verificationTtl);
+    await this.mail.sendEmailVerification({
+      email: delivery.email,
+      fullName: user.fullName,
+      token: delivery.token,
+      expiresInSeconds: this.verificationTtl,
+    });
+    return delivery;
+  }
+
+  public async verifyEmail(rawToken: string): Promise<MessageResponseDto> {
+    const outcome = await this.dataSource.transaction(async (manager) => {
+      const token = await this.repository.findActionTokenForUpdate(
+        manager,
+        this.crypto.hashToken(rawToken),
+        'email_verification',
+      );
+      if (!token || token.consumedAt || token.expiresAt <= new Date()) return false;
+      await this.users.verifyEmail(token.userId);
+      await this.repository.consumeActionToken(manager, token);
+      return true;
+    });
+    if (!outcome) throw new AppException('INVALID_OR_EXPIRED_TOKEN');
+    return { message: 'Email address verified' };
+  }
+
+  public async login(email: string, password: string): Promise<LoginResult> {
+    const user = await this.users.findForAuthentication(this.normalizeEmail(email));
+    if (!user) {
+      await this.crypto.verifyDummyPassword(password);
+      throw new AppException('INVALID_CREDENTIALS');
+    }
+    if (user.lockedUntil && user.lockedUntil > new Date()) throw new AppException('ACCOUNT_LOCKED');
+    if (!(await this.crypto.verifyPassword(user.passwordHash, password))) {
+      await this.users.recordFailedLogin(user.id, this.maxAttempts, this.lockSeconds);
+      throw new AppException('INVALID_CREDENTIALS');
+    }
+    this.assertLoginAllowed(user);
+    const current = await this.users.recordSuccessfulLogin(user.id);
+    if (current.emailTwoStepEnabled) return this.issueTwoStepChallenge(current, 'login');
+    return this.createSession(current);
+  }
+
+  public async completeLoginTwoStep(
+    challengeToken: string,
+    credential: LoginTwoStepCredential,
+  ): Promise<TokenPairResponseDto> {
+    const userId = await this.consumeTwoStepProof(challengeToken, 'login', credential);
+    const user = await this.users.findByIdForAuthentication(userId);
+    if (!user?.emailTwoStepEnabled) throw new AppException('INVALID_TWO_STEP_CHALLENGE');
+    this.assertLoginAllowed(user);
+    return this.createSession(user);
+  }
+
+  public async requestTwoStepChange(
+    userId: string,
+    currentPassword: string,
+    purpose: Exclude<TwoStepPurpose, 'login'>,
+  ): Promise<TwoStepChallengeResponseDto> {
+    const user = await this.requireCurrentPassword(userId, currentPassword);
+    if (purpose === 'enable' && user.emailTwoStepEnabled) {
+      throw new AppException('TWO_STEP_ALREADY_ENABLED');
+    }
+    if (purpose !== 'enable' && !user.emailTwoStepEnabled) {
+      throw new AppException('TWO_STEP_NOT_ENABLED');
+    }
+    return this.issueTwoStepChallenge(user, purpose);
+  }
+
+  public async enableTwoStep(
+    userId: string,
+    challengeToken: string,
+    code: string,
+  ): Promise<RecoveryCodesResponseDto> {
+    await this.consumeTwoStepProof(
+      challengeToken,
+      'enable',
+      { method: 'email_code', code },
+      userId,
+    );
+    const recoveryCodes = await this.replaceRecoveryCodes(userId);
+    let user: UserWithRoles;
+    try {
+      user = await this.users.setEmailTwoStep(userId, true);
+    } catch (error) {
+      await this.dataSource.transaction((manager) =>
+        this.repository.deleteRecoveryCodes(manager, userId),
+      );
+      throw error;
+    }
+    await this.revokeEverySession(userId, 'user_requested');
+    await this.mail.sendTwoStepChanged({
+      email: user.email,
+      fullName: user.fullName,
+      enabled: true,
+      occurredAt: new Date(),
+    });
+    return { recoveryCodes };
+  }
+
+  public async disableTwoStep(
+    userId: string,
+    challengeToken: string,
+    code: string,
+  ): Promise<MessageResponseDto> {
+    await this.consumeTwoStepProof(
+      challengeToken,
+      'disable',
+      { method: 'email_code', code },
+      userId,
+    );
+    const user = await this.users.setEmailTwoStep(userId, false);
+    await this.dataSource.transaction((manager) =>
+      this.repository.deleteRecoveryCodes(manager, userId),
+    );
+    await this.revokeEverySession(userId, 'user_requested');
+    await this.mail.sendTwoStepChanged({
+      email: user.email,
+      fullName: user.fullName,
+      enabled: false,
+      occurredAt: new Date(),
+    });
+    return { message: 'Email two-step verification disabled; all sessions were revoked' };
+  }
+
+  public async regenerateRecoveryCodes(
+    userId: string,
+    challengeToken: string,
+    code: string,
+  ): Promise<RecoveryCodesResponseDto> {
+    await this.consumeTwoStepProof(
+      challengeToken,
+      'recovery_regenerate',
+      { method: 'email_code', code },
+      userId,
+    );
+    const recoveryCodes = await this.replaceRecoveryCodes(userId);
+    await this.users.auditRecoveryCodesRegenerated(userId);
+    return { recoveryCodes };
+  }
+
+  public async refresh(rawToken: string): Promise<TokenPairResponseDto> {
+    const next = this.crypto.opaqueToken();
+    const result = await this.dataSource.transaction(async (manager) => {
+      const token = await this.repository.findRefreshForUpdate(
+        manager,
+        this.crypto.hashToken(rawToken),
+      );
+      if (!token) return { kind: 'invalid' } as const;
+      const session = await this.repository.findSessionForUpdate(manager, token.sessionId);
+      if (!session) return { kind: 'invalid' } as const;
+      if (token.status !== 'active') {
+        await this.repository.revokeSession(manager, session, 'refresh_reuse');
+        return { kind: 'reuse', userId: session.userId } as const;
+      }
+      const now = new Date();
+      if (token.expiresAt <= now || session.expiresAt <= now || session.revokedAt) {
+        await this.repository.revokeSession(manager, session, 'user_requested');
+        return { kind: 'invalid' } as const;
+      }
+      const user = await this.users.findByIdForAuthentication(session.userId);
+      if (user?.status !== 'active' || user.authVersion !== session.authVersion) {
+        await this.repository.revokeSession(manager, session, 'user_requested');
+        return { kind: 'invalid' } as const;
+      }
+      session.lastUsedAt = now;
+      await this.repository.saveSession(manager, session);
+      await this.repository.rotateRefresh(manager, token, next.hash, session.expiresAt);
+      return { kind: 'success', session, user } as const;
+    });
+    if (result.kind === 'reuse') {
+      const user = await this.users.findByIdForAuthentication(result.userId);
+      if (user) {
+        await this.mail.sendForcedSessionRevocation({
+          email: user.email,
+          fullName: user.fullName,
+          occurredAt: new Date(),
+        });
+      }
+      throw new AppException('REFRESH_TOKEN_REUSED');
+    }
+    if (result.kind === 'invalid') throw new AppException('INVALID_REFRESH_TOKEN');
+    return this.tokenPair(result.user, result.session.id, next.raw);
+  }
+
+  public async forgotPassword(email: string): Promise<ActionDelivery | null> {
+    const user = await this.users.findForAuthentication(this.normalizeEmail(email));
+    if (user?.status !== 'active') return null;
+    const delivery = await this.issueAction(user, 'password_reset', this.resetTtl);
+    await this.mail.sendPasswordReset({
+      email: delivery.email,
+      fullName: user.fullName,
+      token: delivery.token,
+      expiresInSeconds: this.resetTtl,
+    });
+    return delivery;
+  }
+
+  public async resetPassword(rawToken: string, newPassword: string): Promise<MessageResponseDto> {
+    const passwordHash = await this.crypto.hashPassword(newPassword);
+    const userId = await this.dataSource.transaction(async (manager) => {
+      const token = await this.repository.findActionTokenForUpdate(
+        manager,
+        this.crypto.hashToken(rawToken),
+        'password_reset',
+      );
+      if (!token || token.consumedAt || token.expiresAt <= new Date()) return null;
+      await this.repository.consumeActionToken(manager, token);
+      return token.userId;
+    });
+    if (!userId) throw new AppException('INVALID_OR_EXPIRED_TOKEN');
+    await this.users.changePassword(userId, passwordHash, 'auth.password.reset');
+    await this.revokeEverySession(userId, 'password_reset');
+    const user = await this.users.findByIdForAuthentication(userId);
+    if (user) {
+      await this.mail.sendPasswordChanged({
+        email: user.email,
+        fullName: user.fullName,
+        occurredAt: new Date(),
+      });
+    }
+    return { message: 'Password reset completed' };
+  }
+
+  public async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<MessageResponseDto> {
+    const user = await this.requireCurrentPassword(userId, currentPassword);
+    const passwordHash = await this.crypto.hashPassword(newPassword);
+    await this.users.changePassword(userId, passwordHash, 'auth.password.changed');
+    await this.revokeEverySession(userId, 'password_changed');
+    await this.mail.sendPasswordChanged({
+      email: user.email,
+      fullName: user.fullName,
+      occurredAt: new Date(),
+    });
+    return { message: 'Password changed; all sessions were revoked' };
+  }
+
+  public async logout(sessionId: string | undefined, userId: string): Promise<void> {
+    if (!sessionId) throw new AppException('UNAUTHORIZED');
+    await this.revokeOwnedSession(userId, sessionId, 'logout');
+  }
+
+  public async listSessions(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<OffsetPage<SessionResponseDto>> {
+    const [sessions, total] = await this.repository.findPage(userId, page, limit);
+    return buildOffsetPage(
+      sessions.map((session) => ({
+        id: session.id,
+        createdAt: session.createdAt.toISOString(),
+        lastUsedAt: session.lastUsedAt.toISOString(),
+        expiresAt: session.expiresAt.toISOString(),
+        revokedAt: session.revokedAt?.toISOString() ?? null,
+      })),
+      total,
+      page,
+      limit,
+    );
+  }
+
+  public async revokeOwnedSession(
+    userId: string,
+    sessionId: string,
+    reason: 'logout' | 'user_requested' = 'user_requested',
+  ): Promise<void> {
+    const found = await this.dataSource.transaction(async (manager) => {
+      const session = await this.repository.findSessionForUpdate(manager, sessionId);
+      if (session?.userId !== userId) return false;
+      await this.repository.revokeSession(manager, session, reason);
+      return true;
+    });
+    if (!found) throw new AppException('SESSION_NOT_FOUND');
+  }
+
+  public revokeAllSessions(userId: string): Promise<void> {
+    return this.revokeEverySession(userId, 'user_requested');
+  }
+
+  private async createSession(user: UserWithRoles): Promise<TokenPairResponseDto> {
+    const refresh = this.crypto.opaqueToken();
+    const expiresAt = new Date(Date.now() + this.sessionTtl * 1000);
+    const session = await this.dataSource.transaction(async (manager) => {
+      await this.repository.lockUserSessions(manager, user.id);
+      await this.repository.enforceSessionLimit(manager, user.id, this.maxSessions);
+      return this.repository.createSession(
+        manager,
+        user.id,
+        user.authVersion,
+        expiresAt,
+        refresh.hash,
+      );
+    });
+    await this.mail.sendNewSession({
+      email: user.email,
+      fullName: user.fullName,
+      occurredAt: new Date(),
+    });
+    return this.tokenPair(user, session.id, refresh.raw);
+  }
+
+  private async issueTwoStepChallenge(
+    user: UserWithRoles,
+    purpose: TwoStepPurpose,
+  ): Promise<TwoStepChallengeResponseDto> {
+    const challenge = this.crypto.opaqueToken();
+    const code = this.crypto.numericCode();
+    const codeHash = await this.crypto.hashSecret(code);
+    await this.dataSource.transaction((manager) =>
+      this.repository.issueTwoStepChallenge(
+        manager,
+        user.id,
+        purpose,
+        challenge.hash,
+        codeHash,
+        new Date(Date.now() + this.twoStepTtl * 1000),
+      ),
+    );
+    await this.mail.sendTwoStepCode({
+      email: user.email,
+      fullName: user.fullName,
+      code,
+      expiresInSeconds: this.twoStepTtl,
+      purpose,
+    });
+    return { requiresTwoStep: true, challengeToken: challenge.raw, expiresIn: this.twoStepTtl };
+  }
+
+  private async consumeTwoStepProof(
+    rawChallenge: string,
+    purpose: TwoStepPurpose,
+    credential: LoginTwoStepCredential,
+    expectedUserId?: string,
+  ): Promise<string> {
+    const result: TwoStepProofResult = await this.dataSource.transaction(async (manager) => {
+      const challenge = await this.repository.findTwoStepChallengeForUpdate(
+        manager,
+        this.crypto.hashToken(rawChallenge),
+      );
+      if (
+        challenge?.purpose !== purpose ||
+        challenge.consumedAt ||
+        challenge.expiresAt <= new Date() ||
+        (expectedUserId !== undefined && challenge.userId !== expectedUserId)
+      ) {
+        return { kind: 'invalid_challenge' } as const;
+      }
+      if (challenge.attempts >= this.twoStepMaxAttempts) {
+        return { kind: 'attempts_exceeded' } as const;
+      }
+      const valid =
+        credential.method === 'email_code'
+          ? await this.crypto.verifySecret(challenge.codeHash, credential.code)
+          : await this.consumeRecoveryCode(manager, challenge.userId, credential.recoveryCode);
+      if (!valid) {
+        challenge.attempts += 1;
+        await this.repository.saveTwoStepChallenge(manager, challenge);
+        if (challenge.attempts >= this.twoStepMaxAttempts) {
+          return { kind: 'attempts_exceeded' } as const;
+        }
+        return {
+          kind: credential.method === 'email_code' ? 'invalid_code' : 'invalid_recovery',
+        } as const;
+      }
+      challenge.consumedAt = new Date();
+      await this.repository.saveTwoStepChallenge(manager, challenge);
+      return { kind: 'success', userId: challenge.userId } as const;
+    });
+    if (result.kind === 'invalid_challenge') {
+      throw new AppException('INVALID_TWO_STEP_CHALLENGE');
+    }
+    if (result.kind === 'attempts_exceeded') {
+      throw new AppException('TWO_STEP_ATTEMPTS_EXCEEDED');
+    }
+    if (result.kind === 'invalid_code') throw new AppException('INVALID_TWO_STEP_CODE');
+    if (result.kind === 'invalid_recovery') throw new AppException('INVALID_RECOVERY_CODE');
+    return result.userId;
+  }
+
+  private async consumeRecoveryCode(
+    manager: EntityManager,
+    userId: string,
+    rawCode: string,
+  ): Promise<boolean> {
+    const codes = await this.repository.findRecoveryCodesForUpdate(manager, userId);
+    for (const code of codes) {
+      if (await this.crypto.verifySecret(code.codeHash, rawCode.toUpperCase())) {
+        await this.repository.consumeRecoveryCode(manager, code);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async replaceRecoveryCodes(userId: string): Promise<string[]> {
+    const recoveryCodes = this.crypto.recoveryCodes(this.recoveryCodeCount);
+    const hashes = await Promise.all(recoveryCodes.map((code) => this.crypto.hashSecret(code)));
+    await this.dataSource.transaction((manager) =>
+      this.repository.replaceRecoveryCodes(manager, userId, hashes),
+    );
+    return recoveryCodes;
+  }
+
+  private async requireCurrentPassword(
+    userId: string,
+    currentPassword: string,
+  ): Promise<UserWithRoles> {
+    const user = await this.users.findByIdForAuthentication(userId);
+    if (!user || !(await this.crypto.verifyPassword(user.passwordHash, currentPassword))) {
+      throw new AppException('INVALID_CREDENTIALS');
+    }
+    return user;
+  }
+
+  private assertLoginAllowed(user: UserWithRoles): void {
+    if (!user.emailVerifiedAt || user.status === 'pending_verification') {
+      throw new AppException('EMAIL_NOT_VERIFIED');
+    }
+    if (user.status === 'suspended') throw new AppException('ACCOUNT_SUSPENDED');
+  }
+
+  private async tokenPair(
+    user: UserWithRoles,
+    sessionId: string,
+    refreshToken: string,
+  ): Promise<TokenPairResponseDto> {
+    const accessToken = await this.crypto.signAccessToken({
+      userId: user.id,
+      sessionId,
+      authVersion: user.authVersion,
+    });
+    return { accessToken, refreshToken, tokenType: 'Bearer', expiresIn: this.accessTtl };
+  }
+
+  private async issueAction(
+    user: UserWithRoles,
+    purpose: 'email_verification' | 'password_reset',
+    ttl: number,
+  ): Promise<ActionDelivery> {
+    const token = this.crypto.opaqueToken();
+    await this.dataSource.transaction((manager) =>
+      this.repository.issueActionToken(
+        manager,
+        user.id,
+        purpose,
+        token.hash,
+        new Date(Date.now() + ttl * 1000),
+      ),
+    );
+    return { userId: user.id, email: user.email, token: token.raw };
+  }
+
+  private revokeEverySession(
+    userId: string,
+    reason: 'password_reset' | 'password_changed' | 'user_requested',
+  ): Promise<void> {
+    return this.dataSource.transaction((manager) =>
+      this.repository.revokeAllForUser(manager, userId, reason),
+    );
+  }
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+}

@@ -12,6 +12,8 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - files_data:/app/storage/files
     healthcheck:
       test:
         - CMD
@@ -27,6 +29,44 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend-internal
+      - backend-external
+
+  mail-worker:
+    image: ${APP_IMAGE:-nestjs-saas:local}
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    command: ['node', '--enable-source-maps', 'dist/mail-worker.js']
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend-internal
+      - backend-external
+
+  file-worker:
+    image: ${APP_IMAGE:-nestjs-saas:local}
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    command: ['node', '--enable-source-maps', 'dist/file-worker.js']
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - files_data:/app/storage/files
     security_opt:
       - no-new-privileges:true
     networks:
@@ -66,7 +106,7 @@ services:
         --requirepass "$${REDIS_PASSWORD}"
         --appendonly yes
         --maxmemory 256mb
-        --maxmemory-policy allkeys-lru
+        --maxmemory-policy noeviction
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -90,3 +130,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  files_data:

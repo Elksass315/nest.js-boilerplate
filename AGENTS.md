@@ -25,6 +25,8 @@ repository-wide rules.
 - Use `ConfigService`; never hardcode credentials, environment-specific hosts, or secrets.
 - Use structured logging with correlation context. Never use `console.*` or log secrets, tokens,
   cookies, passwords, or raw personal data.
+- Preserve `x-request-id` for one request and `x-correlation-id` across related work. Propagate the
+  correlation ID into background jobs, audit events, and outbound calls.
 - Use migrations for schema changes. Never enable TypeORM synchronization.
 - Do not run migrations or seeds from the API startup path.
 - Update tests and authoritative documentation when behavior, contracts, security, deployment, or
@@ -38,8 +40,26 @@ repository-wide rules.
   code and client-visible message for each failure condition.
 - Every request DTO property has validation and Swagger examples. When an endpoint accepts
   meaningfully different request shapes, document each shape as a named `@ApiBody` example.
-- Do not claim completion until the relevant checks pass. Run `pnpm validate` for repository
-  changes; also run e2e and Docker validation when platform wiring changes.
+- Every business collection endpoint is paginated. Use page/limit by default; cursor pagination
+  requires a documented high-volume or stable-traversal reason. Never return a raw array.
+- Business features own their upload routes and authenticate every stateful upload request. They
+  consume only the public `FilesService`; direct filesystem, S3 SDK, or tus-store access is
+  forbidden outside `src/modules/files`. Storage keys are server-generated, files default to
+  protected, and every upload uses a fixed server-side purpose policy. Preserve correlation IDs
+  through upload processing, cleanup, provider migration, and owning-feature audits.
+- Image consumers verify declared MIME, extension, and decoded format; bound source bytes,
+  dimensions, and decoded pixels; reject animation; and decode/re-encode without metadata before
+  making a file public. Never trust client metadata or publish raw uploads.
+- Put application policy in `src/core`, Nest/HTTP primitives in `src/common`, proven framework-light
+  reuse in `src/shared`, and ambient declarations in `src/types`. Do not create generic buckets.
+- After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,
+  applicable focused tests, and build are mandatory blocking gates. The command selects architecture,
+  i18n, documentation, tooling, dependency, and Compose gates from the actual diff and fails when a
+  governed code change omits its authoritative documentation companion.
+- Run full `pnpm validate` once before a PR/release handoff and whenever a change is broad, security
+  sensitive, dependency-heavy, or affects shared platform policy. Also run relevant e2e, migration,
+  seed, worker, SMTP, and Docker checks when those surfaces change. Do not rerun unrelated expensive
+  suites after every small prompt.
 
 ## Dependency Policy
 

@@ -1,0 +1,26 @@
+# Internationalization Standard
+
+English is the shipped fallback language. The configured custom language header is resolved before
+`Accept-Language`; unsupported values fall back safely to English. Localized error responses include
+`Content-Language`.
+
+Global translation is limited to registered error and application message keys. Business fields are
+localized explicitly in their owning service/response contract. Never recursively rewrite arbitrary
+fields. `pnpm i18n:check` keeps the error registry and English resource file synchronized.
+
+Feature error keys, including identity user/role/conflict messages, live in the same English catalog
+and are validated against the central registry. Stable codes do not change when a future translation
+is added.
+
+Auth keys cover invalid credentials, lockout, verification, refresh reuse, suspension, and session
+lookup. Raw tokens, email addresses, and validation-field values are never interpolated into stable
+localized top-level messages.
+
+Email two-step keys cover invalid challenges, email codes, recovery codes, bounded-attempt failures,
+and enabled-state conflicts. These translations remain generic: challenge tokens, codes, recipient
+addresses, attempt values, and account state are never interpolated into the localized message.
+
+File keys cover missing/hidden files, upload expiry, incomplete state, purpose size/type/image
+validation, and storage outages. They never interpolate original filenames, object keys, paths,
+buckets, uploader identity, or provider diagnostics. tus protocol headers remain language-neutral;
+client-visible JSON error messages use the same registered English fallbacks as the global filter.

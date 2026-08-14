@@ -47,5 +47,10 @@ Before requesting review, run:
 pnpm validate
 ```
 
+During implementation, run `pnpm validate:change` after each coding prompt. Formatting, strict lint,
+type checking, applicable focused tests, and build are mandatory. The command selects additional
+checks from the diff and rejects governed changes that omit their authoritative documentation files.
+This fast loop does not replace the full pre-review validation above.
+
 Also run `pnpm test:e2e` with PostgreSQL and Redis for platform changes, and validate both Compose
 models when Docker or deployment files change. CI is authoritative.

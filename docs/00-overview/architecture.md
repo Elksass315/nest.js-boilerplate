@@ -1,8 +1,15 @@
 # Architecture Overview
 
 The application is a production-oriented, single-tenant NestJS modular monolith. PostgreSQL is the
-system of record and Redis provides platform coordination. Authentication, queues, notifications,
-storage, billing, and other business capabilities are intentionally absent until their phase.
+system of record and Redis provides platform coordination. Phase 2 includes users, fixed RBAC,
+credential authentication, rotating sessions, email two-step verification, recovery codes, and a
+separate SMTP mail worker. General notifications, storage, billing, and other capabilities remain
+deferred. Phase 3 introduces a reusable files module with authenticated feature-owned tus uploads,
+private local/S3 storage, stable public identifiers, online provider migration, and a separate
+cleanup worker. Business features never access providers or file persistence directly.
+The users module is the first consumer: it owns authenticated avatar upload routes and profile
+authorization while the files module owns byte transfer, sanitization staging, file-row state, and
+post-commit cleanup.
 
 Platform code owns bootstrap, validated configuration, errors, logging, database and Redis
 connectivity, health, security defaults, and reusable HTTP behavior. Business behavior belongs to

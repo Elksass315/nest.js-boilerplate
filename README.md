@@ -2,7 +2,10 @@
 
 A production-ready, single-tenant NestJS 11 foundation with strict TypeScript, PostgreSQL,
 TypeORM, Redis, structured logging, health checks, hardened containers, and enforced engineering
-workflows. It intentionally contains no business modules.
+workflows. Phase 2 adds fixed RBAC, users, credential authentication, rotating sessions, email
+two-step verification, recovery codes, and a correlated SMTP mail worker while preserving the flat
+modular-monolith architecture. Phase 3 adds private-by-default resumable file storage, local/S3
+provider mobility, a dedicated cleanup worker, and stable public file access.
 
 ## Requirements
 
@@ -24,6 +27,10 @@ On macOS/Linux, use `cp .env.example .env`. The API listens on `http://localhost
 - Liveness: `GET /health/live`
 - Readiness: `GET /health/ready`
 - Swagger in development: `/docs` (`SWAGGER_DOCS_ACCESS=public`)
+- Mailpit UI in development: `http://localhost:8025`
+- Public ready files: `/api/v1/files/public/:publicId`
+- Authenticated avatar uploads: `/api/v1/users/me/avatar/uploads`
+- Avatar attachment: `PATCH /api/v1/users/me/avatar`
 - Future business endpoints: `/api/v1`
 
 Useful commands:
@@ -33,6 +40,7 @@ pnpm validate
 pnpm test:e2e
 pnpm docker:logs
 pnpm scaffold:feature billing --http --persistence --dry-run
+pnpm files:migration:status
 ```
 
 `pnpm docker:reset -- --confirm` deletes local PostgreSQL and Redis volumes. It is intentionally

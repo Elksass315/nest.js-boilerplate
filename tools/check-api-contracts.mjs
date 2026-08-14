@@ -6,6 +6,10 @@ import ts from 'typescript';
 
 const sourceRoot = path.resolve('src');
 const routeDecorators = new Set(['Delete', 'Get', 'Head', 'Options', 'Patch', 'Post', 'Put']);
+const composedResponseDecorators = new Set([
+  'ApiOffsetPaginatedResponse',
+  'ApiCursorPaginatedResponse',
+]);
 
 function walk(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -51,6 +55,24 @@ function location(filePath, node) {
   return `${path.relative(process.cwd(), filePath)}:${(line + 1).toString()}`;
 }
 
+function containsArrayReturn(typeNode) {
+  if (!typeNode) return false;
+  if (ts.isArrayTypeNode(typeNode) || ts.isTupleTypeNode(typeNode)) return true;
+  if (ts.isTypeReferenceNode(typeNode)) {
+    const name = typeNode.typeName.getText();
+    if (name === 'Array' || name === 'ReadonlyArray') return true;
+    return typeNode.typeArguments?.some(containsArrayReturn) ?? false;
+  }
+  if (ts.isUnionTypeNode(typeNode) || ts.isIntersectionTypeNode(typeNode)) {
+    return typeNode.types.some(containsArrayReturn);
+  }
+  return false;
+}
+
+function returnTypeContains(typeNode, fragment) {
+  return Boolean(typeNode?.getText().includes(fragment));
+}
+
 const violations = [];
 for (const filePath of walk(sourceRoot).filter((file) => file.endsWith('.controller.ts'))) {
   const sourceFile = ts.createSourceFile(
@@ -86,6 +108,23 @@ for (const filePath of walk(sourceRoot).filter((file) => file.endsWith('.control
       }
 
       const methodLocation = location(filePath, member);
+      if (containsArrayReturn(member.type)) {
+        violations.push(
+          `${methodLocation} collection routes must return an explicit paginated contract, not an array`,
+        );
+      }
+      const hasOffsetResponse = methodDecorators.some(
+        (decorator) => decoratorName(decorator) === 'ApiOffsetPaginatedResponse',
+      );
+      const hasCursorResponse = methodDecorators.some(
+        (decorator) => decoratorName(decorator) === 'ApiCursorPaginatedResponse',
+      );
+      if (returnTypeContains(member.type, 'OffsetPage') && !hasOffsetResponse) {
+        violations.push(`${methodLocation} OffsetPage routes require @ApiOffsetPaginatedResponse`);
+      }
+      if (returnTypeContains(member.type, 'CursorPage') && !hasCursorResponse) {
+        violations.push(`${methodLocation} CursorPage routes require @ApiCursorPaginatedResponse`);
+      }
       const operation = methodDecorators.find(
         (decorator) => decoratorName(decorator) === 'ApiOperation',
       );
@@ -109,6 +148,9 @@ for (const filePath of walk(sourceRoot).filter((file) => file.endsWith('.control
       }
 
       for (const response of responses) {
+        if (composedResponseDecorators.has(decoratorName(response))) {
+          continue;
+        }
         const call = decoratorCall(response);
         if (!hasObjectProperty(call, 'description')) {
           violations.push(`${methodLocation} response documentation must explain when it occurs`);

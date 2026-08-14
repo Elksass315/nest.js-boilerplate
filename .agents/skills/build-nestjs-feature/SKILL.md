@@ -1,57 +1,61 @@
 ---
 name: build-nestjs-feature
-description: Create or change feature modules in this NestJS SaaS repository using its controller-service-concrete-repository architecture. Use when adding or modifying a business feature, endpoint, controller, request or response DTO, entity, TypeORM repository, migration, Swagger contract, module documentation, or cross-feature interaction under src/modules. Do not use for platform-only Docker, CI, or dependency maintenance.
+description: Create or change business feature modules, endpoints, collection APIs, DTOs, entities, repositories, migrations, seeds, Swagger contracts, or cross-feature interactions in this NestJS SaaS repository. Enforce the controller-service-concrete-repository architecture, canonical pagination, translated stable errors, correlation propagation, documentation, and validation. Do not use for platform-only Docker, CI, or dependency maintenance.
 ---
 
 # Build a NestJS Feature
 
-Build the smallest complete feature that satisfies the request while preserving this repository's
-flat module boundaries. Never introduce DDD layers speculatively.
+Build the smallest complete feature that satisfies the request. Preserve flat module boundaries and
+never introduce DDD layers speculatively.
 
 ## Workflow
 
-1. Before any write, inspect `git status --short --branch` and run `pnpm branch:write-check`. Never
-   modify `main` or `develop` directly.
-2. Read the root and `src/modules/AGENTS.md`, `docs/01-backend/module-architecture.md`,
-   `docs/02-api/openapi-standard.md`, and [the feature checklist](references/feature-checklist.md).
-3. Inspect related modules, public indexes, contracts, migrations, tests, and module docs before
-   designing the change. Reuse established platform behavior.
-4. For a new feature, preview the deterministic scaffold:
-
-   ```bash
-   pnpm scaffold:feature <kebab-name> [--http] [--persistence] --dry-run
-   ```
-
-   Run it without `--dry-run` only after confirming the target does not exist. Use `--http` only
-   for an HTTP surface and `--persistence` only for stored state.
-
-5. Implement transport concerns in the controller, business workflow in the service, and TypeORM
-   access in the concrete repository. Delete unused generated placeholders rather than preserving
-   them for possible future work.
-6. Keep entities, repositories, and internal DTOs private. Export only the Nest module, service,
-   and intentional public contracts from `index.ts`. Consume another feature only through its
-   public index and exported service.
-7. Version every controller explicitly. For each route, document the operation and every applicable
-   response status with concrete payload examples. State exactly when each error occurs and include
-   its stable `code` and client-visible `message`. Add named `@ApiBody` examples when multiple
-   request shapes are accepted. Keep DTO examples, runtime behavior, tests, and module docs aligned.
-8. Add validated request DTOs, explicit response DTOs, stable errors, structured safe logs, and a
-   migration whenever the feature requires them.
-9. Test business rules and failures at service level, controller delegation/contracts at transport
-   level, repository queries with PostgreSQL when meaningful, and the public workflow with e2e
-   coverage.
-10. Run formatting, focused tests, `pnpm arch:check`, `pnpm docs:check`, `pnpm typecheck`, and then
-    `pnpm validate`.
-    Report any unavailable external-service check precisely.
+1. Inspect `git status --short --branch` and run `pnpm branch:write-check` before every write. Never
+   modify `main`, `develop`, or a release branch directly.
+2. Read the root and module `AGENTS.md` files, the module architecture and OpenAPI standards, the
+   pagination standard, and [the feature checklist](references/feature-checklist.md).
+3. Inspect related public indexes, contracts, migrations, seeds, errors, translations, tests, and
+   module docs. Reuse established platform behavior through its public surface.
+4. Preview new features with
+   `pnpm scaffold:feature <kebab-name> [--http] [--persistence] --dry-run`. Generate only requested
+   HTTP and persistence files, refuse overwrites, and delete unused placeholders.
+5. Keep HTTP binding in controllers, workflows and transactions in services, and TypeORM queries
+   and locks in concrete repositories. Use `AppBaseEntity`; use soft deletion only when required.
+6. Keep entities, repositories, and internal DTOs private. Export only the module, service, and
+   intentional public contracts from `index.ts`. Import another feature only through its index.
+7. For every collection route, use offset page/limit by default. Use cursor pagination only for a
+   documented high-volume, append-oriented, or stable-traversal need. Never return a raw array.
+8. Version every controller. Document every reachable status with a concrete payload, exact stable
+   error code/message, and named examples for distinct body shapes. Keep implementation, tests,
+   translations, Swagger, and module docs aligned.
+9. Register stable errors centrally, supply English translations, validate every external input,
+   map entities to response DTOs, and preserve request/correlation IDs in logs, jobs, audits, and
+   outbound work.
+10. Add explicit migrations and immutable ordered seeds when stored state or reference data changes.
+    Never enable synchronization or run migrations/seeds during API startup.
+11. For file consumers, keep upload routes in the consuming feature, authenticate every stateful
+    tus request, and call only the public `FilesService`. Define a fixed purpose/size/MIME policy;
+    never accept a client storage key or import filesystem, S3, tus-store, file repository, or file
+    entity internals. Propagate request/correlation IDs through processing, cleanup, migration, and
+    owning-feature audits.
+    Image consumers must compare declared MIME, extension, and decoded format; bound bytes,
+    dimensions, and pixels; reject animation; and re-encode without metadata before publication.
+12. After each coding prompt, run `pnpm validate:change`. Formatting, strict lint, type checking,
+    applicable focused tests, and build are mandatory blocking gates. It adds architecture, i18n,
+    docs, tooling, dependency, and Compose checks from the diff and rejects governed changes missing
+    their authoritative documentation companion. Run full `pnpm validate` once before PR/release
+    handoff or for broad and high-risk work. Add relevant e2e, migration, seed, worker, SMTP, or
+    Docker checks when those surfaces changed. Report unavailable external checks precisely.
 
 ## Hard boundaries
 
 - Do not create `domain`, `application`, `infrastructure`, adapter, use-case, or mapper layers by
   default.
-- Do not define a repository interface when there is only one concrete persistence mechanism.
+- Do not define a repository interface for one persistence implementation.
 - Do not put business rules or database access in controllers.
 - Do not import another feature's entity, repository, or internal path.
-- Do not expose entities as response contracts or enable TypeORM synchronization.
-- Do not add a package when the platform or a small local implementation already solves the need.
-- Do not hand off a route whose Swagger contract omits a reachable status, concrete example,
-  stable error code/message, accepted request variant, or corresponding module documentation.
+- Do not expose entities, raw arrays, or undocumented pagination contracts.
+- Do not add generic utility buckets or packages that existing platform code replaces.
+- Do not add generic upload endpoints, unauthenticated stateful uploads, client-selected storage
+  keys, or direct storage-provider access outside the files module.
+- Do not hand off stale Swagger, error translations, module docs, configuration examples, or tests.

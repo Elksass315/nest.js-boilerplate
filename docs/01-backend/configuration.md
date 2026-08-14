@@ -1,23 +1,53 @@
 # Configuration Standard
 
-Copy `.env.example` for local development. Managed environments inject values through their secret
-mechanism; no staging or production secrets belong in Git.
+Copy `.env.example` for development. Managed environments inject secrets outside Git.
 
-The application validates all keys before connecting to dependencies. Missing, malformed,
-insecure, contradictory, and unknown application values are rejected or stripped by the canonical
-schema in `src/config/environment.ts`.
+Configuration is namespaced and typed by domain: app, CORS, logging, Swagger, rate limits, i18n,
+database, Redis, auth, mail, and files. Each domain owns its schema fragment, loader, contract, tests, and
+environment documentation. One composed validator creates the API configuration.
 
-When adding or changing configuration, update in the same pull request:
+Executables validate only their dependencies:
 
-1. `EnvironmentVariables` and Joi validation.
-2. Validation tests, including invalid and contradictory combinations.
-3. `.env.example` comments and safe local values.
-4. This document plus Compose, GitHub Actions, Jenkins, and deployment secrets when applicable.
+- API validates every platform domain.
+- Migration commands validate database settings only.
+- Seed commands validate database and seed settings.
+- Mail workers validate app identity, logging, Redis, database, and mail settings only.
+- File workers and file-migration commands validate app identity, logging, Redis, database, and
+  file storage settings only.
 
-Public API versions are source-controlled contracts, not environment configuration. Port, app
-identity, CORS, logging, Swagger access, database, Redis, and rate-limit settings use one naming
-scheme shown in `.env.example`.
+Raw `process.env` access is restricted to configuration and CLI entrypoints. Application code uses
+typed `ConfigService` paths such as `app.port`, `auth.accessTokenTtlSeconds`, and `mail.branding`.
+Missing, malformed, insecure, or contradictory values fail before dependency connections.
 
-Swagger access modes are `public`, `basic`, and `disabled`. Staging and production reject `public`.
-`basic` requires a username of at least three characters and a password of at least sixteen;
-credentials are rejected in the other modes to prevent false assumptions about protection.
+`AUTH_ACCESS_TOKEN_SECRET` is mandatory and contains at least 32 characters. Access tokens default
+to 15 minutes; absolute session lifetime defaults to 14 days. Verification tokens default to one
+day, reset tokens to 30 minutes, active sessions to five, and password lockout to five failed
+attempts for 15 minutes.
+
+Two-step email codes default to five minutes and five attempts. Enrollment creates ten single-use
+recovery codes by default. `AUTH_TWO_STEP_CODE_TTL_SECONDS`, `AUTH_TWO_STEP_MAX_ATTEMPTS`, and
+`AUTH_RECOVERY_CODE_COUNT` are bounded and fail validation when unsafe.
+
+Mail configuration owns sender, public action URL, SMTP connection timeouts, worker concurrency,
+retry policy, and branding. `MAIL_ENABLED=false` safely suppresses queue production and worker SMTP
+startup. When enabled, auth queues named HBS templates with correlation context; no SMTP password,
+token, code, body, or full recipient is logged.
+
+File configuration owns the write driver, enabled read drivers, absolute resolved local root,
+upload expiry, signed-URL lifetime, cleanup concurrency/retries, and S3 settings. The write driver
+must appear in `FILES_READ_DRIVERS`. Enabling S3 requires a bucket and region; explicit access keys
+must be supplied as a pair, while empty keys use the AWS runtime credential chain. KMS encryption
+requires a key ID. Managed deployments should use S3 and configure bucket-default encryption;
+local storage requires a shared persistent filesystem for multiple replicas.
+Avatar purpose limits are separately typed through `FILES_USER_AVATAR_MAX_BYTES`,
+`FILES_USER_AVATAR_MAX_WIDTH`, `FILES_USER_AVATAR_MAX_HEIGHT`, and
+`FILES_USER_AVATAR_MAX_PIXELS`. Defaults are 5 MiB, 8192 pixels per dimension, and 25 million
+decoded pixels; configuration remains bounded before Sharp receives untrusted image data.
+
+Browser CORS preflights are answered by the global allowlist policy. Requests without an `Origin`
+header bypass CORS processing and continue to their owning controller, allowing bare `OPTIONS`
+protocol discovery requests such as tus to return their required capability headers.
+
+When configuration changes, update schema, tests, `.env.example`, Compose/CI/deployment inputs, and
+this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments
+reject public access.

@@ -21,7 +21,7 @@ function parseArguments(argv) {
   }
 
   const name = argv.find(
-    (argument, index) => !argument.startsWith('--') && index !== rootIndex + 1,
+    (argument, index) => !argument.startsWith('--') && (rootIndex < 0 || index !== rootIndex + 1),
   );
   if (!name || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(name)) {
     throw new Error('Feature name must be lower-case kebab-case, for example "billing-plans"');
@@ -84,7 +84,7 @@ function createFiles({ name, http, persistence }) {
   if (persistence) {
     files.set(
       `entities/${name}.entity.ts`,
-      `import { CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';\n\n@Entity({ name: '${name.replaceAll('-', '_')}' })\nexport class ${className}Entity {\n  @PrimaryGeneratedColumn('uuid')\n  public id!: string;\n\n  @CreateDateColumn({ type: 'timestamptz' })\n  public createdAt!: Date;\n\n  @UpdateDateColumn({ type: 'timestamptz' })\n  public updatedAt!: Date;\n}\n`,
+      `import { Entity } from 'typeorm';\n\nimport { AppBaseEntity } from '@/shared/entities/app-base.entity';\n\n@Entity({ name: '${name.replaceAll('-', '_')}' })\nexport class ${className}Entity extends AppBaseEntity {}\n`,
     );
     files.set(
       `${name}.repository.ts`,
@@ -125,7 +125,7 @@ function run() {
     return;
   }
 
-  const branchError = validateWritableBranch(currentBranch());
+  const branchError = validateWritableBranch(currentBranch(options.root));
   if (branchError) {
     throw new Error(branchError);
   }

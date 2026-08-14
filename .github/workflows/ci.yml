@@ -43,6 +43,28 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      mailpit:
+        image: axllent/mailpit:v1.30.5@sha256:b868afa176bfd6cce2323ea316cd99ccad77915e51e595748f6d786700ecf109
+        ports:
+          - 1025:1025
+          - 8025:8025
+        options: >-
+          --health-cmd "/mailpit readyz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      localstack:
+        image: localstack/localstack:4.14.0@sha256:75ba7a4bda54a3020019fba23e99c61bbff7dbf23eea12919e5b75b15c6f03f2
+        env:
+          SERVICES: s3
+          DEBUG: 0
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl --fail http://localhost:4566/_localstack/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     env:
       NODE_ENV: test
       APP_NAME: NestJS SaaS API
@@ -69,6 +91,20 @@ jobs:
       REDIS_CONNECT_TIMEOUT_MS: 5000
       RATE_LIMIT_TTL_MS: 60000
       RATE_LIMIT_MAX: 100
+      MAIL_ENABLED: true
+      MAIL_SMTP_HOST: localhost
+      MAIL_SMTP_PORT: 1025
+      MAIL_SMTP_SECURE: false
+      MAIL_ACTION_BASE_URL: http://localhost:3000
+      FILES_WRITE_DRIVER: s3
+      FILES_READ_DRIVERS: local,s3
+      FILES_LOCAL_ROOT: /tmp/nestjs-saas-files
+      FILES_S3_BUCKET: app-files
+      FILES_S3_REGION: us-east-1
+      FILES_S3_ENDPOINT: http://localhost:4566
+      FILES_S3_FORCE_PATH_STYLE: true
+      FILES_S3_ACCESS_KEY_ID: test
+      FILES_S3_SECRET_ACCESS_KEY: test
     steps:
       - name: Check out repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -90,12 +126,20 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Create the private S3 test bucket
+        run: >-
+          node -e "const {S3Client,CreateBucketCommand}=require('@aws-sdk/client-s3');
+          const client=new S3Client({region:process.env.FILES_S3_REGION,endpoint:process.env.FILES_S3_ENDPOINT,forcePathStyle:true,credentials:{accessKeyId:'test',secretAccessKey:'test'}});
+          client.send(new CreateBucketCommand({Bucket:process.env.FILES_S3_BUCKET})).catch((error)=>{if(error.name!=='BucketAlreadyOwnedByYou'&&error.name!=='BucketAlreadyExists')throw error})"
+
       - name: Run static quality gates
         run: |
           pnpm format:check
           pnpm lint
           pnpm typecheck
           pnpm arch:check
+          pnpm i18n:check
+          pnpm docs:check
           pnpm deps:check
           pnpm deps:duplicates:check
 
@@ -105,6 +149,7 @@ jobs:
           pnpm test:tools
           pnpm migration:show
           pnpm migration:run
+          pnpm seed:run
           pnpm test:e2e
           pnpm build
 
@@ -171,7 +216,7 @@ jobs:
             --entrypoint /bin/sh \
             --volume "${GITHUB_WORKSPACE}:/repo:ro" \
             ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
-            -c 'git config --global --add safe.directory /repo && exec gitleaks git --redact --no-banner --verbose /repo'
+            -c 'git config --global --add safe.directory /repo && exec gitleaks git --gitleaks-ignore-path /repo/.gitleaksignore --redact --no-banner --verbose /repo'
 
   container:
     name: Container validation

@@ -1,12 +1,47 @@
-# Database and Migration Standard
+# Database, Migration, and Seed Standard
 
-PostgreSQL is the system of record. TypeORM synchronization stays disabled in every environment.
-All schema changes use reviewed migrations; the API never runs migrations or seeds during startup.
+PostgreSQL is the system of record. TypeORM synchronization and automatic migration/seed startup are
+disabled in every environment.
 
-Feature repositories are concrete classes private to their owning module. Controllers never access
-repositories. Cross-feature persistence access is forbidden. Add database constraints and indexes
-for real invariants, keep migrations deterministic, and test execution/reversion or document a
-forward-fix-only decision when reversal would be unsafe.
+Use the Node migration wrapper with a lower-case kebab-case name. It refuses duplicate names and
+loads database configuration only. Schema changes use reviewed migrations with a safe `down`, or a
+documented forward-fix decision when reversal is unsafe. CI migration validation is restricted to a
+database whose name ends in `_test`.
 
-Deployment runs a one-shot migration job before application rollout and rolls back the application
-digest—not an automatically destructive database migration—when readiness or smoke checks fail.
+Normal entities extend `AppBaseEntity`. Feature repositories remain concrete and private; services
+own transactions and controllers never access persistence.
+
+Reference/bootstrap data uses the explicit ordered seed registry. Applied seeds have immutable IDs
+and checksums in `app_seed_history`. The runner holds a PostgreSQL advisory lock and commits each seed
+with its history record in one transaction. Editing an applied seed fails; add a new seed instead.
+Run `pnpm seed:show` or `pnpm seed:run` only as explicit one-shot deployment steps.
+
+Identity migration `1786579200000-CreateIdentityCore` creates users, role assignments, security
+audits, roles, permissions, and role-permission mappings with explicit checks, indexes, and foreign
+keys. Seed `002-rbac` installs deterministic fixed RBAC definitions. The seed contains no user or
+bootstrap-super-admin credentials; that optional behavior requires explicit seed configuration in a
+later auth change.
+
+Auth migration `1786665600000-CreateAuthSessions` creates absolute-lifetime sessions, append-only
+rotating refresh-token records, and single-use verification/reset action tokens. Unique token
+hashes, status/purpose checks, ownership foreign keys, and stable session indexes are enforced in
+PostgreSQL. Only SHA-256 token hashes are stored. Migration reversal removes auth action tokens,
+refresh tokens, then sessions without modifying users or RBAC state.
+
+Identity email-security migration `1786752000000-CreateIdentityEmailSecurity` creates hashed,
+expiring two-step challenges, hashed single-use recovery codes, and mail-delivery state. Delivery
+records store only a SHA-256 recipient fingerprint plus a masked address; queue payloads retain the
+full recipient only for the bounded Redis job lifetime. Reversal removes these three owned tables.
+
+File migration `1786838400000-CreateFileStorage` creates `stored_files` with provider/key and public
+identifier uniqueness, lifecycle/visibility/provider checks, uploader ownership, expiry indexes,
+checksums, safe failure state, and correlation context. Online provider moves are separate explicit
+commands, hold their own advisory lock, process bounded ready-file batches, and never run during API,
+worker, schema migration, seed, or deployment startup. The row retains a pending old-provider/key
+pair until source deletion succeeds so interrupted moves remain readable and recoverable.
+
+Avatar migration `1786924800000-AddUserAvatar` adds nullable, unique `users.avatar_file_id` with a
+foreign key to `stored_files` and `ON DELETE SET NULL`. The migration imports neither feature
+entity; users and files continue to access persistence only through their owning repositories and
+public services. Reversal drops the foreign key, uniqueness constraint, and column without deleting
+stored bytes.

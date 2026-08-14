@@ -2,6 +2,20 @@
   "$schema": "https://json.schemastore.org/nest-cli",
   "sourceRoot": "src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "assets": [
+      {
+        "include": "i18n/**/*",
+        "watchAssets": true
+      },
+      {
+        "include": "modules/mail/templates/**/*",
+        "watchAssets": true
+      },
+      {
+        "include": "modules/files/*.cjs",
+        "watchAssets": true
+      }
+    ]
   }
 }
