@@ -82,7 +82,8 @@ export class S3StorageProvider implements StorageProvider {
         Body: input.body,
         ContentLength: input.contentLength,
         ContentType: input.mimeType,
-        ChecksumSHA256: input.checksumSha256,
+        ChecksumSHA256:
+          input.checksumSha256 === undefined ? undefined : sha256HexToBase64(input.checksumSha256),
         ServerSideEncryption: this.encryption,
         ...(this.encryption === 'aws:kms' ? { SSEKMSKeyId: this.kmsKeyId } : {}),
       }),
@@ -132,4 +133,9 @@ function isNotFound(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const candidate = error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
   return candidate.name === 'NotFound' || candidate.$metadata?.httpStatusCode === 404;
+}
+
+function sha256HexToBase64(checksum: string): string {
+  if (!/^[a-f\d]{64}$/i.test(checksum)) throw new Error('Invalid SHA-256 checksum');
+  return Buffer.from(checksum, 'hex').toString('base64');
 }

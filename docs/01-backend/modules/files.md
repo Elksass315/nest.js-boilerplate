@@ -65,8 +65,10 @@ delete remains durably recorded for worker recovery. Target mismatches are never
 Files default to protected, storage keys are generated server-side, local paths reject traversal,
 and the local root is never statically served. The S3 bucket remains private. Bucket-default
 encryption must be configured for tus multipart uploads; direct provider writes also request the
-configured SSE mode. Configure an S3 lifecycle rule to abort incomplete multipart uploads after one
-day as defense in depth, while the worker terminates known abandoned tus uploads.
+configured SSE mode. Checksums remain canonical lowercase hexadecimal values in application and
+database contracts; the S3 provider converts them to the base64 wire representation required by
+`ChecksumSHA256`. Configure an S3 lifecycle rule to abort incomplete multipart uploads after one day
+as defense in depth, while the worker terminates known abandoned tus uploads.
 
 The file worker uses bounded exponential retries, idempotent delete jobs, a 15-minute sweeper, and a
 PostgreSQL advisory lock. Logs contain file IDs, providers, safe error types, request IDs, and

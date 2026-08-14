@@ -11,6 +11,8 @@ CodeQL, SBOM, license, and deeper scans. File-storage integration runs against l
 digest-pinned LocalStack S3 service before deployment. CI creates a private bucket explicitly and
 uses path-style S3 access with synthetic credentials. The selected LocalStack image must remain a
 verified token-free Community release so fork and pull-request CI never depends on a paid secret.
+The E2E command launches Jest through Node with VM-module support because the maintained tus runtime
+is ESM-only; developers and CI use the same `pnpm test:e2e` entrypoint.
 
 The secret-scan job examines full Git history with Gitleaks. Confirmed false positives are ignored
 only by their exact finding fingerprint in `.gitleaksignore`; broad path, rule, commit, or regular

@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module';
+import { createCorsOptions } from './common/http/cors-options';
 import { configureSwagger } from './common/swagger/configure-swagger';
 import type { AppConfiguration } from './config/configuration.types';
 import { validationPipeOptions } from './core/errors/validation-pipe-options';
@@ -16,11 +17,7 @@ export async function createApplication(): Promise<NestExpressApplication> {
 
   app.useLogger(app.get(Logger));
   app.use(helmet());
-  app.enableCors({
-    origin: config.getOrThrow('cors.origins', { infer: true }),
-    credentials: true,
-    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  });
+  app.enableCors(createCorsOptions(config.getOrThrow('cors.origins', { infer: true })));
   app.useGlobalPipes(new ValidationPipe(validationPipeOptions));
   app.setGlobalPrefix(config.getOrThrow('app.apiPrefix', { infer: true }), {
     exclude: [

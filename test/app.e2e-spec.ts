@@ -67,7 +67,7 @@ describe('platform foundation (e2e)', () => {
         expect(body).toEqual(
           expect.objectContaining({
             status: 'ok',
-            checks: { database: 'up', redis: 'up' },
+            checks: { database: 'up', redis: 'up', storage: 'up' },
           }),
         );
       });
@@ -195,10 +195,11 @@ describe('platform foundation (e2e)', () => {
       )
       .expect(401);
 
-    await request(app.getHttpServer())
-      .options('/api/v1/users/me/avatar/uploads')
-      .expect('Tus-Resumable', '1.0.0')
-      .expect(204);
+    const capabilityResponse = await request(app.getHttpServer()).options(
+      '/api/v1/users/me/avatar/uploads',
+    );
+    expect(capabilityResponse.status).toBe(204);
+    expect(capabilityResponse.headers['tus-resumable']).toBe('1.0.0');
 
     const creation = await request(app.getHttpServer())
       .post('/api/v1/users/me/avatar/uploads')
@@ -242,10 +243,17 @@ describe('platform foundation (e2e)', () => {
     expect(attached.body.avatar).toEqual(
       expect.objectContaining({ fileId, mimeType: 'image/png', url: expect.any(String) }),
     );
-    await request(app.getHttpServer())
-      .get(String(attached.body.avatar.url))
-      .expect('content-type', /image\/png/)
-      .expect(200);
+    const publicAvatar = await request(app.getHttpServer()).get(String(attached.body.avatar.url));
+    if (publicAvatar.status === 302) {
+      const location = publicAvatar.headers['location'];
+      expect(location).toEqual(expect.any(String));
+      const storedAvatar = await fetch(String(location));
+      expect(storedAvatar.status).toBe(200);
+      expect(storedAvatar.headers.get('content-type')).toMatch(/image\/png/);
+    } else {
+      expect(publicAvatar.status).toBe(200);
+      expect(publicAvatar.headers['content-type']).toMatch(/image\/png/);
+    }
 
     await request(app.getHttpServer())
       .delete('/api/v1/users/me/avatar')

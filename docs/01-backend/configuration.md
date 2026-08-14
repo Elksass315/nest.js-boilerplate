@@ -44,6 +44,10 @@ Avatar purpose limits are separately typed through `FILES_USER_AVATAR_MAX_BYTES`
 `FILES_USER_AVATAR_MAX_PIXELS`. Defaults are 5 MiB, 8192 pixels per dimension, and 25 million
 decoded pixels; configuration remains bounded before Sharp receives untrusted image data.
 
+Browser CORS preflights are answered by the global allowlist policy. Requests without an `Origin`
+header bypass CORS processing and continue to their owning controller, allowing bare `OPTIONS`
+protocol discovery requests such as tus to return their required capability headers.
+
 When configuration changes, update schema, tests, `.env.example`, Compose/CI/deployment inputs, and
 this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments
 reject public access.
