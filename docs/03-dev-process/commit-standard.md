@@ -12,3 +12,5 @@ include code, tests, Swagger, and authoritative docs together when they form one
 
 Feature and fix pull requests squash into `develop`; releases and hotfixes retain merge commits.
 Semantic Release generates tags/releases from commits reaching `main` and publishes no npm package.
+
+**Navigation:** [Previous: Branching Strategy](branching-strategy.md) | [Documentation Index](../README.md) | [Next: Pull-Request Review](review-process.md)

@@ -14,3 +14,5 @@
 Backward-incompatible behavior requires a version strategy, migration guidance, tests,
 documentation, and release communication. A controller without explicit version metadata fails
 `pnpm arch:check`.
+
+**Navigation:** [Previous: Users Module](../01-backend/modules/users.md) | [Documentation Index](../README.md) | [Next: OpenAPI and Swagger Standard](openapi-standard.md)

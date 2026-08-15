@@ -92,3 +92,7 @@ removal, transactional replacement races, idempotency, deletion, and correlation
 
 Not applicable. User administration uses bounded offset pagination; no measured scale or stable
 append traversal requirement justifies cursor pagination.
+
+**Navigation:** [Previous: Mail Module](mail.md) | [Documentation Index](../../README.md) | [Next: REST and Versioning Standard](../../02-api/rest-standard.md)
+
+**Navigation:** [Previous: Mail Module](mail.md) | [Documentation Index](../../README.md) | [Next: REST and Versioning Standard](../../02-api/rest-standard.md)

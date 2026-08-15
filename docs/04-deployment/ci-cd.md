@@ -21,3 +21,5 @@ approval. Jenkins runs one-shot migration and seed jobs from the immutable image
 mail worker, and file worker, waits for readiness, runs API and SMTP smoke tests, and restores all
 processes to the previous digest when rollout validation fails. Neither the API nor worker entrypoint performs
 schema or seed mutation.
+
+**Navigation:** [Previous: Docker Workflow](docker.md) | [Documentation Index](../README.md) | [Next: Documentation Policy](../governance/documentation-policy.md)

@@ -46,3 +46,5 @@ safe error type.
 Tests verify queue payload policy, correlation propagation, disabled behavior, action URLs, every
 security template, shared header/footer rendering, escaping, worker retry/failure behavior, delivery
 state, and SMTP delivery through Mailpit.
+
+**Navigation:** [Previous: Files Module](files.md) | [Documentation Index](../../README.md) | [Next: Users Module](users.md)

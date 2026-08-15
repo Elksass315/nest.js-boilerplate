@@ -100,3 +100,5 @@ must be handled operationally before reversing the migration.
 ## Cursor pagination rationale
 
 Not applicable. The module exposes no business collection endpoint.
+
+**Navigation:** [Previous: Authorization Module](authorization.md) | [Documentation Index](../../README.md) | [Next: Mail Module](mail.md)

@@ -46,3 +46,5 @@ should report both when requesting support. Field-level validation messages live
 `details.fields`, never in the stable top-level message. Feature-specific errors are registered,
 translated, documented, exemplified in Swagger, and tested before merge. Renaming a published code
 or changing its meaning is a breaking API change.
+
+**Navigation:** [Previous: OpenAPI and Swagger Standard](openapi-standard.md) | [Documentation Index](../README.md) | [Next: Pagination Standard](pagination-standard.md)

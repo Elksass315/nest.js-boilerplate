@@ -47,3 +47,5 @@ decoded pixels; configuration remains bounded before Sharp receives untrusted im
 When configuration changes, update schema, tests, `.env.example`, Compose/CI/deployment inputs, and
 this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments
 reject public access.
+
+**Navigation:** [Previous: Technology Stack](../00-overview/tech-stack.md) | [Documentation Index](../README.md) | [Next: Database, Migration, and Seed Standard](database.md)

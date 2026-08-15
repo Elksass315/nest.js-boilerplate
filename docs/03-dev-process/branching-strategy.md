@@ -16,3 +16,5 @@ pnpm branch:write-check
 
 Do not bypass hooks or move already-created edits off a protected branch as a normal workflow.
 Preserve unrelated user changes and correct the branch without destructive Git commands.
+
+**Navigation:** [Previous: Pagination Standard](../02-api/pagination-standard.md) | [Documentation Index](../README.md) | [Next: Commit Standard](commit-standard.md)
