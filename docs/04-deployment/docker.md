@@ -37,3 +37,5 @@ Redis uses append-only persistence and `noeviction`. BullMQ must never run again
 policy because evicted queue keys can corrupt job state. Capacity alerts and scaling must address
 memory pressure before Redis reaches its configured limit; deployment must not switch to an LRU/LFU
 policy while queues are enabled.
+
+**Navigation:** [Previous: Pull-Request Review](../03-dev-process/review-process.md) | [Documentation Index](../README.md) | [Next: CI/CD Ownership](ci-cd.md)

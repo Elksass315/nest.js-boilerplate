@@ -25,3 +25,5 @@ Document sensitive-data handling, validation, authorization, safe log events, an
 ## Test strategy and change impact
 
 Cover unit, integration, and e2e behavior plus downstream compatibility, rollout, and rollback.
+
+**Navigation:** [Previous: Architecture Rules](../governance/architecture-rules.md) | [Documentation Index](../README.md) | [Next: ADR Template](../adr/000-template.md)

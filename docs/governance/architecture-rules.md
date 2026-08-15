@@ -14,3 +14,5 @@
 
 `pnpm arch:check` enforces dependency boundaries and API-controller contract metadata. Intentional
 exceptions require an ADR documenting evidence, risk controls, validation, and rollback.
+
+**Navigation:** [Previous: Documentation Policy](documentation-policy.md) | [Documentation Index](../README.md) | [Next: Module Documentation Template](../templates/module-doc-template.md)

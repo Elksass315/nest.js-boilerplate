@@ -9,3 +9,5 @@ and security headers. Readiness failures expose only up/down state, never connec
 
 Both routes have concrete Swagger examples for success. Readiness documents separate PostgreSQL,
 Redis, and storage failure examples with the exact error code and client-visible message.
+
+**Navigation:** [Previous: Error Handling](error-handling.md) | [Documentation Index](../README.md) | [Next: Internationalization Standard](internationalization.md)

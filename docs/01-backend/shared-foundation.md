@@ -18,3 +18,5 @@ naming strategy.
 Every request has a unique `x-request-id`. Related work shares `x-correlation-id`; accept only the
 validated inbound format, otherwise generate one. Return both headers, include both IDs in errors,
 and propagate correlation into jobs, audits, and outbound calls.
+
+**Navigation:** [Previous: Feature Module Architecture](module-architecture.md) | [Documentation Index](../README.md) | [Next: Auth and Sessions Module](modules/auth.md)

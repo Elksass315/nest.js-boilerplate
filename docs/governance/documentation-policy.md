@@ -13,3 +13,5 @@ request.
 Reviewers block stale documentation. An exception requires explicit owner approval and a tracked,
 owned, expiring remediation item. `pnpm docs:check` validates required sources, local links, and
 module-document presence; reviewers validate semantic parity.
+
+**Navigation:** [Previous: CI/CD Ownership](../04-deployment/ci-cd.md) | [Documentation Index](../README.md) | [Next: Architecture Rules](architecture-rules.md)

@@ -45,3 +45,5 @@ size/type/image-policy failures, and provider outages without leaking a storage 
 bucket, filename, or provider response. tus transport failures use protocol-compatible HTTP
 statuses while retaining stable codes such as `FILE_NOT_FOUND`, `FILE_UPLOAD_EXPIRED`,
 `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, and `FILE_STORAGE_UNAVAILABLE`.
+
+**Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Health Endpoints](health.md)

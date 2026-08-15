@@ -19,3 +19,5 @@ request context, included in structured request logs, and emitted in every error
 caller values contain only letters, numbers, `.`, `_`, `:`, or `-` and are at most 128 characters;
 unsafe values are replaced. Future queue producers copy the correlation ID into job metadata and
 workers restore it before logging or calling downstream systems.
+
+**Navigation:** [Previous: Internationalization Standard](internationalization.md) | [Documentation Index](../README.md) | [Next: Feature Module Architecture](module-architecture.md)

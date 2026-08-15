@@ -101,3 +101,5 @@ Redis. Rollback removes auth-owned tables only; users and RBAC remain intact.
 
 Not applicable. User session history is bounded and uses offset pagination; no measured high-volume
 or stable append traversal requirement justifies cursor pagination.
+
+**Navigation:** [Previous: Shared Foundation Standard](../shared-foundation.md) | [Documentation Index](../../README.md) | [Next: Authorization Module](authorization.md)

@@ -60,3 +60,5 @@ constraints and immutable reference data in PostgreSQL.
 
 Not applicable. The fixed role set is small and uses offset pagination to preserve one collection
 contract across business APIs.
+
+**Navigation:** [Previous: Auth and Sessions Module](auth.md) | [Documentation Index](../../README.md) | [Next: Files Module](files.md)
