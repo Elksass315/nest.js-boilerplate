@@ -41,6 +41,8 @@ import {
 } from '@/modules/authorization';
 
 import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { AcceptInvitationDto } from './dto/accept-invitation.dto';
+import { InvitationAcceptedResponseDto } from './dto/invitation-accepted-response.dto';
 import { InvitationResponseDto } from './dto/invitation-response.dto';
 import { InvitationsService } from './invitations.service';
 
@@ -89,6 +91,77 @@ const errorContent = (
 @Controller({ path: 'team/invitations', version: API_VERSION })
 export class InvitationsController {
   public constructor(private readonly service: InvitationsService) {}
+
+  @Post('accept')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Accept a team invitation',
+    description:
+      'Consumes one valid invitation token, creates an active verified account with the invited role, and does not create a login session.',
+  })
+  @ApiCreatedResponse({
+    description: 'The invitation was consumed and the active account was created.',
+    content: {
+      'application/json': {
+        example: { message: 'Invitation accepted' },
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({
+    description: 'The invitation token is unknown or was replaced by a resend or prior acceptance.',
+    content: errorContent(
+      401,
+      'INVALID_INVITATION_TOKEN',
+      'The invitation token is invalid',
+      `${path}/accept`,
+    ),
+  })
+  @ApiGoneResponse({
+    description: 'The otherwise valid invitation has expired.',
+    content: errorContent(
+      410,
+      'INVITATION_EXPIRED',
+      'The invitation has expired',
+      `${path}/accept`,
+    ),
+  })
+  @ApiConflictResponse({
+    description: 'The invitation is terminal or its email is already registered.',
+    content: {
+      'application/json': {
+        examples: {
+          notPending: {
+            summary: 'The invitation was revoked or accepted',
+            value: errorExample(
+              409,
+              'INVITATION_NOT_PENDING',
+              'The invitation is no longer pending',
+              `${path}/accept`,
+            ),
+          },
+          memberExists: {
+            summary: 'The invited email became registered before acceptance',
+            value: errorExample(
+              409,
+              'MEMBER_ALREADY_EXISTS',
+              'A member with this email already exists',
+              `${path}/accept`,
+            ),
+          },
+        },
+      },
+    },
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'The token, full name, or password failed DTO validation.',
+    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', `${path}/accept`, {
+      fields: { password: ['password must be longer than or equal to 12 characters'] },
+    }),
+  })
+  public async accept(@Body() body: AcceptInvitationDto): Promise<InvitationAcceptedResponseDto> {
+    await this.service.accept(body.token, body.fullName, body.password);
+    return { message: 'Invitation accepted' };
+  }
 
   @Post()
   @RequirePermissions('team.invitations.create')

@@ -112,6 +112,17 @@ describe(UsersRepository.name, () => {
       'role-1',
       { ...audit, eventType: 'user.created' },
     );
+    await repository.createActiveWithRole(
+      manager,
+      {
+        fullName: user.fullName,
+        email: user.email,
+        normalizedEmail: user.normalizedEmail,
+        passwordHash: user.passwordHash,
+      },
+      'role-1',
+      { ...audit, eventType: 'team.invitation.accepted' },
+    );
     await repository.updateProfile(manager, user.id, 'Amina Ali', audit);
     await repository.updateStatus(manager, user.id, 'suspended', {
       ...audit,
@@ -127,6 +138,9 @@ describe(UsersRepository.name, () => {
 
     expect(managerAudits.save).toHaveBeenCalledWith(
       expect.objectContaining({ correlationId: 'correlation-1' }),
+    );
+    expect(managerUsers.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active', emailVerifiedAt: expect.any(Date) }),
     );
     expect(manager.query).toHaveBeenCalledWith(
       "SELECT pg_advisory_xact_lock(hashtext('users:last-super-admin'))",

@@ -7,6 +7,7 @@
 | 401    | `INVALID_CREDENTIALS`             | `Email or password is incorrect`                               | Credential verification fails without revealing the field.                |
 | 401    | `ACCOUNT_LOCKED`                  | `The account is temporarily locked`                            | Repeated failures activate the configured login lock.                     |
 | 401    | `INVALID_OR_EXPIRED_TOKEN`        | `The token is invalid or has expired`                          | A verification/reset token cannot be consumed.                            |
+| 401    | `INVALID_INVITATION_TOKEN`        | `The invitation token is invalid`                              | An acceptance token is unknown or has been rotated.                       |
 | 401    | `INVALID_REFRESH_TOKEN`           | `The refresh token is invalid or expired`                      | Refresh state is unknown, expired, revoked, or stale.                     |
 | 401    | `REFRESH_TOKEN_REUSED`            | `Refresh token reuse was detected and the session was revoked` | A rotated token was presented again.                                      |
 | 401    | `INVALID_TWO_STEP_CHALLENGE`      | `The two-step challenge is invalid or has expired`             | A challenge is unknown, expired, consumed, wrong-purpose, or wrong-owner. |

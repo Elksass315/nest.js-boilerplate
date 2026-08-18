@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, type EntityManager } from 'typeorm';
 
 import { buildOffsetPage, type OffsetPage } from '@/common/pagination';
 import { AppException } from '@/core/errors/app.exception';
@@ -13,7 +13,12 @@ import { isPlainRecord } from '@/shared/helpers/is-plain-record';
 import type { UserResponseDto } from './dto/user-response.dto';
 import { AvatarImageService } from './avatar-image.service';
 import type { UserEntity } from './entities/user.entity';
-import type { CreatePendingUserInput, UserWithRoles } from './users.types';
+import type {
+  CreateInvitedUserInput,
+  CreatePendingUserInput,
+  InvitedUserResult,
+  UserWithRoles,
+} from './users.types';
 import type { UserStatus } from './users.constants';
 import { UsersRepository, type SecurityAuditInput } from './users.repository';
 
@@ -234,6 +239,26 @@ export class UsersService {
       return this.toUserWithRoles(user, [defaultRole]);
     } catch (error) {
       if (this.isUniqueViolation(error)) throw new AppException('EMAIL_ALREADY_REGISTERED');
+      throw error;
+    }
+  }
+
+  public async createInvitedUser(
+    manager: EntityManager,
+    input: CreateInvitedUserInput,
+    roleId: string,
+    invitationId: string,
+  ): Promise<InvitedUserResult> {
+    try {
+      const user = await this.repository.createActiveWithRole(
+        manager,
+        input,
+        roleId,
+        this.auditContext(null, null, 'team.invitation.accepted', { invitationId }),
+      );
+      return { id: user.id, fullName: user.fullName, email: user.email };
+    } catch (error) {
+      if (this.isUniqueViolation(error)) throw new AppException('MEMBER_ALREADY_EXISTS');
       throw error;
     }
   }

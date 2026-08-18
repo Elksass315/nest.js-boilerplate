@@ -23,9 +23,23 @@ export class InvitationsRepository {
     return this.invitations.findOneBy({ id });
   }
 
+  public findByTokenHash(tokenHash: string): Promise<InvitationEntity | null> {
+    return this.invitations.findOneBy({ tokenHash });
+  }
+
   public findByIdForUpdate(manager: EntityManager, id: string): Promise<InvitationEntity | null> {
     return manager.getRepository(InvitationEntity).findOne({
       where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  public findByTokenHashForUpdate(
+    manager: EntityManager,
+    tokenHash: string,
+  ): Promise<InvitationEntity | null> {
+    return manager.getRepository(InvitationEntity).findOne({
+      where: { tokenHash },
       lock: { mode: 'pessimistic_write' },
     });
   }

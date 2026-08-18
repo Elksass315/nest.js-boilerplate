@@ -4,6 +4,7 @@ import { API_VERSION } from '@/common/http/api-version.constants';
 import type { AuthenticatedPrincipal } from '@/modules/authorization';
 
 import type { CreateInvitationDto } from './dto/create-invitation.dto';
+import type { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { InvitationsController } from './invitations.controller';
 import type { InvitationsService } from './invitations.service';
 
@@ -14,6 +15,7 @@ describe(InvitationsController.name, () => {
     getById: jest.fn(),
     resend: jest.fn(),
     revoke: jest.fn(),
+    accept: jest.fn(),
   };
   const controller = new InvitationsController(service as unknown as InvitationsService);
   const principal = {
@@ -37,5 +39,16 @@ describe(InvitationsController.name, () => {
     await controller.create(body, principal);
 
     expect(service.create).toHaveBeenCalledWith(body.email, body.role, principal);
+  });
+
+  it('accepts a public invitation without creating a session in the controller', async () => {
+    const body = {
+      token: 't'.repeat(43),
+      fullName: 'Amina Hassan',
+      password: 'strong-password',
+    } satisfies AcceptInvitationDto;
+
+    await expect(controller.accept(body)).resolves.toEqual({ message: 'Invitation accepted' });
+    expect(service.accept).toHaveBeenCalledWith(body.token, body.fullName, body.password);
   });
 });

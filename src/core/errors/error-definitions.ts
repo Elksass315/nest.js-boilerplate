@@ -46,6 +46,11 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.invitationNotFound',
     fallbackMessage: 'The requested invitation was not found',
   },
+  INVALID_INVITATION_TOKEN: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidInvitationToken',
+    fallbackMessage: 'The invitation token is invalid',
+  },
   INVITATION_EXPIRED: {
     status: HttpStatus.GONE,
     messageKey: 'errors.invitationExpired',

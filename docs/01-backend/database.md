@@ -20,5 +20,8 @@ Migration `1787011200000-CreateTeamInvitations` adds invitation lifecycle metada
 bounded send counts, expiry indexes, and one pending invitation per normalized email. Immutable seed
 `003-team-invitations-rbac` adds the corresponding fixed RBAC permissions. Invitation tokens persist
 only as SHA-256 hashes; creation, resend, and revoke use service-owned transactions and row locks.
+Migration `1787097600000-IndexInvitationTokenHash` adds the unique token-hash lookup required for
+locked, single-use acceptance. Acceptance commits the active user, fixed-role assignment, correlated
+audit, and invitation transition together; a uniqueness race rolls back the entire transaction.
 
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

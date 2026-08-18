@@ -33,6 +33,7 @@ On macOS/Linux, use `cp .env.example .env`. The API listens on `http://localhost
 - Public ready files: `/api/v1/files/public/:publicId`
 - Authenticated avatar uploads: `/api/v1/users/me/avatar/uploads`
 - Avatar attachment: `PATCH /api/v1/users/me/avatar`
+- Invitation acceptance: `POST /api/v1/team/invitations/accept`
 - Future business endpoints: `/api/v1`
 
 Useful commands:

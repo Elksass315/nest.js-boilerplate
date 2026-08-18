@@ -10,7 +10,8 @@ export type MailTemplate =
   | 'two-step-changed'
   | 'account-status-changed'
   | 'role-changed'
-  | 'team-invitation';
+  | 'team-invitation'
+  | 'team-invitation-accepted';
 
 export type MailDeliveryStatus = 'queued' | 'processing' | 'sent' | 'failed';
 
@@ -67,3 +68,5 @@ export interface TeamInvitationMailInput {
   token: string;
   expiresAt: Date;
 }
+
+export type InvitationAcceptedMailInput = SecurityMailInput;

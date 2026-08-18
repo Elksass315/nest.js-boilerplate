@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -10,6 +10,7 @@ import type { AppConfiguration } from '@/config/configuration.types';
 import { AppException } from '@/core/errors/app.exception';
 import type { AuthenticatedPrincipal, RoleDefinition, RoleKey } from '@/modules/authorization';
 import { AuthorizationService } from '@/modules/authorization';
+import { AuthService } from '@/modules/auth';
 import { MailService } from '@/modules/mail';
 import { UsersService } from '@/modules/users';
 import { isPlainRecord } from '@/shared/helpers/is-plain-record';
@@ -20,14 +21,70 @@ import { InvitationsRepository } from './invitations.repository';
 
 @Injectable()
 export class InvitationsService {
+  private readonly logger = new Logger(InvitationsService.name);
+
   public constructor(
     private readonly repository: InvitationsRepository,
     private readonly authorization: AuthorizationService,
+    private readonly auth: AuthService,
     private readonly users: UsersService,
     private readonly mail: MailService,
     private readonly config: ConfigService<AppConfiguration, true>,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
+
+  public async accept(token: string, fullName: string, password: string): Promise<void> {
+    const tokenHash = this.hashToken(token);
+    const now = new Date();
+    this.assertAcceptableInvitation(await this.repository.findByTokenHash(tokenHash), now);
+    const passwordHash = await this.auth.hashAccountPassword(password);
+    const accepted = await this.dataSource.transaction(async (manager) => {
+      const invitation = await this.repository.findByTokenHashForUpdate(manager, tokenHash);
+      this.assertAcceptableInvitation(invitation, now);
+      const user = await this.users.createInvitedUser(
+        manager,
+        {
+          fullName: fullName.trim(),
+          email: invitation.email,
+          normalizedEmail: invitation.normalizedEmail,
+          passwordHash,
+        },
+        invitation.roleId,
+        invitation.id,
+      );
+      invitation.status = 'accepted';
+      invitation.acceptedByUserId = user.id;
+      invitation.acceptedAt = now;
+      invitation.tokenHash = this.hashToken(randomBytes(32).toString('base64url'));
+      await this.repository.save(manager, invitation);
+      return { invitationId: invitation.id, user };
+    });
+    try {
+      await this.mail.sendInvitationAccepted({
+        email: accepted.user.email,
+        fullName: accepted.user.fullName,
+        occurredAt: now,
+      });
+    } catch (error) {
+      this.logger.error({
+        event: 'team_invitation_acceptance_email_enqueue_failed',
+        invitationId: accepted.invitationId,
+        userId: accepted.user.id,
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+      });
+    }
+  }
+
+  private assertAcceptableInvitation(
+    invitation: InvitationEntity | null,
+    now: Date,
+  ): asserts invitation is InvitationEntity {
+    if (!invitation) throw new AppException('INVALID_INVITATION_TOKEN');
+    if (invitation.status !== 'pending') throw new AppException('INVITATION_NOT_PENDING');
+    if (invitation.expiresAt.getTime() <= now.getTime()) {
+      throw new AppException('INVITATION_EXPIRED');
+    }
+  }
 
   public async list(page: number, limit: number): Promise<OffsetPage<InvitationResponseDto>> {
     const [invitations, total] = await this.repository.findPage(page, limit);

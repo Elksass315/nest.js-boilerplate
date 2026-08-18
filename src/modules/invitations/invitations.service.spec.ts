@@ -4,6 +4,7 @@ import type { DataSource, EntityManager } from 'typeorm';
 import type { AppConfiguration } from '@/config/configuration.types';
 import { AppException } from '@/core/errors/app.exception';
 import type { AuthenticatedPrincipal, AuthorizationService } from '@/modules/authorization';
+import type { AuthService } from '@/modules/auth';
 import type { MailService } from '@/modules/mail';
 import type { UsersService } from '@/modules/users';
 
@@ -26,18 +27,22 @@ describe(InvitationsService.name, () => {
   const repository = {
     findPage: jest.fn(),
     findById: jest.fn(),
+    findByTokenHash: jest.fn(),
     findByIdForUpdate: jest.fn(),
+    findByTokenHashForUpdate: jest.fn(),
     findPendingByEmailForUpdate: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
   };
   const authorization = { getRequiredRole: jest.fn() };
+  const auth = { hashAccountPassword: jest.fn() };
   const users = {
     emailExists: jest.fn(),
     getSelf: jest.fn(),
     recordSecurityAudit: jest.fn(),
+    createInvitedUser: jest.fn(),
   };
-  const mail = { sendTeamInvitation: jest.fn() };
+  const mail = { sendTeamInvitation: jest.fn(), sendInvitationAccepted: jest.fn() };
   const config = {
     getOrThrow: jest.fn((key: string) => {
       if (key === 'invitations.ttlHours') return 72;
@@ -53,6 +58,7 @@ describe(InvitationsService.name, () => {
   const service = new InvitationsService(
     repository as unknown as InvitationsRepository,
     authorization as unknown as AuthorizationService,
+    auth as unknown as AuthService,
     users as unknown as UsersService,
     mail as unknown as MailService,
     config as unknown as ConfigService<AppConfiguration, true>,
@@ -83,7 +89,71 @@ describe(InvitationsService.name, () => {
       permissions: [],
     });
     repository.findPendingByEmailForUpdate.mockResolvedValue(null);
+    repository.findByTokenHash.mockResolvedValue(invitation());
     mail.sendTeamInvitation.mockResolvedValue(undefined);
+    mail.sendInvitationAccepted.mockResolvedValue(undefined);
+    auth.hashAccountPassword.mockResolvedValue('$argon2id$invited');
+    users.createInvitedUser.mockResolvedValue({
+      id: '7b3f8ed4-73ef-4afe-8703-b10dd32f3820',
+      fullName: 'Amina Hassan',
+      email: 'new.member@example.com',
+    });
+  });
+
+  it('atomically creates an active invited user and consumes the token without logging in', async () => {
+    const pending = invitation();
+    repository.findByTokenHash.mockResolvedValue(pending);
+    repository.findByTokenHashForUpdate.mockResolvedValue(pending);
+    repository.save.mockResolvedValue(pending);
+
+    await service.accept('t'.repeat(43), ' Amina Hassan ', 'strong-password');
+
+    expect(auth.hashAccountPassword).toHaveBeenCalledWith('strong-password');
+    expect(users.createInvitedUser).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({
+        fullName: 'Amina Hassan',
+        normalizedEmail: pending.normalizedEmail,
+        passwordHash: '$argon2id$invited',
+      }),
+      pending.roleId,
+      pending.id,
+    );
+    expect(pending).toEqual(
+      expect.objectContaining({
+        status: 'accepted',
+        acceptedByUserId: '7b3f8ed4-73ef-4afe-8703-b10dd32f3820',
+        acceptedAt: expect.any(Date),
+      }),
+    );
+    expect(pending.tokenHash).not.toBe('a'.repeat(64));
+    expect(mail.sendInvitationAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'new.member@example.com' }),
+    );
+  });
+
+  it('rejects unknown, expired, and terminal invitation tokens before user creation', async () => {
+    repository.findByTokenHash.mockResolvedValueOnce(null);
+    await expectErrorCode(
+      service.accept('u'.repeat(43), 'Amina Hassan', 'strong-password'),
+      'INVALID_INVITATION_TOKEN',
+    );
+
+    repository.findByTokenHash.mockResolvedValueOnce(
+      invitation({ expiresAt: new Date(Date.now() - 1) }),
+    );
+    await expectErrorCode(
+      service.accept('e'.repeat(43), 'Amina Hassan', 'strong-password'),
+      'INVITATION_EXPIRED',
+    );
+
+    repository.findByTokenHash.mockResolvedValueOnce(invitation({ status: 'revoked' }));
+    await expectErrorCode(
+      service.accept('r'.repeat(43), 'Amina Hassan', 'strong-password'),
+      'INVITATION_NOT_PENDING',
+    );
+    expect(users.createInvitedUser).not.toHaveBeenCalled();
+    expect(auth.hashAccountPassword).not.toHaveBeenCalled();
   });
 
   it('creates a normalized, hashed invitation and sends the raw token only to mail', async () => {
