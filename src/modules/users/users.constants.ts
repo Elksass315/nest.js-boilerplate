@@ -17,4 +17,5 @@ export type SecurityAuditEvent =
   | 'auth.recovery_codes.regenerated'
   | 'team.invitation.created'
   | 'team.invitation.resent'
-  | 'team.invitation.revoked';
+  | 'team.invitation.revoked'
+  | 'team.invitation.accepted';

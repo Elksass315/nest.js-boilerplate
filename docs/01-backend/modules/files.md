@@ -17,20 +17,24 @@ import providers, stores, repositories, or entities.
 
 The latest tus line is native ESM while the Nest application compiles to CommonJS. A small copied
 CommonJS loader uses native dynamic import at runtime; this isolates module-system compatibility
-without converting the application or using a test-only workaround.
+without converting the application. The E2E script starts Jest with Node's VM-module support so
+the same native tus runtime is exercised rather than mocked.
 
 ## API contracts
 
 `GET /api/v1/files/public/:publicId` is anonymously readable and serves only `ready + public`
 records. It streams local bytes with immutable safe headers or redirects to a short-lived signed S3
 URL. Protected, unfinished, and unknown records all return `404 FILE_NOT_FOUND`; provider failures
-return `503 FILE_STORAGE_UNAVAILABLE`.
+return `503 FILE_STORAGE_UNAVAILABLE`. The controller owns the versioned `files` path; the global
+API prefix and URI-versioning policy produce the documented URL exactly once.
 
 `FilesService.handleTus` supports creation, HEAD offset discovery, sequential PATCH continuation,
 expiration, and termination. Deferred length, concatenation, and parallel uploads are disabled.
 OPTIONS may advertise protocol capabilities anonymously. Every stateful consumer route must pass
 an authenticated uploader and correlation context; ownership and purpose are rechecked for an
-existing upload. Upload completion records SHA-256 before the file may be claimed.
+existing upload. Global CORS passes feature-owned upload capability requests through to the tus
+handler while continuing to answer ordinary preflight requests itself. Upload completion records
+SHA-256 before the file may be claimed.
 
 The public service also exposes bounded owned-upload reads, processed-byte staging, transactional
 claim/deletion operations, and batched public descriptors. Consumers never receive a provider

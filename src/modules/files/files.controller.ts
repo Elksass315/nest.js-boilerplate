@@ -43,7 +43,7 @@ const errorContent = (statusCode: number, code: string, message: string): Swagge
 });
 
 @ApiTags('files')
-@Controller({ path: '/api/v1/files', version: API_VERSION })
+@Controller({ path: 'files', version: API_VERSION })
 export class FilesController {
   public constructor(private readonly service: FilesService) {}
 

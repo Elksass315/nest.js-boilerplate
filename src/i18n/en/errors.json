@@ -8,6 +8,7 @@
   "emailAlreadyRegistered": "An account with this email already exists",
   "lastSuperAdmin": "At least one active super administrator must remain",
   "invitationNotFound": "The requested invitation was not found",
+  "invalidInvitationToken": "The invitation token is invalid",
   "invitationExpired": "The invitation has expired",
   "invitationAlreadyPending": "A pending invitation already exists for this email",
   "invitationNotPending": "The invitation is no longer pending",

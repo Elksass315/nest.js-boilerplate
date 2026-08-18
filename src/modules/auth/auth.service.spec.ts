@@ -173,6 +173,11 @@ describe(AuthService.name, () => {
     expect(result.userId).toBe(user.id);
   });
 
+  it('hashes an account password through the configured Argon2id crypto service', async () => {
+    await expect(service.hashAccountPassword('strong-password')).resolves.toBe('$argon2id$hashed');
+    expect(crypto.hashPassword).toHaveBeenCalledWith('strong-password');
+  });
+
   it('keeps verification resend enumeration-safe', async () => {
     users.findForAuthentication.mockResolvedValue(null);
     await expect(service.resendVerification('missing@example.com')).resolves.toBeNull();

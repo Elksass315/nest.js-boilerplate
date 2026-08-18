@@ -10,6 +10,7 @@ import { MailRepository } from './mail.repository';
 import {
   MAIL_QUEUE,
   type AccountStatusChangedMailInput,
+  type InvitationAcceptedMailInput,
   type MailJob,
   type MailTemplate,
   type PasswordResetMailInput,
@@ -110,6 +111,13 @@ export class MailService {
       role: input.role,
       actionUrl: actionUrl.toString(),
       expiresAt: input.expiresAt.toISOString(),
+    });
+  }
+
+  public sendInvitationAccepted(input: InvitationAcceptedMailInput): Promise<void> {
+    return this.enqueue(input.email, 'team-invitation-accepted', 'Your team account is ready', {
+      name: input.fullName,
+      occurredAt: input.occurredAt.toISOString(),
     });
   }
 

@@ -9,6 +9,14 @@ export interface CreatePendingUserInput {
   passwordHash: string;
 }
 
+export type CreateInvitedUserInput = CreatePendingUserInput;
+
+export interface InvitedUserResult {
+  id: string;
+  fullName: string;
+  email: string;
+}
+
 export interface UserWithRoles {
   id: string;
   fullName: string;

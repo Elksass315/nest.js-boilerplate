@@ -123,4 +123,21 @@ describe(MailService.name, () => {
     ).rejects.toThrow('Redis unavailable');
     expect(repository.markFailed).toHaveBeenCalledWith('delivery-1', 0, 'QUEUE_ENQUEUE_FAILED');
   });
+
+  it('queues a correlated invitation-acceptance security notice', async () => {
+    await service.sendInvitationAccepted({
+      email: 'amina@example.com',
+      fullName: 'Amina Hassan',
+      occurredAt: new Date('2026-08-18T12:00:00.000Z'),
+    });
+
+    expect(queue.add).toHaveBeenCalledWith(
+      'send-mail',
+      expect.objectContaining({
+        template: 'team-invitation-accepted',
+        correlationId: 'corr-mail-1',
+      }),
+      expect.anything(),
+    );
+  });
 });

@@ -9,6 +9,7 @@ import type { InvitationStatus } from '../invitations.constants';
 @Index('IDX_team_invitations_status_created', ['status', 'createdAt'])
 @Index('IDX_team_invitations_normalized_email', ['normalizedEmail'])
 @Index('IDX_team_invitations_expires_at', ['status', 'expiresAt'])
+@Index('UQ_team_invitations_token_hash', ['tokenHash'], { unique: true })
 @Check('CHK_team_invitations_status', `"status" IN ('pending', 'accepted', 'expired', 'revoked')`)
 @Check('CHK_team_invitations_send_count', '"send_count" >= 1')
 export class InvitationEntity extends AppBaseEntity {

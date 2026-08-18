@@ -50,6 +50,7 @@ describe(TemplateRendererService.name, () => {
       'account-status-changed',
       'role-changed',
       'team-invitation',
+      'team-invitation-accepted',
     ] as const;
 
     for (const template of templates) {

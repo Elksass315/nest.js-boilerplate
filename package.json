@@ -28,7 +28,7 @@
     "test:unit": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage --runInBand",
-    "test:e2e": "jest --config test/jest-e2e.json --runInBand",
+    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config test/jest-e2e.json --runInBand",
     "test:tools": "node --test tools/*.test.mjs",
     "arch:check": "node tools/check-architecture.mjs && node tools/check-api-contracts.mjs && depcruise src --config .dependency-cruiser.cjs",
     "i18n:check": "node tools/check-translations.mjs",

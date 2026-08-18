@@ -50,5 +50,8 @@ Invitation errors distinguish missing, expired, terminal, duplicate, throttled, 
 delivery states. Member conflicts and role-authority failures use `MEMBER_ALREADY_EXISTS` and
 `ROLE_ASSIGNMENT_FORBIDDEN`; mail enqueue failure uses `INVITATION_DELIVERY_UNAVAILABLE` without
 exposing queue/provider details. Tokens and recipient identifiers never appear in error details.
+Public acceptance uses `INVALID_INVITATION_TOKEN` for an unknown or rotated token, while a known
+expired or terminal invitation uses `INVITATION_EXPIRED` or `INVITATION_NOT_PENDING`. Concurrent
+account creation maps to `MEMBER_ALREADY_EXISTS` without leaking database constraints.
 
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Health Endpoints](health.md)
