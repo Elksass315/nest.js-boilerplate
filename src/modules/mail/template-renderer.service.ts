@@ -39,6 +39,7 @@ export class TemplateRendererService implements OnModuleInit {
       'two-step-changed',
       'account-status-changed',
       'role-changed',
+      'team-invitation',
     ] as const) {
       this.templates.set(
         template,

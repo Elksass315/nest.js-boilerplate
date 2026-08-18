@@ -21,6 +21,7 @@ request as the behavior it describes.
 - [Internationalization](01-backend/internationalization.md)
 - [Health endpoints](01-backend/health.md)
 - [File storage](01-backend/modules/files.md)
+- [Team invitations](01-backend/modules/invitations.md)
 - Feature module records live under `01-backend/modules/` when business modules are added.
 
 ## API standards

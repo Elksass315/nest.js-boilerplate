@@ -6,6 +6,8 @@ workflows. Phase 2 adds fixed RBAC, users, credential authentication, rotating s
 two-step verification, recovery codes, and a correlated SMTP mail worker while preserving the flat
 modular-monolith architecture. Phase 3 adds private-by-default resumable file storage, local/S3
 provider mobility, a dedicated cleanup worker, and stable public file access.
+Phase 4 begins single-workspace team administration with secure, expiring invitations while keeping
+the application explicitly single-tenant.
 
 ## Requirements
 

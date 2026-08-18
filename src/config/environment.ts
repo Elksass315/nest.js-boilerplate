@@ -17,6 +17,7 @@ import type {
 import { corsEnvironmentSchema, createCorsConfig } from './cors.config';
 import { createI18nConfig, i18nEnvironmentSchema, parseSupportedLanguages } from './i18n.config';
 import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config';
+import { createInvitationsConfig, invitationsEnvironmentSchema } from './invitations.config';
 import { createMailConfig, mailEnvironmentSchema } from './mail.config';
 import { createFilesConfig, filesEnvironmentSchema, parseFileStorageDrivers } from './files.config';
 import { createRateLimitConfig, rateLimitEnvironmentSchema } from './rate-limit.config';
@@ -31,6 +32,7 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...rateLimitEnvironmentSchema,
   ...i18nEnvironmentSchema,
   ...mailEnvironmentSchema,
+  ...invitationsEnvironmentSchema,
   ...filesEnvironmentSchema,
   ...databaseEnvironmentSchema,
   ...redisEnvironmentSchema,
@@ -245,6 +247,7 @@ export function loadApiConfiguration(): AppConfiguration {
     rateLimit: createRateLimitConfig(environment),
     i18n: createI18nConfig(environment),
     mail: createMailConfig(environment),
+    invitations: createInvitationsConfig(environment),
     files: createFilesConfig(environment),
     database: createDatabaseConfig(environment),
     redis: createRedisConfig(environment),

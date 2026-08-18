@@ -17,6 +17,7 @@ import {
   type SecurityMailInput,
   type TwoStepChangedMailInput,
   type TwoStepCodeMailInput,
+  type TeamInvitationMailInput,
   type VerificationMailInput,
 } from './mail.types';
 
@@ -98,6 +99,17 @@ export class MailService {
       name: input.fullName,
       roles: input.roles.join(', '),
       occurredAt: input.occurredAt.toISOString(),
+    });
+  }
+
+  public sendTeamInvitation(input: TeamInvitationMailInput): Promise<void> {
+    const actionUrl = new URL(this.config.getOrThrow('invitations.baseUrl', { infer: true }));
+    actionUrl.searchParams.set('token', input.token);
+    return this.enqueue(input.email, 'team-invitation', 'You have been invited to the team', {
+      inviterName: input.inviterName,
+      role: input.role,
+      actionUrl: actionUrl.toString(),
+      expiresAt: input.expiresAt.toISOString(),
     });
   }
 

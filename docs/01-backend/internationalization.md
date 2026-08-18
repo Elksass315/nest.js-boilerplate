@@ -25,4 +25,8 @@ validation, and storage outages. They never interpolate original filenames, obje
 buckets, uploader identity, or provider diagnostics. tus protocol headers remain language-neutral;
 client-visible JSON error messages use the same registered English fallbacks as the global filter.
 
+Invitation keys cover lookup, expiry, lifecycle conflicts, duplicate members/pending invitations,
+resend policy, role authority, and delivery availability. Messages remain generic and never
+interpolate invitation tokens, email addresses, provider diagnostics, or configured limits.
+
 **Navigation:** [Previous: Health Endpoints](health.md) | [Documentation Index](../README.md) | [Next: Structured Logging](logging.md)

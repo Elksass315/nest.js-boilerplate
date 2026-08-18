@@ -16,4 +16,9 @@ and checksums in `app_seed_history`. The runner holds a PostgreSQL advisory lock
 with its history record in one transaction. Editing an applied seed fails; add a new seed instead.
 Run `pnpm seed:show` or `pnpm seed:run` only as explicit one-shot deployment steps.
 
+Migration `1787011200000-CreateTeamInvitations` adds invitation lifecycle metadata, foreign keys,
+bounded send counts, expiry indexes, and one pending invitation per normalized email. Immutable seed
+`003-team-invitations-rbac` adds the corresponding fixed RBAC permissions. Invitation tokens persist
+only as SHA-256 hashes; creation, resend, and revoke use service-owned transactions and row locks.
+
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

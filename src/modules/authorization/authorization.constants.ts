@@ -7,5 +7,9 @@ export const PERMISSIONS = [
   'users.roles.manage',
   'sessions.read.any',
   'sessions.revoke.any',
+  'team.invitations.read',
+  'team.invitations.create',
+  'team.invitations.resend',
+  'team.invitations.revoke',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
