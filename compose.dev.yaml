@@ -45,7 +45,7 @@ services:
       NODE_ENV: development
 
   localstack:
-    image: localstack/localstack:2026.7@sha256:f7b778d03717b58c3adce81a740bfafff5c6f9d639159bbf08da557c9ac1b513
+    image: localstack/localstack:4.14.0@sha256:75ba7a4bda54a3020019fba23e99c61bbff7dbf23eea12919e5b75b15c6f03f2
     environment:
       SERVICES: s3
       DEBUG: 0

@@ -14,7 +14,13 @@ uses path-style S3 access with synthetic credentials.
 The secret-scan job examines full Git history with Gitleaks. Confirmed false positives are ignored
 only by their exact finding fingerprint in `.gitleaksignore`; broad path, rule, commit, or regular
 expression exclusions are forbidden. The workflow passes the ignore file explicitly so container
-working-directory changes cannot silently disable the reviewed exceptions.
+working-directory changes cannot silently disable the reviewed exceptions. Squash and release
+merges can produce new commit-specific fingerprints for the same reviewed example; each new
+fingerprint must be verified and added explicitly rather than weakening the scan rule.
+
+Every service-container upgrade must pass its configured readiness command in CI before it is
+accepted. If a pinned upgrade cannot become healthy, restore the last verified version and digest
+while the incompatibility is investigated separately.
 
 `develop` deploys to development, `release/*` to staging, and `main`/SemVer tags to production after
 approval. Jenkins runs one-shot migration and seed jobs from the immutable image, rolls out the API,
