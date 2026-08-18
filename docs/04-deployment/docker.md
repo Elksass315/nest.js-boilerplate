@@ -4,7 +4,8 @@ The base Compose file defines API, mail worker, file worker, PostgreSQL, Redis, 
 volumes, and
 health checks. `compose.dev.yaml` adds source mounts, hot reload, digest-pinned Mailpit, and
 loopback-only local dependency/UI ports. Development also includes digest-pinned LocalStack S3 on
-`127.0.0.1:4566`; its ready hook creates the configured private test bucket.
+`127.0.0.1:4566`; its ready hook creates the configured private test bucket. Local dependency image
+updates are accepted only after their container health checks and integration workflow pass.
 `compose.deploy.yaml` adds the immutable runtime image, read-only filesystems, dropped capabilities,
 and one-shot migration and seed jobs.
 
