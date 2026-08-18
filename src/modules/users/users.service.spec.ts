@@ -8,6 +8,7 @@ import { MailService } from '@/modules/mail';
 
 import { AvatarImageService } from './avatar-image.service';
 import { UserEntity } from './entities/user.entity';
+import { UserSecurityAuditEntity } from './entities/user-security-audit.entity';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
@@ -63,6 +64,7 @@ describe(UsersService.name, () => {
     countActiveUsersWithRole: jest.fn(),
     findByIdForUpdate: jest.fn(),
     saveWithAudit: jest.fn(),
+    findSecurityAuditPage: jest.fn(),
   };
   const authorization = {
     resolveRoles: jest.fn(),
@@ -135,6 +137,51 @@ describe(UsersService.name, () => {
     );
     expect(result.items[0]).not.toHaveProperty('passwordHash');
     expect(result.meta.totalItems).toBe(1);
+  });
+
+  it('returns only allowlisted audit details with correlation context', async () => {
+    const audit = Object.assign(new UserSecurityAuditEntity(), {
+      id: 'a68c1d2a-e244-4d3a-a64f-054763e23f85',
+      userId: user.id,
+      actorUserId: user.id,
+      eventType: 'auth.login.failed' as const,
+      requestId: 'request-1',
+      correlationId: 'correlation-1',
+      metadata: {
+        failedLoginCount: 2,
+        locked: false,
+        email: 'must-not-be-exposed@example.com',
+        nested: { unsafe: true },
+      },
+      createdAt: new Date('2026-08-18T12:00:00.000Z'),
+      updatedAt: new Date('2026-08-18T12:00:00.000Z'),
+    });
+    repository.findSecurityAuditPage.mockResolvedValue([[audit], 1]);
+
+    const result = await service.listOwnSecurityAudits(user.id, 1, 20);
+
+    expect(repository.findSecurityAuditPage).toHaveBeenCalledWith(user.id, 1, 20);
+    expect(result.items).toEqual([
+      {
+        id: audit.id,
+        eventType: 'auth.login.failed',
+        actorUserId: user.id,
+        details: { failedLoginCount: 2, locked: false },
+        correlationId: 'correlation-1',
+        occurredAt: '2026-08-18T12:00:00.000Z',
+      },
+    ]);
+    expect(result.items[0]).not.toHaveProperty('requestId');
+    expect(result.items[0]?.details).not.toHaveProperty('email');
+  });
+
+  it('requires the target user before privileged audit lookup', async () => {
+    repository.findById.mockResolvedValue(null);
+
+    await expect(service.listUserSecurityAudits(user.id, 1, 20)).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(repository.findSecurityAuditPage).not.toHaveBeenCalled();
   });
 
   it('records request and correlation IDs when updating a profile', async () => {

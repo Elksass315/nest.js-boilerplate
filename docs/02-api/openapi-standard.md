@@ -47,6 +47,8 @@ all reachable statuses and all accepted body variants—remains a mandatory revi
 
 The canonical `ApiOffsetPaginatedResponse` and `ApiCursorPaginatedResponse` decorators are composed
 response contracts: the static checker recognizes their embedded description and schema content.
+Pass a deterministic page example to `ApiOffsetPaginatedResponse` for feature collections so the
+generated contract shows both the item DTO and real page metadata without duplicating the schema.
 All other response decorators declare `description` and concrete `content` directly at the route.
 
 **Navigation:** [Previous: REST and Versioning Standard](rest-standard.md) | [Documentation Index](../README.md) | [Next: Platform Error Catalog](error-catalog.md)

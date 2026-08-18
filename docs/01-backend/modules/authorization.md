@@ -18,7 +18,7 @@ repository remain private.
 
 | Role          | Permissions                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `super_admin` | User/session administration plus all four `team.invitations.*` permissions                                         |
+| `super_admin` | User/session administration, cross-user security-audit lookup, plus all four `team.invitations.*` permissions      |
 | `admin`       | `users.read` plus all invitation permissions; service policy limits this role to inviting ordinary `user` accounts |
 | `user`        | none; authenticated self-service only                                                                              |
 
@@ -38,7 +38,9 @@ are `401 UNAUTHORIZED`, `403 FORBIDDEN`, and `422 VALIDATION_ERROR`; Swagger doc
 base entities, unique stable keys, unique role-permission pairs, and cascading internal foreign keys.
 Seed `002-rbac` installs the base deterministic IDs. Immutable seed `003-team-invitations-rbac`
 adds invitation permissions without changing the checksum of the applied base seed. Applied seed
-content must never be edited; policy changes require a new ordered seed.
+content must never be edited; policy changes require a new ordered seed. Immutable seed
+`004-security-audit-rbac` adds `users.security-audits.read.any` only to `super_admin`; administrators
+retain read-only user lookup but cannot inspect another user's security history.
 
 ## Security and observability
 

@@ -11,7 +11,12 @@ import { MailService } from '@/modules/mail';
 import { isPlainRecord } from '@/shared/helpers/is-plain-record';
 
 import type { UserResponseDto } from './dto/user-response.dto';
+import type {
+  SecurityAuditDetail,
+  SecurityAuditResponseDto,
+} from './dto/security-audit-response.dto';
 import { AvatarImageService } from './avatar-image.service';
+import type { UserSecurityAuditEntity } from './entities/user-security-audit.entity';
 import type { UserEntity } from './entities/user.entity';
 import type {
   CreateInvitedUserInput,
@@ -30,6 +35,20 @@ type AvatarClaimResult =
       replacedFileId: string | null;
       idempotent: false;
     };
+
+const PUBLIC_AUDIT_DETAIL_KEYS: Partial<
+  Record<SecurityAuditInput['eventType'], readonly string[]>
+> = {
+  'user.profile.updated': ['changedFields'],
+  'user.avatar.changed': ['action', 'hadPreviousAvatar'],
+  'user.status.changed': ['previousStatus', 'nextStatus'],
+  'user.roles.changed': ['nextRoleKeys'],
+  'auth.login.failed': ['failedLoginCount', 'locked'],
+  'team.invitation.created': ['invitationId', 'role'],
+  'team.invitation.resent': ['invitationId'],
+  'team.invitation.revoked': ['invitationId'],
+  'team.invitation.accepted': ['invitationId'],
+};
 
 @Injectable()
 export class UsersService {
@@ -68,6 +87,22 @@ export class UsersService {
 
   public getSelf(userId: string): Promise<UserResponseDto> {
     return this.getById(userId);
+  }
+
+  public listOwnSecurityAudits(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<OffsetPage<SecurityAuditResponseDto>> {
+    return this.listSecurityAudits(userId, page, limit, false);
+  }
+
+  public listUserSecurityAudits(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<OffsetPage<SecurityAuditResponseDto>> {
+    return this.listSecurityAudits(userId, page, limit, true);
   }
 
   public async updateOwnProfile(userId: string, fullName: string): Promise<UserResponseDto> {
@@ -399,6 +434,43 @@ export class UsersService {
     const user = await this.repository.findById(id);
     if (!user) throw new AppException('USER_NOT_FOUND');
     return user;
+  }
+
+  private async listSecurityAudits(
+    userId: string,
+    page: number,
+    limit: number,
+    requireExistingUser: boolean,
+  ): Promise<OffsetPage<SecurityAuditResponseDto>> {
+    if (requireExistingUser) await this.requireUser(userId);
+    const [audits, total] = await this.repository.findSecurityAuditPage(userId, page, limit);
+    return buildOffsetPage(
+      audits.map((audit) => this.toSecurityAuditResponse(audit)),
+      total,
+      page,
+      limit,
+    );
+  }
+
+  private toSecurityAuditResponse(audit: UserSecurityAuditEntity): SecurityAuditResponseDto {
+    const keys = PUBLIC_AUDIT_DETAIL_KEYS[audit.eventType] ?? [];
+    const details: Record<string, SecurityAuditDetail> = {};
+    for (const key of keys) {
+      const value = audit.metadata[key];
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        details[key] = value;
+      } else if (Array.isArray(value) && value.every((entry) => typeof entry === 'string')) {
+        details[key] = [...value];
+      }
+    }
+    return {
+      id: audit.id,
+      eventType: audit.eventType,
+      actorUserId: audit.actorUserId,
+      details,
+      correlationId: audit.correlationId,
+      occurredAt: audit.createdAt.toISOString(),
+    };
   }
 
   private claimAvatarTransaction(

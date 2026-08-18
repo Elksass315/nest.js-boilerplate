@@ -151,6 +151,8 @@ describe('platform foundation (e2e)', () => {
     expect(document.paths).toHaveProperty('/api/v1/users/me/avatar/uploads');
     expect(document.paths).toHaveProperty('/api/v1/users/me/avatar/uploads/{uploadId}');
     expect(document.paths).toHaveProperty('/api/v1/users/me/avatar');
+    expect(document.paths).toHaveProperty('/api/v1/users/me/security-audits');
+    expect(document.paths).toHaveProperty('/api/v1/users/{id}/security-audits');
     expect(document.paths?.['/api/v1/users/{id}/roles']?.put?.responses?.['404']?.content).toEqual(
       expect.objectContaining({
         'application/json': expect.objectContaining({
@@ -305,6 +307,37 @@ describe('platform foundation (e2e)', () => {
         expect(body).toEqual(
           expect.objectContaining({ items: expect.any(Array), meta: expect.any(Object) }),
         );
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/users/me/security-audits?page=1&limit=20')
+      .set('authorization', `Bearer ${String(login.body.accessToken)}`)
+      .set('x-correlation-id', 'e2e-personal-audit-page')
+      .expect('x-correlation-id', 'e2e-personal-audit-page')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual(
+          expect.objectContaining({
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                eventType: 'auth.login.succeeded',
+                correlationId: expect.any(String),
+              }),
+            ]),
+            meta: expect.objectContaining({ page: 1, limit: 20 }),
+          }),
+        );
+        expect(body.items[0]).not.toHaveProperty('requestId');
+      });
+
+    const ordinaryUser = await app.get(UsersService).findForAuthentication(email);
+    if (!ordinaryUser) throw new Error('Expected authenticated user for audit authorization');
+    await request(app.getHttpServer())
+      .get(`/api/v1/users/${ordinaryUser.id}/security-audits?page=1&limit=20`)
+      .set('authorization', `Bearer ${String(login.body.accessToken)}`)
+      .expect(403)
+      .expect(({ body }) => {
+        expect(body).toEqual(expect.objectContaining({ code: 'FORBIDDEN' }));
       });
 
     await request(app.getHttpServer())

@@ -21,6 +21,8 @@ export class UsersRepository {
   public constructor(
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     @InjectRepository(UserRoleEntity) private readonly userRoles: Repository<UserRoleEntity>,
+    @InjectRepository(UserSecurityAuditEntity)
+    private readonly securityAudits: Repository<UserSecurityAuditEntity>,
   ) {}
 
   public findPage(page: number, limit: number): Promise<[UserEntity[], number]> {
@@ -33,6 +35,19 @@ export class UsersRepository {
 
   public findById(id: string, manager?: EntityManager): Promise<UserEntity | null> {
     return (manager?.getRepository(UserEntity) ?? this.users).findOneBy({ id });
+  }
+
+  public findSecurityAuditPage(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<[UserSecurityAuditEntity[], number]> {
+    return this.securityAudits.findAndCount({
+      where: { userId },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
   }
 
   public findByNormalizedEmail(normalizedEmail: string): Promise<UserEntity | null> {

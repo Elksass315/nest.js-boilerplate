@@ -30,4 +30,9 @@ entity; users and files continue to access persistence only through their owning
 public services. Reversal drops the foreign key, uniqueness constraint, and column without deleting
 stored bytes.
 
+Security-center migration `1787184000000-IndexSecurityAuditPagination` replaces the initial
+security-audit subject/time index with `(user_id, created_at, id)`, matching newest-first offset
+pagination with a unique tie-breaker. Its reversal restores the original index. Immutable seed
+`004-security-audit-rbac` grants cross-user audit lookup only to the fixed `super_admin` role.
+
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Error Handling](error-handling.md)
