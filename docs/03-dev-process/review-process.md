@@ -31,3 +31,5 @@ verification.
 
 Missing or stale documentation blocks merge. Exceptions require an owner, rationale, expiring due
 date, and tracked remediation—not an unchecked promise to update later.
+
+**Navigation:** [Previous: Commit Standard](commit-standard.md) | [Documentation Index](../README.md) | [Next: Docker Workflow](../04-deployment/docker.md)

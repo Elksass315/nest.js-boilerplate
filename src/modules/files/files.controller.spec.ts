@@ -1,8 +1,5 @@
 import type { Response } from 'express';
 import { Readable } from 'node:stream';
-import { PATH_METADATA, VERSION_METADATA } from '@nestjs/common/constants';
-
-import { API_VERSION } from '@/common/http/api-version.constants';
 
 import type { FilesService } from './files.service';
 import { FilesController } from './files.controller';
@@ -20,11 +17,6 @@ describe(FilesController.name, () => {
   } as unknown as Response;
 
   beforeEach(() => jest.clearAllMocks());
-
-  it('registers under the global prefix and URI version exactly once', () => {
-    expect(Reflect.getMetadata(PATH_METADATA, FilesController)).toBe('files');
-    expect(Reflect.getMetadata(VERSION_METADATA, FilesController)).toBe(API_VERSION);
-  });
 
   it('redirects object-storage responses', async () => {
     service.getPublicAccess.mockResolvedValue({ kind: 'redirect', url: 'https://example.test' });

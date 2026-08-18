@@ -18,3 +18,5 @@ by both values and fetches one extra row to determine `hasNextPage`. Document th
 Canonical pagination response decorators are the only composed Swagger responses accepted by the
 contract checker; they emit the item model and complete page metadata schema without duplicating it
 in each controller.
+
+**Navigation:** [Previous: Platform Error Catalog](error-catalog.md) | [Documentation Index](../README.md) | [Next: Branching Strategy](../03-dev-process/branching-strategy.md)

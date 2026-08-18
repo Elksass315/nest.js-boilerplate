@@ -17,6 +17,12 @@ contracts for the auth module. Entities, the repository, HTTP DTOs, and password
 private. The module imports only the public `authorization` index and resolves opaque role IDs through
 `AuthorizationService`; it never queries authorization tables.
 
+The public service exposes a narrow normalized-email existence check and correlated security-audit
+command for invitations. That feature cannot access user entities or repositories; users remains
+the sole owner of account lookup and audit persistence.
+The public service also provides a transaction-aware invited-user command that creates an active
+verified account, one fixed role assignment, and its acceptance audit atomically.
+
 ## API contracts
 
 All routes use URI version `v1` and require the `PermissionsGuard`. The global access-token guard
@@ -74,6 +80,10 @@ state transitions and role keys. Every audit copies `x-request-id` and `x-correl
 request context. Role/status changes record the authenticated actor and reject missing or inadequate
 principals through stable `UNAUTHORIZED` and `FORBIDDEN` errors.
 
+Invitation management records `team.invitation.created`, `team.invitation.resent`,
+`team.invitation.revoked`, and `team.invitation.accepted` with invitation IDs and safe role metadata
+only. Tokens and recipient emails never enter audit metadata.
+
 Avatar sources are limited to JPEG, PNG, and WebP. Declared MIME, filename extension, and decoded
 format must agree. Sharp bounds dimensions and decoded pixels, rejects multi-frame images, safely
 decodes, applies orientation, and re-encodes in the same format without EXIF or other metadata. Raw
@@ -92,3 +102,5 @@ removal, transactional replacement races, idempotency, deletion, and correlation
 
 Not applicable. User administration uses bounded offset pagination; no measured scale or stable
 append traversal requirement justifies cursor pagination.
+
+**Navigation:** [Previous: Mail Module](mail.md) | [Documentation Index](../../README.md) | [Next: REST and Versioning Standard](../../02-api/rest-standard.md)

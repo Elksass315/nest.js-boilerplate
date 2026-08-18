@@ -6,6 +6,8 @@ workflows. Phase 2 adds fixed RBAC, users, credential authentication, rotating s
 two-step verification, recovery codes, and a correlated SMTP mail worker while preserving the flat
 modular-monolith architecture. Phase 3 adds private-by-default resumable file storage, local/S3
 provider mobility, a dedicated cleanup worker, and stable public file access.
+Phase 4 begins single-workspace team administration with secure, expiring invitations while keeping
+the application explicitly single-tenant.
 
 ## Requirements
 
@@ -31,6 +33,7 @@ On macOS/Linux, use `cp .env.example .env`. The API listens on `http://localhost
 - Public ready files: `/api/v1/files/public/:publicId`
 - Authenticated avatar uploads: `/api/v1/users/me/avatar/uploads`
 - Avatar attachment: `PATCH /api/v1/users/me/avatar`
+- Invitation acceptance: `POST /api/v1/team/invitations/accept`
 - Future business endpoints: `/api/v1`
 
 Useful commands:

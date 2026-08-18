@@ -27,3 +27,7 @@ or speculative mappers. Architecture-changing exceptions require an ADR and owne
 Business routes use explicit URI versions such as `/api/v1`. Operational health endpoints remain
 version-neutral and outside the API prefix. The system is explicitly single-tenant: do not add
 tenant context, tenant columns, or tenant abstractions without a separately approved change.
+
+**Navigation:** [Previous: Documentation Index](../README.md) | [Documentation Index](../README.md) | [Next: Technology Stack](tech-stack.md)
+
+**Navigation:** [Previous: Documentation Index](../README.md) | [Documentation Index](../README.md) | [Next: Technology Stack](tech-stack.md)

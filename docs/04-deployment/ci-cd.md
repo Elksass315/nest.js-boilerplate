@@ -9,18 +9,23 @@ scanning. Integration setup applies migrations and immutable seeds before E2E so
 including RBAC roles and permissions, matches a real deployment. Main and scheduled workflows add
 CodeQL, SBOM, license, and deeper scans. File-storage integration runs against local storage and a
 digest-pinned LocalStack S3 service before deployment. CI creates a private bucket explicitly and
-uses path-style S3 access with synthetic credentials. The selected LocalStack image must remain a
-verified token-free Community release so fork and pull-request CI never depends on a paid secret.
-The E2E command launches Jest through Node with VM-module support because the maintained tus runtime
-is ESM-only; developers and CI use the same `pnpm test:e2e` entrypoint.
+uses path-style S3 access with synthetic credentials.
 
 The secret-scan job examines full Git history with Gitleaks. Confirmed false positives are ignored
 only by their exact finding fingerprint in `.gitleaksignore`; broad path, rule, commit, or regular
 expression exclusions are forbidden. The workflow passes the ignore file explicitly so container
-working-directory changes cannot silently disable the reviewed exceptions.
+working-directory changes cannot silently disable the reviewed exceptions. Squash and release
+merges can produce new commit-specific fingerprints for the same reviewed example; each new
+fingerprint must be verified and added explicitly rather than weakening the scan rule.
+
+Every service-container upgrade must pass its configured readiness command in CI before it is
+accepted. If a pinned upgrade cannot become healthy, restore the last verified version and digest
+while the incompatibility is investigated separately.
 
 `develop` deploys to development, `release/*` to staging, and `main`/SemVer tags to production after
 approval. Jenkins runs one-shot migration and seed jobs from the immutable image, rolls out the API,
 mail worker, and file worker, waits for readiness, runs API and SMTP smoke tests, and restores all
 processes to the previous digest when rollout validation fails. Neither the API nor worker entrypoint performs
 schema or seed mutation.
+
+**Navigation:** [Previous: Docker Workflow](docker.md) | [Documentation Index](../README.md) | [Next: Documentation Policy](../governance/documentation-policy.md)

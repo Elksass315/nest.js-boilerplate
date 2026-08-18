@@ -57,6 +57,7 @@ describe(UsersService.name, () => {
     updateStatus: jest.fn(),
     replaceRoles: jest.fn(),
     createWithRole: jest.fn(),
+    createActiveWithRole: jest.fn(),
     lockSuperAdminPolicy: jest.fn(),
     hasRole: jest.fn(),
     countActiveUsersWithRole: jest.fn(),
@@ -162,6 +163,34 @@ describe(UsersService.name, () => {
         passwordHash: '$argon2id$new',
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('creates an active invited user in the caller transaction with correlated audit context', async () => {
+    repository.createActiveWithRole.mockResolvedValue(user);
+    const manager = {} as never;
+
+    await expect(
+      service.createInvitedUser(
+        manager,
+        {
+          fullName: user.fullName,
+          email: user.email,
+          normalizedEmail: user.normalizedEmail,
+          passwordHash: user.passwordHash,
+        },
+        userRole.id,
+        '516f56de-a801-47ea-b178-6d64b55da325',
+      ),
+    ).resolves.toEqual({ id: user.id, fullName: user.fullName, email: user.email });
+    expect(repository.createActiveWithRole).toHaveBeenCalledWith(
+      manager,
+      expect.anything(),
+      userRole.id,
+      expect.objectContaining({
+        eventType: 'team.invitation.accepted',
+        correlationId: 'correlation-1',
+      }),
+    );
   });
 
   it('protects the last active super administrator from suspension', async () => {

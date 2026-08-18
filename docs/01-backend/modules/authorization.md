@@ -16,11 +16,11 @@ repository remain private.
 
 ## RBAC policy
 
-| Role          | Permissions                                                                                           |
-| ------------- | ----------------------------------------------------------------------------------------------------- |
-| `super_admin` | `users.read`, `users.status.manage`, `users.roles.manage`, `sessions.read.any`, `sessions.revoke.any` |
-| `admin`       | `users.read`                                                                                          |
-| `user`        | none; authenticated self-service only                                                                 |
+| Role          | Permissions                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `super_admin` | User/session administration plus all four `team.invitations.*` permissions                                         |
+| `admin`       | `users.read` plus all invitation permissions; service policy limits this role to inviting ordinary `user` accounts |
+| `user`        | none; authenticated self-service only                                                                              |
 
 Definitions are seeded and immutable through the API. `RequireAuthenticated` checks for a principal;
 `RequirePermissions` additionally requires every declared permission. Missing principals produce
@@ -36,8 +36,9 @@ are `401 UNAUTHORIZED`, `403 FORBIDDEN`, and `422 VALIDATION_ERROR`; Swagger doc
 
 `authorization_roles`, `authorization_permissions`, and `authorization_role_permissions` use UUID
 base entities, unique stable keys, unique role-permission pairs, and cascading internal foreign keys.
-Seed `002-rbac` installs deterministic IDs and the policy above through the checksum-protected seed
-runner. Applied seed content must never be edited; policy changes require a new ordered seed.
+Seed `002-rbac` installs the base deterministic IDs. Immutable seed `003-team-invitations-rbac`
+adds invitation permissions without changing the checksum of the applied base seed. Applied seed
+content must never be edited; policy changes require a new ordered seed.
 
 ## Security and observability
 
@@ -60,3 +61,5 @@ constraints and immutable reference data in PostgreSQL.
 
 Not applicable. The fixed role set is small and uses offset pagination to preserve one collection
 contract across business APIs.
+
+**Navigation:** [Previous: Auth and Sessions Module](auth.md) | [Documentation Index](../../README.md) | [Next: Files Module](files.md)

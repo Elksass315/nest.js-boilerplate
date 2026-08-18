@@ -41,6 +41,56 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.lastSuperAdmin',
     fallbackMessage: 'At least one active super administrator must remain',
   },
+  INVITATION_NOT_FOUND: {
+    status: HttpStatus.NOT_FOUND,
+    messageKey: 'errors.invitationNotFound',
+    fallbackMessage: 'The requested invitation was not found',
+  },
+  INVALID_INVITATION_TOKEN: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidInvitationToken',
+    fallbackMessage: 'The invitation token is invalid',
+  },
+  INVITATION_EXPIRED: {
+    status: HttpStatus.GONE,
+    messageKey: 'errors.invitationExpired',
+    fallbackMessage: 'The invitation has expired',
+  },
+  INVITATION_ALREADY_PENDING: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.invitationAlreadyPending',
+    fallbackMessage: 'A pending invitation already exists for this email',
+  },
+  INVITATION_NOT_PENDING: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.invitationNotPending',
+    fallbackMessage: 'The invitation is no longer pending',
+  },
+  INVITATION_RESEND_TOO_SOON: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.invitationResendTooSoon',
+    fallbackMessage: 'Wait before resending this invitation',
+  },
+  INVITATION_RESEND_LIMIT_REACHED: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.invitationResendLimitReached',
+    fallbackMessage: 'The invitation resend limit has been reached',
+  },
+  INVITATION_DELIVERY_UNAVAILABLE: {
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+    messageKey: 'errors.invitationDeliveryUnavailable',
+    fallbackMessage: 'The invitation email could not be queued',
+  },
+  MEMBER_ALREADY_EXISTS: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.memberAlreadyExists',
+    fallbackMessage: 'A member with this email already exists',
+  },
+  ROLE_ASSIGNMENT_FORBIDDEN: {
+    status: HttpStatus.FORBIDDEN,
+    messageKey: 'errors.roleAssignmentForbidden',
+    fallbackMessage: 'You are not allowed to assign the requested role',
+  },
   INVALID_CREDENTIALS: {
     status: HttpStatus.UNAUTHORIZED,
     messageKey: 'errors.invalidCredentials',

@@ -16,32 +16,12 @@ and checksums in `app_seed_history`. The runner holds a PostgreSQL advisory lock
 with its history record in one transaction. Editing an applied seed fails; add a new seed instead.
 Run `pnpm seed:show` or `pnpm seed:run` only as explicit one-shot deployment steps.
 
-Identity migration `1786579200000-CreateIdentityCore` creates users, role assignments, security
-audits, roles, permissions, and role-permission mappings with explicit checks, indexes, and foreign
-keys. Seed `002-rbac` installs deterministic fixed RBAC definitions. The seed contains no user or
-bootstrap-super-admin credentials; that optional behavior requires explicit seed configuration in a
-later auth change.
+Migration `1787011200000-CreateTeamInvitations` adds invitation lifecycle metadata, foreign keys,
+bounded send counts, expiry indexes, and one pending invitation per normalized email. Immutable seed
+`003-team-invitations-rbac` adds the corresponding fixed RBAC permissions. Invitation tokens persist
+only as SHA-256 hashes; creation, resend, and revoke use service-owned transactions and row locks.
+Migration `1787097600000-IndexInvitationTokenHash` adds the unique token-hash lookup required for
+locked, single-use acceptance. Acceptance commits the active user, fixed-role assignment, correlated
+audit, and invitation transition together; a uniqueness race rolls back the entire transaction.
 
-Auth migration `1786665600000-CreateAuthSessions` creates absolute-lifetime sessions, append-only
-rotating refresh-token records, and single-use verification/reset action tokens. Unique token
-hashes, status/purpose checks, ownership foreign keys, and stable session indexes are enforced in
-PostgreSQL. Only SHA-256 token hashes are stored. Migration reversal removes auth action tokens,
-refresh tokens, then sessions without modifying users or RBAC state.
-
-Identity email-security migration `1786752000000-CreateIdentityEmailSecurity` creates hashed,
-expiring two-step challenges, hashed single-use recovery codes, and mail-delivery state. Delivery
-records store only a SHA-256 recipient fingerprint plus a masked address; queue payloads retain the
-full recipient only for the bounded Redis job lifetime. Reversal removes these three owned tables.
-
-File migration `1786838400000-CreateFileStorage` creates `stored_files` with provider/key and public
-identifier uniqueness, lifecycle/visibility/provider checks, uploader ownership, expiry indexes,
-checksums, safe failure state, and correlation context. Online provider moves are separate explicit
-commands, hold their own advisory lock, process bounded ready-file batches, and never run during API,
-worker, schema migration, seed, or deployment startup. The row retains a pending old-provider/key
-pair until source deletion succeeds so interrupted moves remain readable and recoverable.
-
-Avatar migration `1786924800000-AddUserAvatar` adds nullable, unique `users.avatar_file_id` with a
-foreign key to `stored_files` and `ON DELETE SET NULL`. The migration imports neither feature
-entity; users and files continue to access persistence only through their owning repositories and
-public services. Reversal drops the foreign key, uniqueness constraint, and column without deleting
-stored bytes.
+**Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

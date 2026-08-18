@@ -49,6 +49,8 @@ describe(TemplateRendererService.name, () => {
       'two-step-changed',
       'account-status-changed',
       'role-changed',
+      'team-invitation',
+      'team-invitation-accepted',
     ] as const;
 
     for (const template of templates) {
@@ -60,6 +62,10 @@ describe(TemplateRendererService.name, () => {
         enabled: true,
         status: 'active',
         roles: 'user',
+        inviterName: 'Admin User',
+        role: 'user',
+        actionUrl: 'https://app.example.com/invitations/accept?token=example',
+        expiresAt: '2026-08-21T12:00:00.000Z',
       });
       expect(html).toContain('<title>Security notice</title>');
       expect(html).toContain('Example SaaS');

@@ -10,6 +10,7 @@ import { MailRepository } from './mail.repository';
 import {
   MAIL_QUEUE,
   type AccountStatusChangedMailInput,
+  type InvitationAcceptedMailInput,
   type MailJob,
   type MailTemplate,
   type PasswordResetMailInput,
@@ -17,6 +18,7 @@ import {
   type SecurityMailInput,
   type TwoStepChangedMailInput,
   type TwoStepCodeMailInput,
+  type TeamInvitationMailInput,
   type VerificationMailInput,
 } from './mail.types';
 
@@ -97,6 +99,24 @@ export class MailService {
     return this.enqueue(input.email, 'role-changed', 'Your account roles changed', {
       name: input.fullName,
       roles: input.roles.join(', '),
+      occurredAt: input.occurredAt.toISOString(),
+    });
+  }
+
+  public sendTeamInvitation(input: TeamInvitationMailInput): Promise<void> {
+    const actionUrl = new URL(this.config.getOrThrow('invitations.baseUrl', { infer: true }));
+    actionUrl.searchParams.set('token', input.token);
+    return this.enqueue(input.email, 'team-invitation', 'You have been invited to the team', {
+      inviterName: input.inviterName,
+      role: input.role,
+      actionUrl: actionUrl.toString(),
+      expiresAt: input.expiresAt.toISOString(),
+    });
+  }
+
+  public sendInvitationAccepted(input: InvitationAcceptedMailInput): Promise<void> {
+    return this.enqueue(input.email, 'team-invitation-accepted', 'Your team account is ready', {
+      name: input.fullName,
       occurredAt: input.occurredAt.toISOString(),
     });
   }

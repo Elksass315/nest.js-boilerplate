@@ -9,7 +9,9 @@ export type MailTemplate =
   | 'password-changed'
   | 'two-step-changed'
   | 'account-status-changed'
-  | 'role-changed';
+  | 'role-changed'
+  | 'team-invitation'
+  | 'team-invitation-accepted';
 
 export type MailDeliveryStatus = 'queued' | 'processing' | 'sent' | 'failed';
 
@@ -58,3 +60,13 @@ export interface AccountStatusChangedMailInput extends SecurityMailInput {
 export interface RoleChangedMailInput extends SecurityMailInput {
   roles: readonly string[];
 }
+
+export interface TeamInvitationMailInput {
+  email: string;
+  inviterName: string;
+  role: string;
+  token: string;
+  expiresAt: Date;
+}
+
+export type InvitationAcceptedMailInput = SecurityMailInput;

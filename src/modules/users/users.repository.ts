@@ -94,6 +94,31 @@ export class UsersRepository {
     return user;
   }
 
+  public async createActiveWithRole(
+    manager: EntityManager,
+    input: Pick<UserEntity, 'fullName' | 'email' | 'normalizedEmail' | 'passwordHash'>,
+    roleId: string,
+    audit: SecurityAuditInput,
+  ): Promise<UserEntity> {
+    const userRepository = manager.getRepository(UserEntity);
+    const user = await userRepository.save(
+      userRepository.create({
+        ...input,
+        status: 'active',
+        emailVerifiedAt: new Date(),
+        emailTwoStepEnabled: false,
+        authVersion: 1,
+        failedLoginCount: 0,
+        lockedUntil: null,
+        avatarFileId: null,
+      }),
+    );
+    const roleRepository = manager.getRepository(UserRoleEntity);
+    await roleRepository.save(roleRepository.create({ userId: user.id, roleId }));
+    await this.appendAudit(manager, { ...audit, userId: user.id, actorUserId: user.id });
+    return user;
+  }
+
   public async updateProfile(
     manager: EntityManager,
     id: string,

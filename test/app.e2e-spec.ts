@@ -6,6 +6,9 @@ import { DataSource } from 'typeorm';
 
 import { createApplication } from '../src/bootstrap';
 import { AuthService } from '../src/modules/auth';
+import type { AuthenticatedPrincipal } from '../src/modules/authorization';
+import { InvitationsService } from '../src/modules/invitations';
+import { UsersService } from '../src/modules/users';
 import { MailWorkerModule } from '../src/mail-worker.module';
 
 jest.setTimeout(30_000);
@@ -67,7 +70,7 @@ describe('platform foundation (e2e)', () => {
         expect(body).toEqual(
           expect.objectContaining({
             status: 'ok',
-            checks: { database: 'up', redis: 'up', storage: 'up' },
+            checks: expect.objectContaining({ database: 'up', redis: 'up', storage: 'up' }),
           }),
         );
       });
@@ -195,11 +198,10 @@ describe('platform foundation (e2e)', () => {
       )
       .expect(401);
 
-    const capabilityResponse = await request(app.getHttpServer()).options(
-      '/api/v1/users/me/avatar/uploads',
-    );
-    expect(capabilityResponse.status).toBe(204);
-    expect(capabilityResponse.headers['tus-resumable']).toBe('1.0.0');
+    await request(app.getHttpServer())
+      .options('/api/v1/users/me/avatar/uploads')
+      .expect('Tus-Resumable', '1.0.0')
+      .expect(204);
 
     const creation = await request(app.getHttpServer())
       .post('/api/v1/users/me/avatar/uploads')
@@ -243,17 +245,10 @@ describe('platform foundation (e2e)', () => {
     expect(attached.body.avatar).toEqual(
       expect.objectContaining({ fileId, mimeType: 'image/png', url: expect.any(String) }),
     );
-    const publicAvatar = await request(app.getHttpServer()).get(String(attached.body.avatar.url));
-    if (publicAvatar.status === 302) {
-      const location = publicAvatar.headers['location'];
-      expect(location).toEqual(expect.any(String));
-      const storedAvatar = await fetch(String(location));
-      expect(storedAvatar.status).toBe(200);
-      expect(storedAvatar.headers.get('content-type')).toMatch(/image\/png/);
-    } else {
-      expect(publicAvatar.status).toBe(200);
-      expect(publicAvatar.headers['content-type']).toMatch(/image\/png/);
-    }
+    await request(app.getHttpServer())
+      .get(String(attached.body.avatar.url))
+      .expect('content-type', /image\/png/)
+      .expect(200);
 
     await request(app.getHttpServer())
       .delete('/api/v1/users/me/avatar')
@@ -383,6 +378,58 @@ describe('platform foundation (e2e)', () => {
         expect(body).toEqual(expect.objectContaining({ code: 'INVALID_RECOVERY_CODE' }));
       });
   });
+
+  it('accepts a single-use invitation into an active account with correlated audit and mail', async () => {
+    const suffix = String(Date.now());
+    const inviterEmail = `inviter-e2e-${suffix}@example.com`;
+    const invitedEmail = `invited-e2e-${suffix}@example.com`;
+    const password = 'Correct-Horse-Battery-2026!';
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ fullName: 'Invitation E2E Admin', email: inviterEmail, password })
+      .expect(201);
+    const verification = await app.get(AuthService).resendVerification(inviterEmail);
+    if (!verification) throw new Error('Expected inviter verification delivery');
+    await app.get(AuthService).verifyEmail(verification.token);
+    const inviter = await app.get(UsersService).findForAuthentication(inviterEmail);
+    if (!inviter) throw new Error('Expected active invitation creator');
+    const principal: AuthenticatedPrincipal = {
+      userId: inviter.id,
+      authVersion: inviter.authVersion,
+      roleKeys: ['super_admin'],
+      permissions: [],
+    };
+    await app.get(InvitationsService).create(invitedEmail, 'user', principal);
+    const invitationMail = await waitForMailSubject('You have been invited to the team');
+    const token = extractInvitationToken(invitationMail.HTML);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/team/invitations/accept')
+      .set('x-correlation-id', 'e2e-invitation-acceptance')
+      .send({ token, fullName: 'Invited E2E User', password })
+      .expect('x-correlation-id', 'e2e-invitation-acceptance')
+      .expect(201)
+      .expect({ message: 'Invitation accepted' });
+    await waitForMailSubject('Your team account is ready');
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: invitedEmail, password })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/api/v1/team/invitations/accept')
+      .send({ token, fullName: 'Invited E2E User', password })
+      .expect(401)
+      .expect(({ body }) => {
+        expect(body).toEqual(expect.objectContaining({ code: 'INVALID_INVITATION_TOKEN' }));
+      });
+    const audits: { correlation_id: string | null }[] = await app
+      .get(DataSource)
+      .query(
+        "SELECT correlation_id FROM user_security_audits WHERE event_type = 'team.invitation.accepted' ORDER BY created_at DESC LIMIT 1",
+      );
+    expect(audits[0]?.correlation_id).toBe('e2e-invitation-acceptance');
+  });
 });
 
 interface MailpitMessage {
@@ -415,6 +462,13 @@ function extractEmailCode(html: string): string {
   const code = /\b\d{6}\b/.exec(html)?.[0];
   if (!code) throw new Error('Expected a six-digit code in the Mailpit message');
   return code;
+}
+
+function extractInvitationToken(html: string): string {
+  const decodedHtml = html.replaceAll('&amp;', '&').replaceAll('&#x3D;', '=');
+  const token = /[?&]token=([A-Za-z0-9_-]{43})/.exec(decodedHtml)?.[1];
+  if (!token) throw new Error('Expected a team invitation token in the email action URL');
+  return token;
 }
 
 async function waitForSentDelivery(

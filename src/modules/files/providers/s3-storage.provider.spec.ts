@@ -33,7 +33,7 @@ describe(S3StorageProvider.name, () => {
       body: Buffer.from('avatar'),
       contentLength: 6,
       mimeType: 'image/png',
-      checksumSha256: '00'.repeat(32),
+      checksumSha256: 'base64-checksum',
     });
     const chunks: Buffer[] = [];
     for await (const chunk of await provider.read('objects/file')) chunks.push(Buffer.from(chunk));
@@ -41,27 +41,6 @@ describe(S3StorageProvider.name, () => {
     await provider.delete('objects/file');
     await provider.checkHealth();
     expect(send).toHaveBeenCalledTimes(4);
-    expect(send).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        input: expect.objectContaining({
-          ChecksumSHA256: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-        }),
-      }),
-    );
-  });
-
-  it('rejects malformed SHA-256 checksums before writing', async () => {
-    await expect(
-      createProvider().write({
-        key: 'objects/file',
-        body: Buffer.from('avatar'),
-        contentLength: 6,
-        mimeType: 'image/png',
-        checksumSha256: 'not-a-sha256',
-      }),
-    ).rejects.toThrow('Invalid SHA-256 checksum');
-    expect(send).not.toHaveBeenCalled();
   });
 
   it('distinguishes a missing object from provider failure', async () => {

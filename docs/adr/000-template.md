@@ -25,3 +25,5 @@ Record credible alternatives and why they were rejected.
 ## Validation and rollback
 
 Define tests, monitoring, rollout steps, rollback criteria, owner, and review date.
+
+**Navigation:** [Previous: Module Documentation Template](../templates/module-doc-template.md) | [Documentation Index](../README.md) | [Next: Project README](../../README.md)

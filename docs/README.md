@@ -16,10 +16,12 @@ request as the behavior it describes.
 - [Error handling](01-backend/error-handling.md)
 - [Structured logging](01-backend/logging.md)
 - [Database and migrations](01-backend/database.md)
+- [Migrations and seeds](01-backend/migrations.md)
 - [Shared foundation](01-backend/shared-foundation.md)
 - [Internationalization](01-backend/internationalization.md)
 - [Health endpoints](01-backend/health.md)
 - [File storage](01-backend/modules/files.md)
+- [Team invitations](01-backend/modules/invitations.md)
 - Feature module records live under `01-backend/modules/` when business modules are added.
 
 ## API standards
@@ -46,3 +48,7 @@ request as the behavior it describes.
 - [Architecture rules](governance/architecture-rules.md)
 - [Module documentation template](templates/module-doc-template.md)
 - [ADR template](adr/000-template.md)
+
+**Navigation:** [Previous: Project README](../README.md) | Documentation Index | [Next: Architecture Overview](00-overview/architecture.md)
+
+**Navigation:** [Previous: Project README](../README.md) | Documentation Index | [Next: Architecture Overview](00-overview/architecture.md)

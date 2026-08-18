@@ -20,7 +20,8 @@ primary/secondary colors, optional logo, company name, and support email. Handle
 context values; only the already-rendered body occupies the layout's intentional raw slot.
 
 Templates cover email verification, password reset, two-step codes, new sessions, forced session
-revocation, password changes, two-step changes, account-status changes, and role changes. Every
+revocation, password changes, two-step changes, account-status changes, role changes, team
+invitations, and account-ready notices after invitation acceptance. Every
 template uses the common layout, has renderer tests, and never embeds environment-specific hosts.
 
 ## Queue and security policy
@@ -46,3 +47,5 @@ safe error type.
 Tests verify queue payload policy, correlation propagation, disabled behavior, action URLs, every
 security template, shared header/footer rendering, escaping, worker retry/failure behavior, delivery
 state, and SMTP delivery through Mailpit.
+
+**Navigation:** [Previous: Files Module](files.md) | [Documentation Index](../../README.md) | [Next: Users Module](users.md)

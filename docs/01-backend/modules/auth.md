@@ -13,6 +13,10 @@ The module follows `controller -> service -> concrete repository -> TypeORM`. It
 public `UsersService` and `MailService` surfaces. Auth entities, repositories, DTOs, hashes, and raw
 tokens remain private. `AuthModule` and `AuthService` are the only exports.
 
+`AuthService.hashAccountPassword` is the intentional cross-feature hashing surface used by
+invitation acceptance. It applies the same Argon2id policy as registration and never exposes the
+crypto provider or password hash through HTTP.
+
 The global access-token guard treats a missing bearer header as anonymous so public endpoints remain
 available. When a bearer header exists it verifies signature, issuer, audience, expiry, session,
 user status, and `authVersion`, then builds permissions from current persisted roles. Protected
@@ -101,3 +105,5 @@ Redis. Rollback removes auth-owned tables only; users and RBAC remain intact.
 
 Not applicable. User session history is bounded and uses offset pagination; no measured high-volume
 or stable append traversal requirement justifies cursor pagination.
+
+**Navigation:** [Previous: Shared Foundation Standard](../shared-foundation.md) | [Documentation Index](../../README.md) | [Next: Authorization Module](authorization.md)

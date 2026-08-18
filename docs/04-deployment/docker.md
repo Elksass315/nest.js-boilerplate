@@ -4,9 +4,8 @@ The base Compose file defines API, mail worker, file worker, PostgreSQL, Redis, 
 volumes, and
 health checks. `compose.dev.yaml` adds source mounts, hot reload, digest-pinned Mailpit, and
 loopback-only local dependency/UI ports. Development also includes digest-pinned LocalStack S3 on
-`127.0.0.1:4566`; its ready hook creates the configured private test bucket. LocalStack is pinned
-to the last verified Community release (`4.14.0`) because later unified images require license
-activation. Any upgrade must prove token-free S3 startup in both Compose and GitHub Actions.
+`127.0.0.1:4566`; its ready hook creates the configured private test bucket. Local dependency image
+updates are accepted only after their container health checks and integration workflow pass.
 `compose.deploy.yaml` adds the immutable runtime image, read-only filesystems, dropped capabilities,
 and one-shot migration and seed jobs.
 
@@ -39,3 +38,5 @@ Redis uses append-only persistence and `noeviction`. BullMQ must never run again
 policy because evicted queue keys can corrupt job state. Capacity alerts and scaling must address
 memory pressure before Redis reaches its configured limit; deployment must not switch to an LRU/LFU
 policy while queues are enabled.
+
+**Navigation:** [Previous: Pull-Request Review](../03-dev-process/review-process.md) | [Documentation Index](../README.md) | [Next: CI/CD Ownership](ci-cd.md)

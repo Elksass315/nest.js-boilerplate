@@ -32,3 +32,5 @@ Create optional folders and files only when the feature actually uses them. Ever
 
 Business collection routes follow the [pagination standard](../02-api/pagination-standard.md) and
 never return raw arrays.
+
+**Navigation:** [Previous: Structured Logging](logging.md) | [Documentation Index](../README.md) | [Next: Shared Foundation Standard](shared-foundation.md)

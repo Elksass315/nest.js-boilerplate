@@ -89,6 +89,10 @@ export class AuthService {
     return delivery;
   }
 
+  public hashAccountPassword(password: string): Promise<string> {
+    return this.crypto.hashPassword(password);
+  }
+
   public async resendVerification(email: string): Promise<ActionDelivery | null> {
     const user = await this.users.findForAuthentication(this.normalizeEmail(email));
     if (!user || user.emailVerifiedAt || user.status === 'suspended') return null;
