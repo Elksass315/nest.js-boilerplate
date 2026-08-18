@@ -15,6 +15,7 @@ import { HealthModule } from '@/health/health.module';
 import { AuthorizationModule } from '@/modules/authorization';
 import { AuthModule } from '@/modules/auth';
 import { FilesModule } from '@/modules/files';
+import { InvitationsModule } from '@/modules/invitations';
 import { UsersModule } from '@/modules/users';
 import { RedisModule } from '@/redis/redis.module';
 
@@ -49,6 +50,7 @@ import { RedisModule } from '@/redis/redis.module';
     UsersModule,
     AuthModule,
     FilesModule,
+    InvitationsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

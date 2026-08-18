@@ -32,6 +32,9 @@ describe('environment validation', () => {
       expect(result.files.userAvatar).toEqual(
         expect.objectContaining({ maxBytes: 5_242_880, maxPixels: 25_000_000 }),
       );
+      expect(result.invitations).toEqual(
+        expect.objectContaining({ ttlHours: 72, maxSends: 5, resendCooldownSeconds: 60 }),
+      );
     } finally {
       process.env = original;
     }

@@ -244,6 +244,23 @@ export class UsersService {
     return this.toUserWithRoles(user, await this.rolesForUser(user.id));
   }
 
+  public async emailExists(normalizedEmail: string): Promise<boolean> {
+    return (await this.repository.findByNormalizedEmail(normalizedEmail)) !== null;
+  }
+
+  public recordSecurityAudit(
+    actorUserId: string,
+    eventType: SecurityAuditInput['eventType'],
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    return this.dataSource.transaction((manager) =>
+      this.repository.appendAudit(
+        manager,
+        this.auditContext(actorUserId, actorUserId, eventType, metadata),
+      ),
+    );
+  }
+
   public async findByIdForAuthentication(id: string): Promise<UserWithRoles | null> {
     const user = await this.repository.findById(id);
     if (!user) return null;

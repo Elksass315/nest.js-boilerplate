@@ -78,6 +78,13 @@ export interface MailConfig {
   };
 }
 
+export interface InvitationsConfig {
+  baseUrl: string;
+  ttlHours: number;
+  maxSends: number;
+  resendCooldownSeconds: number;
+}
+
 export interface FilesConfig {
   writeDriver: FileStorageDriver;
   readDrivers: FileStorageDriver[];
@@ -115,6 +122,7 @@ export interface AppConfiguration {
   i18n: I18nConfig;
   auth: AuthConfig;
   mail: MailConfig;
+  invitations: InvitationsConfig;
   files: FilesConfig;
   database: DatabaseConfig;
   redis: RedisConfig;

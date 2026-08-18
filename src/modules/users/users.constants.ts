@@ -14,4 +14,7 @@ export type SecurityAuditEvent =
   | 'auth.password.reset'
   | 'auth.two_step.enabled'
   | 'auth.two_step.disabled'
-  | 'auth.recovery_codes.regenerated';
+  | 'auth.recovery_codes.regenerated'
+  | 'team.invitation.created'
+  | 'team.invitation.resent'
+  | 'team.invitation.revoked';
