@@ -11,6 +11,7 @@ import { UserSecurityAuditEntity } from './entities/user-security-audit.entity';
 import { UserEntity } from './entities/user.entity';
 import { UsersController } from './users.controller';
 import { UserAvatarUploadsController } from './user-avatar-uploads.controller';
+import { SecurityAuditsController } from './security-audits.controller';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
@@ -21,7 +22,7 @@ import { UsersService } from './users.service';
     FilesModule,
     MailModule,
   ],
-  controllers: [UsersController, UserAvatarUploadsController],
+  controllers: [UsersController, UserAvatarUploadsController, SecurityAuditsController],
   providers: [UsersService, UsersRepository, AvatarImageService],
   exports: [UsersService],
 })

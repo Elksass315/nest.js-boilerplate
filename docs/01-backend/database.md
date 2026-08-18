@@ -24,4 +24,8 @@ Migration `1787097600000-IndexInvitationTokenHash` adds the unique token-hash lo
 locked, single-use acceptance. Acceptance commits the active user, fixed-role assignment, correlated
 audit, and invitation transition together; a uniqueness race rolls back the entire transaction.
 
+Migration `1787184000000-IndexSecurityAuditPagination` supports deterministic personal and
+cross-user security-audit pages. Immutable seed `004-security-audit-rbac` adds the dedicated
+cross-user permission to the super-administrator role without changing earlier seed checksums.
+
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

@@ -36,6 +36,9 @@ describe(UsersRepository.name, () => {
     find: jest.fn(),
     existsBy: jest.fn().mockResolvedValue(true),
   };
+  const securityAudits = {
+    findAndCount: jest.fn().mockResolvedValue([[], 0]),
+  };
   const managerUsers = {
     create: jest.fn((value: object) => Object.assign(new UserEntity(), value)),
     save: jest.fn((value: UserEntity) => Promise.resolve(Object.assign(value, { id: user.id }))),
@@ -66,7 +69,7 @@ describe(UsersRepository.name, () => {
         UsersRepository,
         { provide: getRepositoryToken(UserEntity), useValue: users },
         { provide: getRepositoryToken(UserRoleEntity), useValue: userRoles },
-        { provide: getRepositoryToken(UserSecurityAuditEntity), useValue: {} },
+        { provide: getRepositoryToken(UserSecurityAuditEntity), useValue: securityAudits },
       ],
     }).compile();
     repository = module.get(UsersRepository);
@@ -80,6 +83,7 @@ describe(UsersRepository.name, () => {
     await repository.findPage(2, 10);
     await repository.findById(user.id);
     await repository.findByNormalizedEmail(user.normalizedEmail);
+    await repository.findSecurityAuditPage(user.id, 2, 10);
     await expect(repository.roleIdsByUserIds([user.id])).resolves.toEqual(
       new Map([[user.id, ['role-1']]]),
     );
@@ -90,6 +94,12 @@ describe(UsersRepository.name, () => {
     expect(users.findAndCount).toHaveBeenCalledWith(
       expect.objectContaining({ skip: 10, take: 10 }),
     );
+    expect(securityAudits.findAndCount).toHaveBeenCalledWith({
+      where: { userId: user.id },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      skip: 10,
+      take: 10,
+    });
   });
 
   it('persists account workflows and correlated audits through the supplied transaction manager', async () => {

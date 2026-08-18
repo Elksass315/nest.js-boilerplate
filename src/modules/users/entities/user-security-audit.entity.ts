@@ -6,7 +6,7 @@ import type { SecurityAuditEvent } from '../users.constants';
 import { UserEntity } from './user.entity';
 
 @Entity({ name: 'user_security_audits' })
-@Index('IDX_user_security_audits_user_created', ['userId', 'createdAt'])
+@Index('IDX_user_security_audits_user_created_id', ['userId', 'createdAt', 'id'])
 @Index('IDX_user_security_audits_correlation', ['correlationId'])
 export class UserSecurityAuditEntity extends AppBaseEntity {
   @ForeignKey(() => UserEntity, {

@@ -5,6 +5,7 @@ export const PERMISSIONS = [
   'users.read',
   'users.status.manage',
   'users.roles.manage',
+  'users.security-audits.read.any',
   'sessions.read.any',
   'sessions.revoke.any',
   'team.invitations.read',

@@ -28,24 +28,32 @@ verified account, one fixed role assignment, and its acceptance audit atomically
 All routes use URI version `v1` and require the `PermissionsGuard`. The global access-token guard
 hydrates the typed `request.user` principal from current user/session state before permission checks.
 
-| Method                 | Route                                  | Policy                | Success | Reachable errors                                                 |
-| ---------------------- | -------------------------------------- | --------------------- | ------- | ---------------------------------------------------------------- |
-| GET                    | `/users/me`                            | authenticated         | 200     | 401                                                              |
-| PATCH                  | `/users/me`                            | authenticated         | 200     | 401, 422 `VALIDATION_ERROR`                                      |
-| OPTIONS                | `/users/me/avatar/uploads`             | public capability     | 204     | none                                                             |
-| POST/HEAD/PATCH/DELETE | `/users/me/avatar/uploads[/:uploadId]` | authenticated owner   | tus     | 400, 401, 403, 404, 409, 410, 412, 413, 415, 503                 |
-| PATCH                  | `/users/me/avatar`                     | authenticated         | 200     | 401, 403, 404, 409, 410, 413, 415, 422, 503                      |
-| DELETE                 | `/users/me/avatar`                     | authenticated         | 204     | 401, 404                                                         |
-| GET                    | `/users`                               | `users.read`          | 200     | 401, 403, 422 `VALIDATION_ERROR`                                 |
-| GET                    | `/users/:id`                           | `users.read`          | 200     | 400 `BAD_REQUEST`, 401, 403, 404 `USER_NOT_FOUND`                |
-| PATCH                  | `/users/:id/status`                    | `users.status.manage` | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 409 `LAST_SUPER_ADMIN`, 422 |
-| PUT                    | `/users/:id/roles`                     | `users.roles.manage`  | 200     | 400, 401, 403, 404 user/role, 409 `LAST_SUPER_ADMIN`, 422        |
+| Method                 | Route                                  | Policy                           | Success | Reachable errors                                                 |
+| ---------------------- | -------------------------------------- | -------------------------------- | ------- | ---------------------------------------------------------------- |
+| GET                    | `/users/me`                            | authenticated                    | 200     | 401                                                              |
+| GET                    | `/users/me/security-audits`            | authenticated                    | 200     | 401, 422 `VALIDATION_ERROR`                                      |
+| PATCH                  | `/users/me`                            | authenticated                    | 200     | 401, 422 `VALIDATION_ERROR`                                      |
+| OPTIONS                | `/users/me/avatar/uploads`             | public capability                | 204     | none                                                             |
+| POST/HEAD/PATCH/DELETE | `/users/me/avatar/uploads[/:uploadId]` | authenticated owner              | tus     | 400, 401, 403, 404, 409, 410, 412, 413, 415, 503                 |
+| PATCH                  | `/users/me/avatar`                     | authenticated                    | 200     | 401, 403, 404, 409, 410, 413, 415, 422, 503                      |
+| DELETE                 | `/users/me/avatar`                     | authenticated                    | 204     | 401, 404                                                         |
+| GET                    | `/users`                               | `users.read`                     | 200     | 401, 403, 422 `VALIDATION_ERROR`                                 |
+| GET                    | `/users/:id`                           | `users.read`                     | 200     | 400 `BAD_REQUEST`, 401, 403, 404 `USER_NOT_FOUND`                |
+| GET                    | `/users/:id/security-audits`           | `users.security-audits.read.any` | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 422 `VALIDATION_ERROR`      |
+| PATCH                  | `/users/:id/status`                    | `users.status.manage`            | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 409 `LAST_SUPER_ADMIN`, 422 |
+| PUT                    | `/users/:id/roles`                     | `users.roles.manage`             | 200     | 400, 401, 403, 404 user/role, 409 `LAST_SUPER_ADMIN`, 422        |
 
 Collections use canonical page/limit offset pagination. Responses never contain `passwordHash`,
 normalized email, login counters, lock timestamps, or ORM entities. Swagger contains concrete
 payloads and exact stable error messages for every route.
 User responses include `avatar: null` or an immutable contract with file ID, stable relative public
 URL, detected MIME type, and sanitized byte size.
+
+Security-audit collections are ordered by `createdAt DESC, id DESC` and expose event type, actor
+identifier, occurrence time, correlation ID, and an event-specific allowlist of safe details. Raw
+metadata and request IDs remain private. Personal lookup is always scoped from the authenticated
+principal; callers cannot supply a different subject. Cross-user lookup requires the dedicated
+super-admin-only `users.security-audits.read.any` permission.
 
 ## Data and migrations
 
@@ -59,6 +67,8 @@ this module; foreign keys preserve referential integrity without cross-module en
 `user_security_audits` stores actor, subject, event, safe metadata, request ID, and correlation ID.
 Updates run in service-owned transactions. Status/role mutations increment `authVersion` so later
 token validation can invalidate stale authorization state.
+Migration `1787184000000-IndexSecurityAuditPagination` replaces the earlier subject/time index with
+`(user_id, created_at, id)` so the API's deterministic tie-breaker is indexed and reversible.
 
 Status and role mutations enqueue correlated security emails after persistence succeeds. Payloads
 contain only the target user's public display data and the safe resulting state; audit records and
@@ -91,7 +101,8 @@ uploads remain protected and never become profile images directly.
 
 ## Test strategy and change impact
 
-Unit tests cover paginated response mapping, credential-field exclusion, duplicate emails,
+Unit tests cover paginated response mapping, credential-field exclusion, safe audit-detail
+allowlisting, personal scoping, privileged missing-user handling, duplicate emails,
 correlated auth/profile audit data, lockout transitions, password auth-version changes, role
 replacement, and last-super-admin protection. Migration validation exercises `up` and `down`
 against a temporary PostgreSQL test database. Avatar tests cover resumable-route delegation,
