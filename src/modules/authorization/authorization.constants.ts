@@ -12,5 +12,7 @@ export const PERMISSIONS = [
   'team.invitations.create',
   'team.invitations.resend',
   'team.invitations.revoke',
+  'feature-flags.read',
+  'feature-flags.manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];

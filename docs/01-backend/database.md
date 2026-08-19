@@ -28,4 +28,9 @@ Migration `1787184000000-IndexSecurityAuditPagination` supports deterministic pe
 cross-user security-audit pages. Immutable seed `004-security-audit-rbac` adds the dedicated
 cross-user permission to the super-administrator role without changing earlier seed checksums.
 
+Migration `1787270400000-CreateFeatureFlags` adds global flag definitions with optimistic versions
+and append-only change audits containing request/correlation context. Creation and effective state
+changes write the flag and audit in one transaction. Immutable seed `005-feature-flags-rbac` adds
+read and management permissions but intentionally creates no project-specific flags.
+
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

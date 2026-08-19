@@ -31,4 +31,8 @@ interpolate invitation tokens, email addresses, provider diagnostics, or configu
 The invalid-token translation is intentionally generic and does not distinguish an unknown token
 from one rotated by resend or successful acceptance.
 
+Feature-flag translations cover missing keys, duplicate definitions, and optimistic concurrency
+conflicts. Flag keys, descriptions, actor identifiers, and audit context are never interpolated into
+the stable localized message.
+
 **Navigation:** [Previous: Health Endpoints](health.md) | [Documentation Index](../README.md) | [Next: Structured Logging](logging.md)

@@ -41,6 +41,8 @@ adds invitation permissions without changing the checksum of the applied base se
 content must never be edited; policy changes require a new ordered seed. Immutable seed
 `004-security-audit-rbac` adds `users.security-audits.read.any` only to `super_admin`; administrators
 retain read-only user lookup but cannot inspect another user's security history.
+Immutable seed `005-feature-flags-rbac` grants `feature-flags.read` to administrators and super
+administrators, while `feature-flags.manage` remains restricted to super administrators.
 
 ## Security and observability
 
