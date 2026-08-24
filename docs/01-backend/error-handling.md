@@ -54,4 +54,8 @@ Public acceptance uses `INVALID_INVITATION_TOKEN` for an unknown or rotated toke
 expired or terminal invitation uses `INVITATION_EXPIRED` or `INVITATION_NOT_PENDING`. Concurrent
 account creation maps to `MEMBER_ALREADY_EXISTS` without leaking database constraints.
 
+Feature-flag errors distinguish unknown keys, duplicate registration, and stale concurrent updates.
+They use `FEATURE_FLAG_NOT_FOUND`, `FEATURE_FLAG_ALREADY_EXISTS`, and
+`FEATURE_FLAG_VERSION_CONFLICT` without exposing database constraints or internal audit records.
+
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Health Endpoints](health.md)

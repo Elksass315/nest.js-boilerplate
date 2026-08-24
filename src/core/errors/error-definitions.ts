@@ -86,6 +86,21 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.memberAlreadyExists',
     fallbackMessage: 'A member with this email already exists',
   },
+  FEATURE_FLAG_NOT_FOUND: {
+    status: HttpStatus.NOT_FOUND,
+    messageKey: 'errors.featureFlagNotFound',
+    fallbackMessage: 'The requested feature flag was not found',
+  },
+  FEATURE_FLAG_ALREADY_EXISTS: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.featureFlagAlreadyExists',
+    fallbackMessage: 'A feature flag with this key already exists',
+  },
+  FEATURE_FLAG_VERSION_CONFLICT: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.featureFlagVersionConflict',
+    fallbackMessage: 'The feature flag changed; read it again before retrying',
+  },
   ROLE_ASSIGNMENT_FORBIDDEN: {
     status: HttpStatus.FORBIDDEN,
     messageKey: 'errors.roleAssignmentForbidden',

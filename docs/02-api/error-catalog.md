@@ -24,6 +24,7 @@
 | 404    | `SESSION_NOT_FOUND`               | `The requested session was not found`                          | The session is absent or not owned by the caller.                         |
 | 404    | `FILE_NOT_FOUND`                  | `The requested file was not found`                             | A file is missing or unavailable for the requested operation.             |
 | 404    | `INVITATION_NOT_FOUND`            | `The requested invitation was not found`                       | An invitation identifier does not exist.                                  |
+| 404    | `FEATURE_FLAG_NOT_FOUND`          | `The requested feature flag was not found`                     | A feature-flag key is not registered.                                     |
 | 403    | `FILE_OWNERSHIP_MISMATCH`         | `The file does not belong to the authenticated user`           | A stateful upload request targets another user's file.                    |
 | 409    | `FILE_OFFSET_MISMATCH`            | `The upload offset does not match the stored offset`           | A tus PATCH offset differs from the stored upload offset.                 |
 | 412    | `TUS_VERSION_UNSUPPORTED`         | `The tus protocol version is not supported`                    | The client sends an unsupported tus protocol version.                     |
@@ -40,6 +41,8 @@
 | 409    | `INVITATION_NOT_PENDING`          | `The invitation is no longer pending`                          | Resend or revoke targets a terminal invitation.                           |
 | 409    | `INVITATION_RESEND_TOO_SOON`      | `Wait before resending this invitation`                        | Resend is requested inside the configured cooldown.                       |
 | 409    | `INVITATION_RESEND_LIMIT_REACHED` | `The invitation resend limit has been reached`                 | Invitation delivery reached the configured send count.                    |
+| 409    | `FEATURE_FLAG_ALREADY_EXISTS`     | `A feature flag with this key already exists`                  | Creation uses an already registered stable key.                           |
+| 409    | `FEATURE_FLAG_VERSION_CONFLICT`   | `The feature flag changed; read it again before retrying`      | An update supplies a stale optimistic version.                            |
 | 422    | `VALIDATION_ERROR`                | `Input validation failed`                                      | A well-formed DTO fails validation.                                       |
 | 413    | `FILE_TOO_LARGE`                  | `The file exceeds the allowed size`                            | Upload length exceeds the fixed purpose policy.                           |
 | 415    | `FILE_TYPE_NOT_ALLOWED`           | `The file type is not allowed`                                 | Declared or detected media type violates the purpose policy.              |
