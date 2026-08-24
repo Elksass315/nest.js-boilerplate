@@ -17,6 +17,7 @@ import { AuthModule } from '@/modules/auth';
 import { FilesModule } from '@/modules/files';
 import { FeatureFlagsModule } from '@/modules/feature-flags';
 import { InvitationsModule } from '@/modules/invitations';
+import { NotificationPreferencesModule } from '@/modules/notification-preferences';
 import { UsersModule } from '@/modules/users';
 import { RedisModule } from '@/redis/redis.module';
 
@@ -53,6 +54,7 @@ import { RedisModule } from '@/redis/redis.module';
     FilesModule,
     FeatureFlagsModule,
     InvitationsModule,
+    NotificationPreferencesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

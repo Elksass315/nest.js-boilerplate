@@ -33,4 +33,8 @@ and append-only change audits containing request/correlation context. Creation a
 changes write the flag and audit in one transaction. Immutable seed `005-feature-flags-rbac` adds
 read and management permissions but intentionally creates no project-specific flags.
 
+Migration `1787702400000-CreateNotificationPreferences` adds one optional-email preference row per
+user. Privacy-safe defaults require no row; first writes use expected version zero, stored versions
+start at one, and the user foreign key cascades on account removal.
+
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

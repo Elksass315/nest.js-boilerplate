@@ -101,6 +101,11 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.featureFlagVersionConflict',
     fallbackMessage: 'The feature flag changed; read it again before retrying',
   },
+  NOTIFICATION_PREFERENCES_VERSION_CONFLICT: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.notificationPreferencesVersionConflict',
+    fallbackMessage: 'Notification preferences changed; read them again before retrying',
+  },
   ROLE_ASSIGNMENT_FORBIDDEN: {
     status: HttpStatus.FORBIDDEN,
     messageKey: 'errors.roleAssignmentForbidden',

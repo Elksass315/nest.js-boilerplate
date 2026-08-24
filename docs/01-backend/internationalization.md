@@ -35,4 +35,7 @@ Feature-flag translations cover missing keys, duplicate definitions, and optimis
 conflicts. Flag keys, descriptions, actor identifiers, and audit context are never interpolated into
 the stable localized message.
 
+Notification preference translations currently cover only optimistic concurrency. Preference
+values, user identifiers, and delivery addresses are never interpolated into the stable message.
+
 **Navigation:** [Previous: Health Endpoints](health.md) | [Documentation Index](../README.md) | [Next: Structured Logging](logging.md)

@@ -58,4 +58,8 @@ Feature-flag errors distinguish unknown keys, duplicate registration, and stale 
 They use `FEATURE_FLAG_NOT_FOUND`, `FEATURE_FLAG_ALREADY_EXISTS`, and
 `FEATURE_FLAG_VERSION_CONFLICT` without exposing database constraints or internal audit records.
 
+Notification preference concurrency uses `NOTIFICATION_PREFERENCES_VERSION_CONFLICT`. It does not
+reveal whether a competing request created or changed the row; clients re-read the effective
+resource before retrying.
+
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Health Endpoints](health.md)
