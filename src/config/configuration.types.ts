@@ -21,6 +21,15 @@ export interface LoggingConfig {
   level: LogLevel;
 }
 
+export interface SentryConfig {
+  enabled: boolean;
+  dsn: string;
+  environment: string;
+  release: string;
+  tracesSampleRate: number;
+  debug: boolean;
+}
+
 export interface SwaggerConfig {
   access: SwaggerDocsAccess;
   username: string;
@@ -117,6 +126,7 @@ export interface AppConfiguration {
   app: AppConfig;
   cors: CorsConfig;
   logging: LoggingConfig;
+  sentry: SentryConfig;
   swagger: SwaggerConfig;
   rateLimit: RateLimitConfig;
   i18n: I18nConfig;
@@ -130,10 +140,10 @@ export interface AppConfiguration {
 
 export type MailWorkerConfiguration = Pick<
   AppConfiguration,
-  'app' | 'logging' | 'mail' | 'database' | 'redis'
+  'app' | 'logging' | 'sentry' | 'mail' | 'database' | 'redis'
 >;
 
 export type FileWorkerConfiguration = Pick<
   AppConfiguration,
-  'app' | 'logging' | 'files' | 'database' | 'redis'
+  'app' | 'logging' | 'sentry' | 'files' | 'database' | 'redis'
 >;

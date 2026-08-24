@@ -8,6 +8,7 @@ import {
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { SentryExceptionCaptured } from '@sentry/nestjs';
 import { I18nService } from 'nestjs-i18n';
 import { QueryFailedError } from 'typeorm';
 
@@ -23,6 +24,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   public constructor(private readonly i18n: I18nService) {}
 
+  @SentryExceptionCaptured()
   public catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const request = context.getRequest<Request>();

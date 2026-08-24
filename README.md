@@ -1,7 +1,7 @@
 # NestJS SaaS Boilerplate
 
 A production-ready, single-tenant NestJS 11 foundation with strict TypeScript, PostgreSQL,
-TypeORM, Redis, structured logging, health checks, hardened containers, and enforced engineering
+TypeORM, Redis, structured logging, optional Sentry monitoring, health checks, hardened containers, and enforced engineering
 workflows. Phase 2 adds fixed RBAC, users, credential authentication, rotating sessions, email
 two-step verification, recovery codes, and a correlated SMTP mail worker while preserving the flat
 modular-monolith architecture. Phase 3 adds private-by-default resumable file storage, local/S3

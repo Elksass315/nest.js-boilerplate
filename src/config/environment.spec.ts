@@ -35,6 +35,9 @@ describe('environment validation', () => {
       expect(result.invitations).toEqual(
         expect.objectContaining({ ttlHours: 72, maxSends: 5, resendCooldownSeconds: 60 }),
       );
+      expect(result.sentry).toEqual(
+        expect.objectContaining({ enabled: false, environment: 'test', tracesSampleRate: 0 }),
+      );
     } finally {
       process.env = original;
     }
@@ -98,6 +101,13 @@ describe('environment validation', () => {
         FILES_S3_BUCKET: '',
       }),
     ).toThrow('FILES_READ_DRIVERS must include FILES_WRITE_DRIVER');
+  });
+
+  it('rejects contradictory Sentry settings in API and worker profiles', () => {
+    const invalid = { ...validEnvironment, SENTRY_ENABLED: true, SENTRY_DSN: '' };
+    expect(() => validateApiEnvironment(invalid)).toThrow('SENTRY_DSN must be set exactly');
+    expect(() => validateMailWorkerEnvironment(invalid)).toThrow('SENTRY_DSN must be set exactly');
+    expect(() => validateFileWorkerEnvironment(invalid)).toThrow('SENTRY_DSN must be set exactly');
   });
 
   it('rejects a relative local file storage root', () => {

@@ -60,4 +60,8 @@ should report both when requesting support. Field-level validation messages live
 translated, documented, exemplified in Swagger, and tested before merge. Renaming a published code
 or changing its meaning is a breaking API change.
 
+Enabling Sentry does not change any status, code, message, or response field in this catalog.
+Unexpected failures continue to return `INTERNAL_SERVER_ERROR`; monitoring receives a redacted copy
+of the exception context with request and correlation IDs for operational lookup.
+
 **Navigation:** [Previous: OpenAPI and Swagger Standard](openapi-standard.md) | [Documentation Index](../README.md) | [Next: Pagination Standard](pagination-standard.md)

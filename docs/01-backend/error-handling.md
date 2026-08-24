@@ -58,4 +58,9 @@ Feature-flag errors distinguish unknown keys, duplicate registration, and stale 
 They use `FEATURE_FLAG_NOT_FOUND`, `FEATURE_FLAG_ALREADY_EXISTS`, and
 `FEATURE_FLAG_VERSION_CONFLICT` without exposing database constraints or internal audit records.
 
+The catch-all filter reports unexpected exceptions to Sentry only when monitoring is enabled. Nest
+HTTP exceptions remain expected and are not captured. The client response shape is unchanged;
+Sentry processing removes request bodies, cookies, query strings, sensitive headers, email,
+username, and IP address while retaining request/correlation IDs as event tags.
+
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Health Endpoints](health.md)
