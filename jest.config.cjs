@@ -3,11 +3,8 @@ module.exports = {
   clearMocks: true,
   collectCoverageFrom: [
     'src/**/*.ts',
-    '!src/main.ts',
-    '!src/file-worker.ts',
-    '!src/files-migration.ts',
-    '!src/mail-worker.ts',
-    '!src/bootstrap.ts',
+    '!src/apps/**/main.ts',
+    '!src/apps/**/bootstrap.ts',
     '!src/**/*.module.ts',
     '!src/**/*.interface.ts',
     '!src/**/*.types.ts',

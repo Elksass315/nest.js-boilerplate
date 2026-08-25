@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -14,14 +15,15 @@ import { DatabaseModule } from '@/database/database.module';
 import { HealthModule } from '@/health/health.module';
 import { AuthorizationModule } from '@/modules/authorization';
 import { AuthModule } from '@/modules/auth';
-import { FilesModule } from '@/modules/files';
 import { FeatureFlagsModule } from '@/modules/feature-flags';
+import { FilesModule } from '@/modules/files';
 import { InvitationsModule } from '@/modules/invitations';
 import { UsersModule } from '@/modules/users';
 import { RedisModule } from '@/redis/redis.module';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,

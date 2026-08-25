@@ -7,10 +7,11 @@ import type { Request } from 'express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
+import { configureSwagger } from '@/common/swagger/configure-swagger';
+import type { AppConfiguration } from '@/config/configuration.types';
+import { validationPipeOptions } from '@/core/errors/validation-pipe-options';
+
 import { AppModule } from './app.module';
-import { configureSwagger } from './common/swagger/configure-swagger';
-import type { AppConfiguration } from './config/configuration.types';
-import { validationPipeOptions } from './core/errors/validation-pipe-options';
 
 export async function createApplication(): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });

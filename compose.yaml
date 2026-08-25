@@ -39,7 +39,7 @@ services:
     image: ${APP_IMAGE:-nestjs-saas:local}
     env_file:
       - ${APP_ENV_FILE:-.env}
-    command: ['node', '--enable-source-maps', 'dist/mail-worker.js']
+    command: ['node', '--enable-source-maps', 'dist/apps/mail-worker/main.js']
     init: true
     depends_on:
       postgres:
@@ -57,7 +57,7 @@ services:
     image: ${APP_IMAGE:-nestjs-saas:local}
     env_file:
       - ${APP_ENV_FILE:-.env}
-    command: ['node', '--enable-source-maps', 'dist/file-worker.js']
+    command: ['node', '--enable-source-maps', 'dist/apps/file-worker/main.js']
     init: true
     depends_on:
       postgres:

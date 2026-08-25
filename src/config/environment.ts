@@ -22,12 +22,18 @@ import { createMailConfig, mailEnvironmentSchema } from './mail.config';
 import { createFilesConfig, filesEnvironmentSchema, parseFileStorageDrivers } from './files.config';
 import { createRateLimitConfig, rateLimitEnvironmentSchema } from './rate-limit.config';
 import { createSwaggerConfig, swaggerEnvironmentSchema } from './swagger.config';
+import {
+  createSentryConfig,
+  sentryConfigurationAgrees,
+  sentryEnvironmentSchema,
+} from './sentry.config';
 
 const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...appEnvironmentSchema,
   ...authEnvironmentSchema,
   ...corsEnvironmentSchema,
   ...loggingEnvironmentSchema,
+  ...sentryEnvironmentSchema,
   ...swaggerEnvironmentSchema,
   ...rateLimitEnvironmentSchema,
   ...i18nEnvironmentSchema,
@@ -55,6 +61,7 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
     'environment.filesDrivers':
       'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
+    'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
   });
 
 const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
@@ -64,6 +71,7 @@ const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
 const mailWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...appEnvironmentSchema,
   ...loggingEnvironmentSchema,
+  ...sentryEnvironmentSchema,
   ...mailEnvironmentSchema,
   ...databaseEnvironmentSchema,
   ...redisEnvironmentSchema,
@@ -74,11 +82,13 @@ const mailWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'REDIS_PASSWORD must contain at least 16 characters in staging and production',
     'environment.smtpCredentials':
       'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
+    'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
   });
 
 const fileWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...appEnvironmentSchema,
   ...loggingEnvironmentSchema,
+  ...sentryEnvironmentSchema,
   ...filesEnvironmentSchema,
   ...databaseEnvironmentSchema,
   ...redisEnvironmentSchema,
@@ -89,6 +99,7 @@ const fileWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'REDIS_PASSWORD must contain at least 16 characters in staging and production',
     'environment.filesDrivers':
       'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
+    'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
   });
 
 function validateApiContradictions(
@@ -131,6 +142,9 @@ function validateApiContradictions(
   }
   if (!filesConfigurationAgrees(environment)) {
     return helpers.error('environment.filesDrivers');
+  }
+  if (!sentryConfigurationAgrees(environment)) {
+    return helpers.error('environment.sentryDsn');
   }
   if (
     typeof fallbackLanguage !== 'string' ||
@@ -181,6 +195,9 @@ function validateMailWorkerContradictions(
   if (!smtpCredentialsAgree(environment)) {
     return helpers.error('environment.smtpCredentials');
   }
+  if (!sentryConfigurationAgrees(environment)) {
+    return helpers.error('environment.sentryDsn');
+  }
   return environment;
 }
 
@@ -198,6 +215,9 @@ function validateFileWorkerContradictions(
   }
   if (!filesConfigurationAgrees(environment)) {
     return helpers.error('environment.filesDrivers');
+  }
+  if (!sentryConfigurationAgrees(environment)) {
+    return helpers.error('environment.sentryDsn');
   }
   return environment;
 }
@@ -243,6 +263,7 @@ export function loadApiConfiguration(): AppConfiguration {
     auth: createAuthConfig(environment),
     cors: createCorsConfig(environment),
     logging: createLoggingConfig(environment),
+    sentry: createSentryConfig(environment),
     swagger: createSwaggerConfig(environment),
     rateLimit: createRateLimitConfig(environment),
     i18n: createI18nConfig(environment),
@@ -271,6 +292,7 @@ export function loadMailWorkerConfiguration(): MailWorkerConfiguration {
   return {
     app: createAppConfig(environment),
     logging: createLoggingConfig(environment),
+    sentry: createSentryConfig(environment),
     mail: createMailConfig(environment),
     database: createDatabaseConfig(environment),
     redis: createRedisConfig(environment),
@@ -288,6 +310,7 @@ export function loadFileWorkerConfiguration(): FileWorkerConfiguration {
   return {
     app: createAppConfig(environment),
     logging: createLoggingConfig(environment),
+    sentry: createSentryConfig(environment),
     files: createFilesConfig(environment),
     database: createDatabaseConfig(environment),
     redis: createRedisConfig(environment),

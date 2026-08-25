@@ -47,4 +47,4 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/package.json ./package.json
 USER node
 EXPOSE 3000
-CMD ["node", "--enable-source-maps", "dist/main.js"]
+CMD ["node", "--enable-source-maps", "dist/apps/api/main.js"]

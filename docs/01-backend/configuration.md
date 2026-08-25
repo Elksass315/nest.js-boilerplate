@@ -52,4 +52,8 @@ When configuration changes, update schema, tests, `.env.example`, Compose/CI/dep
 this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments
 reject public access.
 
+Sentry is a separate typed namespace shared by API and worker profiles. `SENTRY_ENABLED` and
+`SENTRY_DSN` must agree, tracing is bounded from zero to one, and disabled monitoring performs no
+transmission. Migration and seed profiles remain database-only and do not load Sentry configuration.
+
 **Navigation:** [Previous: Technology Stack](../00-overview/tech-stack.md) | [Documentation Index](../README.md) | [Next: Database, Migration, and Seed Standard](database.md)

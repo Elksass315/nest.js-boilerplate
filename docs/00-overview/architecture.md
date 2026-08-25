@@ -15,6 +15,22 @@ Platform code owns bootstrap, validated configuration, errors, logging, database
 connectivity, health, security defaults, and reusable HTTP behavior. Business behavior belongs to
 feature modules under `src/modules`.
 
+Executable Nest applications are grouped under `src/apps` so process composition does not clutter
+the feature and platform roots:
+
+```text
+src/apps/
+  api/              HTTP application bootstrap and root module
+  mail-worker/      SMTP queue consumer application
+  file-worker/      file cleanup queue consumer application
+  files-migration/  explicitly invoked storage-provider migration CLI
+```
+
+Each folder owns only its process entrypoint and composition module; reusable behavior stays in the
+owning platform or feature module. A separate notification worker is intentionally absent because
+the planned notification-preferences feature defines delivery consent only. Add that process only
+with a real notification queue and consumer contract.
+
 The standard feature flow is:
 
 ```text
