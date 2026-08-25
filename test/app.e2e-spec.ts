@@ -4,12 +4,12 @@ import sharp from 'sharp';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 
-import { createApplication } from '../src/bootstrap';
+import { createApplication } from '../src/apps/api/bootstrap';
 import { AuthService } from '../src/modules/auth';
 import type { AuthenticatedPrincipal } from '../src/modules/authorization';
 import { InvitationsService } from '../src/modules/invitations';
 import { UsersService } from '../src/modules/users';
-import { MailWorkerModule } from '../src/mail-worker.module';
+import { MailWorkerModule } from '../src/apps/mail-worker/mail-worker.module';
 
 jest.setTimeout(30_000);
 

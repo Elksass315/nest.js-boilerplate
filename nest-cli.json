@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "sourceRoot": "src",
+  "entryFile": "apps/api/main",
   "compilerOptions": {
     "deleteOutDir": true,
     "assets": [

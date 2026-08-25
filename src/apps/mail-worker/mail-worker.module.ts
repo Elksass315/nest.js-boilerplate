@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
-import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 
 import { createLoggerOptions } from '@/common/logging/logger-options';
-import type { FileWorkerConfiguration } from '@/config/configuration.types';
-import { loadFileWorkerConfiguration } from '@/config/environment';
+import type { MailWorkerConfiguration } from '@/config/configuration.types';
+import { loadMailWorkerConfiguration } from '@/config/environment';
 import { CoreModule } from '@/core/core.module';
 import { DatabaseModule } from '@/database/database.module';
-import { FilesWorkerConsumerModule } from '@/modules/files/files-worker.module';
+import { MailWorkerConsumerModule } from '@/modules/mail/mail-worker.module';
 
 @Module({
   imports: [
@@ -17,16 +17,16 @@ import { FilesWorkerConsumerModule } from '@/modules/files/files-worker.module';
       isGlobal: true,
       cache: true,
       expandVariables: false,
-      load: [loadFileWorkerConfiguration],
+      load: [loadMailWorkerConfiguration],
     }),
     LoggerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<FileWorkerConfiguration, true>) =>
+      useFactory: (config: ConfigService<MailWorkerConfiguration, true>) =>
         createLoggerOptions(config.getOrThrow('logging.level', { infer: true })),
     }),
     CoreModule,
     DatabaseModule,
-    FilesWorkerConsumerModule,
+    MailWorkerConsumerModule,
   ],
 })
-export class FileWorkerModule {}
+export class MailWorkerModule {}

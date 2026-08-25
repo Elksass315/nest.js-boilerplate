@@ -1,8 +1,9 @@
 # Sentry observability
 
-The API, mail worker, and file worker initialize the official `@sentry/nestjs` SDK before importing
-their Nest modules. Sentry is disabled by default and configuration fails when enablement and DSN
-presence disagree. Database-only migration and seed profiles do not require Sentry settings.
+The API, mail worker, and file worker entrypoints under `src/apps` initialize the official
+`@sentry/nestjs` SDK before importing their Nest modules. Sentry is disabled by default and
+configuration fails when enablement and DSN presence disagree. Database-only migration and seed
+profiles do not require Sentry settings.
 
 ## Configuration
 

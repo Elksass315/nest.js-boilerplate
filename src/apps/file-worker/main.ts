@@ -1,9 +1,10 @@
-import './instrument';
+import '../../instrument';
 
 import { NestFactory } from '@nestjs/core';
 
+import { captureStartupFailure } from '@/observability/sentry';
+
 import { FileWorkerModule } from './file-worker.module';
-import { captureStartupFailure } from './observability/sentry';
 
 async function bootstrap(): Promise<void> {
   const context = await NestFactory.createApplicationContext(FileWorkerModule, {

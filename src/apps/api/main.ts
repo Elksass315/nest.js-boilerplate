@@ -1,10 +1,11 @@
-import './instrument';
+import '../../instrument';
 
 import { ConfigService } from '@nestjs/config';
 
+import type { AppConfiguration } from '@/config/configuration.types';
+import { captureStartupFailure } from '@/observability/sentry';
+
 import { createApplication } from './bootstrap';
-import type { AppConfiguration } from './config/configuration.types';
-import { captureStartupFailure } from './observability/sentry';
 
 async function bootstrap(): Promise<void> {
   const app = await createApplication();

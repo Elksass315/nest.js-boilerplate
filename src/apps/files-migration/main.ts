@@ -1,8 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 
+import { FilesMigrationService } from '@/modules/files';
+import { parseFileMigrationOptions } from '@/modules/files/files-migration-options';
+
 import { FilesCliModule } from './files-cli.module';
-import { FilesMigrationService } from './modules/files';
-import { parseFileMigrationOptions } from './modules/files/files-migration-options';
 
 async function main(): Promise<void> {
   const context = await NestFactory.createApplicationContext(FilesCliModule, { logger: false });

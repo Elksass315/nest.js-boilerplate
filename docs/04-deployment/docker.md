@@ -22,11 +22,13 @@ read-only in deployment. Multiple local-driver replicas require a real shared pe
 S3 is recommended for managed environments.
 
 The production image contains compiled code and production dependencies only, runs as non-root,
-and does not run migrations or seeds in its entrypoint. Deployment runs the hardened `migrate` and
-`seed` one-shot services before rolling out the API, mail worker, and file worker from the same image.
+and does not run migrations or seeds in its entrypoint. Runtime entrypoints are grouped under
+`dist/apps`: `api/main.js`, `mail-worker/main.js`, and `file-worker/main.js`. Deployment runs the
+hardened `migrate` and `seed` one-shot services before rolling out the API, mail worker, and file
+worker from the same image.
 The file worker consumes bounded idempotent cleanup jobs and runs the advisory-locked expiry
-sweeper; it exposes no port and shuts down gracefully. The mail worker
-uses `dist/mail-worker.js`, exposes no port, verifies SMTP before consuming jobs, and shuts down
+sweeper; it exposes no port and shuts down gracefully. The mail worker uses
+`dist/apps/mail-worker/main.js`, exposes no port, verifies SMTP before consuming jobs, and shuts down
 gracefully. Local PostgreSQL, Redis, and Mailpit UI ports bind only to `127.0.0.1`; deployment
 definitions expose none of those dependencies. `pnpm docker:reset -- --confirm` is the only supported
 destructive local volume reset.
