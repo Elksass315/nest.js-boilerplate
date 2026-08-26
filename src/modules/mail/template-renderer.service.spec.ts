@@ -29,14 +29,17 @@ describe(TemplateRendererService.name, () => {
 
     const html = renderer.render('email-verification', 'Verify email', {
       name: '<script>alert(1)</script>',
-      actionUrl: 'https://app.example.com/verify?token=example',
-      expiresInMinutes: 60,
+      code: '482913',
+      expiresInMinutes: 10,
     });
 
     expect(html).toContain('Example SaaS');
     expect(html).toContain('support@example.com');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('482913');
+    expect(html).not.toContain('verify?token=');
+    expect(html).not.toContain('actionUrl');
   });
 
   it('loads every security template through the shared layout', async () => {

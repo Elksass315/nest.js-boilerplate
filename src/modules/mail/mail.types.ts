@@ -29,11 +29,16 @@ export interface MailJob {
 export interface VerificationMailInput {
   email: string;
   fullName: string;
-  token: string;
+  code: string;
   expiresInSeconds: number;
 }
 
-export type PasswordResetMailInput = VerificationMailInput;
+export interface PasswordResetMailInput {
+  email: string;
+  fullName: string;
+  token: string;
+  expiresInSeconds: number;
+}
 
 export interface TwoStepCodeMailInput {
   email: string;

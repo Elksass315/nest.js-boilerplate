@@ -22,6 +22,9 @@ command for invitations. That feature cannot access user entities or repositorie
 the sole owner of account lookup and audit persistence.
 The public service also provides a transaction-aware invited-user command that creates an active
 verified account, one fixed role assignment, and its acceptance audit atomically.
+Pending registration creation/revision is serialized by normalized-email advisory lock. A repeated
+pending registration updates only its full name, canonical email, and password hash and records
+`auth.registration.updated`; active and suspended duplicates remain conflicts.
 
 ## API contracts
 
@@ -46,8 +49,8 @@ hydrates the typed `request.user` principal from current user/session state befo
 Collections use canonical page/limit offset pagination. Responses never contain `passwordHash`,
 normalized email, login counters, lock timestamps, or ORM entities. Swagger contains concrete
 payloads and exact stable error messages for every route.
-User responses include `avatar: null` or an immutable contract with file ID, stable relative public
-URL, detected MIME type, and sanitized byte size.
+User responses include `avatar: null` or an immutable contract with file ID, absolute public URL,
+detected MIME type, and sanitized byte size. The URL uses the configured `APP_BASE_URL` origin.
 
 Security-audit collections are ordered by `createdAt DESC, id DESC` and expose event type, actor
 identifier, occurrence time, correlation ID, and an event-specific allowlist of safe details. Raw

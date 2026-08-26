@@ -14,9 +14,9 @@ Feature error keys, including identity user/role/conflict messages, live in the 
 and are validated against the central registry. Stable codes do not change when a future translation
 is added.
 
-Auth keys cover invalid credentials, lockout, verification, refresh reuse, suspension, and session
-lookup. Raw tokens, email addresses, and validation-field values are never interpolated into stable
-localized top-level messages.
+Auth keys cover invalid credentials, lockout, registration-code expiry/attempt exhaustion, refresh
+reuse, suspension, and session lookup. Raw tokens, OTPs, email addresses, registration identifiers,
+and validation-field values are never interpolated into stable localized top-level messages.
 
 Email two-step keys cover invalid challenges, email codes, recovery codes, bounded-attempt failures,
 and enabled-state conflicts. These translations remain generic: challenge tokens, codes, recipient

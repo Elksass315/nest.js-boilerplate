@@ -7,7 +7,7 @@ bootstrap-super-admin credentials; that optional behavior requires explicit seed
 later auth change.
 
 Auth migration `1786665600000-CreateAuthSessions` creates absolute-lifetime sessions, append-only
-rotating refresh-token records, and single-use verification/reset action tokens. Unique token
+rotating refresh-token records, and the original single-use verification/reset action tokens. Unique token
 hashes, status/purpose checks, ownership foreign keys, and stable session indexes are enforced in
 PostgreSQL. Only SHA-256 token hashes are stored. Migration reversal removes auth action tokens,
 refresh tokens, then sessions without modifying users or RBAC state.
@@ -16,6 +16,16 @@ Identity email-security migration `1786752000000-CreateIdentityEmailSecurity` cr
 expiring two-step challenges, hashed single-use recovery codes, and mail-delivery state. Delivery
 records store only a SHA-256 recipient fingerprint plus a masked address; queue payloads retain the
 full recipient only for the bounded Redis job lifetime. Reversal removes these three owned tables.
+
+Email-verification migration `1787356800000-CreateEmailVerificationCodes` invalidates legacy
+email-verification link rows, restricts action tokens to password reset, and creates dedicated
+Argon2id-hashed six-digit code state with attempts, expiry, consumption, ownership, and an active
+lookup index. Existing pending accounts remain and can resubmit registration to receive a new code.
+Reversal restores the legacy purpose constraint but cannot restore invalidated raw link tokens.
+
+Session metadata migration `1787443200000-AddSessionMetadata` adds nullable IP address, user-agent,
+device metadata, and approximate location JSON fields to `auth_sessions`. Existing sessions remain
+valid with null metadata; reversal drops only these four columns.
 
 File migration `1786838400000-CreateFileStorage` creates `stored_files` with provider/key and public
 identifier uniqueness, lifecycle/visibility/provider checks, uploader ownership, expiry indexes,

@@ -58,6 +58,7 @@ describe(UsersService.name, () => {
     updateStatus: jest.fn(),
     replaceRoles: jest.fn(),
     createWithRole: jest.fn(),
+    lockRegistrationEmail: jest.fn(),
     createActiveWithRole: jest.fn(),
     lockSuperAdminPolicy: jest.fn(),
     hasRole: jest.fn(),
@@ -203,13 +204,42 @@ describe(UsersService.name, () => {
     repository.findByNormalizedEmail.mockResolvedValue(user);
 
     await expect(
-      service.createPendingUser({
+      service.createOrUpdatePendingUser({
         fullName: 'Amina Hassan',
         email: user.email,
         normalizedEmail: user.normalizedEmail,
         passwordHash: '$argon2id$new',
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('updates an existing pending registration under the normalized-email lock', async () => {
+    const pending = Object.assign(new UserEntity(), user, {
+      status: 'pending_verification' as const,
+      emailVerifiedAt: null,
+    });
+    repository.findByNormalizedEmail.mockResolvedValue(pending);
+    repository.saveWithAudit.mockImplementation((_manager: unknown, value: UserEntity) =>
+      Promise.resolve(value),
+    );
+
+    const result = await service.createOrUpdatePendingUser({
+      fullName: 'Amina Revised',
+      email: user.email,
+      normalizedEmail: user.normalizedEmail,
+      passwordHash: '$argon2id$new',
+    });
+
+    expect(repository.lockRegistrationEmail).toHaveBeenCalledWith(
+      expect.anything(),
+      user.normalizedEmail,
+    );
+    expect(repository.saveWithAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ fullName: 'Amina Revised', passwordHash: '$argon2id$new' }),
+      expect.objectContaining({ eventType: 'auth.registration.updated' }),
+    );
+    expect(result.fullName).toBe('Amina Revised');
   });
 
   it('creates an active invited user in the caller transaction with correlated audit context', async () => {
@@ -392,7 +422,7 @@ describe(UsersService.name, () => {
     files.claimPrepared.mockResolvedValue({
       fileId: '22222222-2222-4222-8222-222222222222',
       publicId: '33333333-3333-4333-8333-333333333333',
-      url: '/api/v1/files/public/33333333-3333-4333-8333-333333333333',
+      url: 'http://localhost:3000/api/v1/files/public/33333333-3333-4333-8333-333333333333',
       mimeType: 'image/webp',
       sizeBytes: 4,
     });
@@ -427,7 +457,7 @@ describe(UsersService.name, () => {
       {
         fileId: attached.avatarFileId,
         publicId: '33333333-3333-4333-8333-333333333333',
-        url: '/api/v1/files/public/33333333-3333-4333-8333-333333333333',
+        url: 'http://localhost:3000/api/v1/files/public/33333333-3333-4333-8333-333333333333',
         mimeType: 'image/png',
         sizeBytes: 12,
       },

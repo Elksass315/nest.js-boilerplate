@@ -8,7 +8,9 @@ export class UserAvatarResponseDto {
   @ApiProperty({ example: '4e951b98-9250-4414-b88c-33f184543d8c', format: 'uuid' })
   public fileId!: string;
 
-  @ApiProperty({ example: '/api/v1/files/public/67aa21ed-3e95-40cd-a2a1-67370da05d32' })
+  @ApiProperty({
+    example: 'http://localhost:3000/api/v1/files/public/67aa21ed-3e95-40cd-a2a1-67370da05d32',
+  })
   public url!: string;
 
   @ApiProperty({ enum: ['image/jpeg', 'image/png', 'image/webp'], example: 'image/webp' })

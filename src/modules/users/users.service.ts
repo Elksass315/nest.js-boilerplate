@@ -257,20 +257,35 @@ export class UsersService {
     return this.responseFor(user, requestedRoles);
   }
 
-  public async createPendingUser(input: CreatePendingUserInput): Promise<UserWithRoles> {
-    if (await this.repository.findByNormalizedEmail(input.normalizedEmail)) {
-      throw new AppException('EMAIL_ALREADY_REGISTERED');
-    }
+  public async createOrUpdatePendingUser(input: CreatePendingUserInput): Promise<UserWithRoles> {
     const defaultRole = await this.authorization.getRequiredRole('user');
     try {
-      const user = await this.dataSource.transaction((manager) =>
-        this.repository.createWithRole(
+      const user = await this.dataSource.transaction(async (manager) => {
+        await this.repository.lockRegistrationEmail(manager, input.normalizedEmail);
+        const existing = await this.repository.findByNormalizedEmail(
+          input.normalizedEmail,
+          manager,
+        );
+        if (existing) {
+          if (existing.status !== 'pending_verification') {
+            throw new AppException('EMAIL_ALREADY_REGISTERED');
+          }
+          existing.fullName = input.fullName;
+          existing.email = input.email;
+          existing.passwordHash = input.passwordHash;
+          return this.repository.saveWithAudit(
+            manager,
+            existing,
+            this.auditContext(existing.id, null, 'auth.registration.updated'),
+          );
+        }
+        return this.repository.createWithRole(
           manager,
           input,
           defaultRole.id,
           this.auditContext(null, null, 'user.created'),
-        ),
-      );
+        );
+      });
       return this.toUserWithRoles(user, [defaultRole]);
     } catch (error) {
       if (this.isUniqueViolation(error)) throw new AppException('EMAIL_ALREADY_REGISTERED');
@@ -327,8 +342,11 @@ export class UsersService {
     return this.toUserWithRoles(user, await this.rolesForUser(user.id));
   }
 
-  public async verifyEmail(userId: string): Promise<UserWithRoles> {
-    const user = await this.dataSource.transaction(async (manager) => {
+  public async verifyEmail(
+    userId: string,
+    transactionManager?: EntityManager,
+  ): Promise<UserWithRoles> {
+    const verify = async (manager: EntityManager): Promise<UserEntity> => {
       const current = await this.repository.findByIdForUpdate(manager, userId);
       if (!current) throw new AppException('USER_NOT_FOUND');
       if (current.status === 'suspended') throw new AppException('ACCOUNT_SUSPENDED');
@@ -339,7 +357,10 @@ export class UsersService {
         current,
         this.auditContext(userId, userId, 'auth.email.verified'),
       );
-    });
+    };
+    const user = transactionManager
+      ? await verify(transactionManager)
+      : await this.dataSource.transaction(verify);
     return this.toUserWithRoles(user, await this.rolesForUser(user.id));
   }
 

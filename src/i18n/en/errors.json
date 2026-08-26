@@ -23,6 +23,8 @@
   "invalidCredentials": "Email or password is incorrect",
   "accountLocked": "The account is temporarily locked",
   "invalidOrExpiredToken": "The token is invalid or has expired",
+  "invalidOrExpiredVerificationCode": "The verification code is invalid or has expired",
+  "verificationAttemptsExceeded": "Too many email verification attempts; request a new code",
   "invalidRefreshToken": "The refresh token is invalid or expired",
   "refreshTokenReused": "Refresh token reuse was detected and the session was revoked",
   "invalidTwoStepChallenge": "The two-step challenge is invalid or has expired",

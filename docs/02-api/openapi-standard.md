@@ -10,6 +10,8 @@ Swagger is an executable API contract, not a route inventory.
 - Error examples include the exact `statusCode`, stable `code`, client-visible `message`, `path`,
   `requestId`, and relevant safe details produced by the implementation.
 - Keep decorators aligned with DTO validation, service behavior, tests, and module documentation.
+- Protected routes declare bearer security through `RequireAuthenticated` or `RequirePermissions`;
+  these composed policy decorators are the source of both runtime metadata and Swagger lock icons.
 
 ## Request examples
 

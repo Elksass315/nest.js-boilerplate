@@ -50,8 +50,20 @@ export class UsersRepository {
     });
   }
 
-  public findByNormalizedEmail(normalizedEmail: string): Promise<UserEntity | null> {
-    return this.users.findOneBy({ normalizedEmail });
+  public findByNormalizedEmail(
+    normalizedEmail: string,
+    manager?: EntityManager,
+  ): Promise<UserEntity | null> {
+    return (manager?.getRepository(UserEntity) ?? this.users).findOneBy({ normalizedEmail });
+  }
+
+  public async lockRegistrationEmail(
+    manager: EntityManager,
+    normalizedEmail: string,
+  ): Promise<void> {
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+      `users:registration:${normalizedEmail}`,
+    ]);
   }
 
   public findByIdForUpdate(manager: EntityManager, id: string): Promise<UserEntity | null> {

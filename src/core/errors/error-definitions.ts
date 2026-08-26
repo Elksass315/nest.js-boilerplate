@@ -121,6 +121,16 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.invalidOrExpiredToken',
     fallbackMessage: 'The token is invalid or has expired',
   },
+  INVALID_OR_EXPIRED_VERIFICATION_CODE: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidOrExpiredVerificationCode',
+    fallbackMessage: 'The verification code is invalid or has expired',
+  },
+  VERIFICATION_ATTEMPTS_EXCEEDED: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.verificationAttemptsExceeded',
+    fallbackMessage: 'Too many email verification attempts; request a new code',
+  },
   INVALID_REFRESH_TOKEN: {
     status: HttpStatus.UNAUTHORIZED,
     messageKey: 'errors.invalidRefreshToken',

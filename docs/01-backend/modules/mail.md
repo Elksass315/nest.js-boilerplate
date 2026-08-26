@@ -9,8 +9,9 @@ does not own auth tokens, two-step policy, or user state.
 ## Structure and public surface
 
 `MailService` and `TemplateRendererService` are exported through the module index. Auth supplies an
-email, display name, raw one-time token, and expiry; mail builds the public action URL and job. No
-auth repository or entity is imported.
+email, display name, one-time code or password-reset token, and expiry. Mail renders registration
+verification as a code with no action link; password resets and invitations retain their owned
+action URLs. No auth repository or entity is imported.
 
 ## Template standard
 
@@ -19,7 +20,7 @@ always renders shared `partials/header.hbs` and `partials/footer.hbs`. Typed con
 primary/secondary colors, optional logo, company name, and support email. Handlebars escapes all
 context values; only the already-rendered body occupies the layout's intentional raw slot.
 
-Templates cover email verification, password reset, two-step codes, new sessions, forced session
+Templates cover OTP email verification, password reset, two-step codes, new sessions, forced session
 revocation, password changes, two-step changes, account-status changes, role changes, team
 invitations, and account-ready notices after invitation acceptance. Every
 template uses the common layout, has renderer tests, and never embeds environment-specific hosts.
@@ -28,8 +29,8 @@ template uses the common layout, has renderer tests, and never embeds environmen
 
 Jobs use BullMQ queue `mail`, five exponential-backoff attempts by default, one-hour completed-job
 retention, and 24-hour failed-job retention. Each job carries `x-correlation-id`. Redis necessarily
-contains the recipient and one-time action URL until processing; logs must never include those
-fields, passwords, message bodies, SMTP credentials, or raw tokens.
+contains the recipient and one-time code or action URL until processing; logs must never include
+those fields, passwords, message bodies, SMTP credentials, raw tokens, or codes.
 
 `MAIL_ENABLED=false` skips job production and SMTP startup safely. The separate `mail-worker`
 process verifies SMTP before consuming jobs, uses configured concurrency, and closes BullMQ/SMTP
@@ -44,8 +45,9 @@ safe error type.
 
 ## Test strategy and change impact
 
-Tests verify queue payload policy, correlation propagation, disabled behavior, action URLs, every
-security template, shared header/footer rendering, escaping, worker retry/failure behavior, delivery
-state, and SMTP delivery through Mailpit.
+Tests verify queue payload policy, correlation propagation, disabled behavior, verification mail
+contains a code without an action URL, remaining action URLs, every security template, shared
+header/footer rendering, escaping, worker retry/failure behavior, delivery state, and SMTP delivery
+through Mailpit.
 
 **Navigation:** [Previous: Files Module](files.md) | [Documentation Index](../../README.md) | [Next: Users Module](users.md)

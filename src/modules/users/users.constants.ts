@@ -8,6 +8,7 @@ export const SECURITY_AUDIT_EVENTS = [
   'user.status.changed',
   'user.roles.changed',
   'auth.email.verified',
+  'auth.registration.updated',
   'auth.login.failed',
   'auth.login.succeeded',
   'auth.password.changed',

@@ -32,12 +32,11 @@ export class MailService {
   ) {}
 
   public sendEmailVerification(input: VerificationMailInput): Promise<void> {
-    return this.enqueueAction(
-      input,
-      'email-verification',
-      'Verify your email address',
-      'verify-email',
-    );
+    return this.enqueue(input.email, 'email-verification', 'Verify your email address', {
+      name: input.fullName,
+      code: input.code,
+      expiresInMinutes: Math.ceil(input.expiresInSeconds / 60),
+    });
   }
 
   public sendPasswordReset(input: PasswordResetMailInput): Promise<void> {
@@ -122,8 +121,8 @@ export class MailService {
   }
 
   private async enqueueAction(
-    input: VerificationMailInput,
-    template: 'email-verification' | 'reset-password',
+    input: PasswordResetMailInput,
+    template: 'reset-password',
     subject: string,
     actionPath: string,
   ): Promise<void> {

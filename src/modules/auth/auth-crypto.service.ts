@@ -85,7 +85,6 @@ export class AuthCryptoService {
       .setAudience(this.audience)
       .setIssuedAt()
       .setExpirationTime(`${String(this.accessTtl)}s`)
-      .setJti(randomBytes(16).toString('base64url'))
       .sign(this.secret);
   }
 

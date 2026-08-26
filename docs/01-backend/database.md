@@ -36,4 +36,13 @@ and append-only change audits containing request/correlation context. Creation a
 changes write the flag and audit in one transaction. Immutable seed `005-feature-flags-rbac` adds
 read and management permissions but intentionally creates no project-specific flags.
 
+Migration `1787356800000-CreateEmailVerificationCodes` replaces registration link persistence with
+dedicated Argon2id-hashed OTP rows and an indexed, row-locked active-code lookup. Its forward
+migration intentionally deletes legacy verification-link rows while retaining pending users; those
+users recover by resubmitting registration. The schema rollback restores the legacy action-token
+purpose constraint but cannot reconstruct deleted raw verification credentials.
+
+Migration `1787443200000-AddSessionMetadata` adds nullable IP, user-agent, device metadata, and
+approximate location fields to `auth_sessions`; existing sessions remain valid with null metadata.
+
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

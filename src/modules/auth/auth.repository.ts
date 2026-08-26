@@ -1,13 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, IsNull, MoreThan, type Repository } from 'typeorm';
+import {
+  EntityManager,
+  IsNull,
+  MoreThan,
+  Not,
+  type FindOptionsWhere,
+  type Repository,
+} from 'typeorm';
 
 import type { AuthTokenPurpose, SessionRevokeReason, TwoStepPurpose } from './auth.constants';
 import { AuthRecoveryCodeEntity } from './entities/auth-recovery-code.entity';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
+import { AuthEmailVerificationCodeEntity } from './entities/auth-email-verification-code.entity';
 import { AuthRefreshTokenEntity } from './entities/auth-refresh-token.entity';
 import { AuthSessionEntity } from './entities/auth-session.entity';
 import { AuthTwoStepChallengeEntity } from './entities/auth-two-step-challenge.entity';
+import type { SessionMetadata } from './auth.types';
 
 @Injectable()
 export class AuthRepository {
@@ -26,6 +35,12 @@ export class AuthRepository {
     authVersion: number,
     expiresAt: Date,
     tokenHash: string,
+    metadata: SessionMetadata = {
+      ipAddress: null,
+      userAgent: null,
+      device: null,
+      location: null,
+    },
   ): Promise<AuthSessionEntity> {
     const now = new Date();
     const session = await manager.getRepository(AuthSessionEntity).save(
@@ -36,6 +51,10 @@ export class AuthRepository {
         expiresAt,
         revokedAt: null,
         revokeReason: null,
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+        deviceMetadata: metadata.device,
+        approximateLocation: metadata.location,
       }),
     );
     await manager.getRepository(AuthRefreshTokenEntity).save(
@@ -145,9 +164,12 @@ export class AuthRepository {
     userId: string,
     page: number,
     limit: number,
+    revoked?: boolean,
   ): Promise<[AuthSessionEntity[], number]> {
+    const where: FindOptionsWhere<AuthSessionEntity> = { userId };
+    if (revoked !== undefined) where.revokedAt = revoked ? Not(IsNull()) : IsNull();
     return this.sessions.findAndCount({
-      where: { userId },
+      where,
       order: { createdAt: 'DESC', id: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -199,6 +221,43 @@ export class AuthRepository {
   ): Promise<void> {
     token.consumedAt = new Date();
     await manager.getRepository(AuthActionTokenEntity).save(token);
+  }
+
+  public async issueEmailVerificationCode(
+    manager: EntityManager,
+    userId: string,
+    codeHash: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await manager
+      .getRepository(AuthEmailVerificationCodeEntity)
+      .createQueryBuilder()
+      .update()
+      .set({ consumedAt: new Date() })
+      .where('user_id = :userId AND consumed_at IS NULL', { userId })
+      .execute();
+    const repository = manager.getRepository(AuthEmailVerificationCodeEntity);
+    await repository.save(
+      repository.create({ userId, codeHash, attempts: 0, expiresAt, consumedAt: null }),
+    );
+  }
+
+  public findEmailVerificationCodeForUpdate(
+    manager: EntityManager,
+    userId: string,
+  ): Promise<AuthEmailVerificationCodeEntity | null> {
+    return manager.getRepository(AuthEmailVerificationCodeEntity).findOne({
+      where: { userId, consumedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  public async saveEmailVerificationCode(
+    manager: EntityManager,
+    verification: AuthEmailVerificationCodeEntity,
+  ): Promise<void> {
+    await manager.getRepository(AuthEmailVerificationCodeEntity).save(verification);
   }
 
   public async issueTwoStepChallenge(

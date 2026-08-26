@@ -5,7 +5,6 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 
 import { createApplication } from '../src/apps/api/bootstrap';
-import { AuthService } from '../src/modules/auth';
 import type { AuthenticatedPrincipal } from '../src/modules/authorization';
 import { InvitationsService } from '../src/modules/invitations';
 import { UsersService } from '../src/modules/users';
@@ -135,10 +134,7 @@ describe('platform foundation (e2e)', () => {
   it('publishes versioned identity contracts with distinct role-update failures', async () => {
     const response = await request(app.getHttpServer()).get('/docs-json').expect(200);
     const document = response.body as {
-      paths?: Record<
-        string,
-        { put?: { responses?: Record<string, { content?: Record<string, unknown> }> } }
-      >;
+      paths?: Record<string, Record<string, OpenApiOperation | undefined>>;
     };
 
     expect(document.paths).toHaveProperty('/api/v1/users');
@@ -153,7 +149,9 @@ describe('platform foundation (e2e)', () => {
     expect(document.paths).toHaveProperty('/api/v1/users/me/avatar');
     expect(document.paths).toHaveProperty('/api/v1/users/me/security-audits');
     expect(document.paths).toHaveProperty('/api/v1/users/{id}/security-audits');
-    expect(document.paths?.['/api/v1/users/{id}/roles']?.put?.responses?.['404']?.content).toEqual(
+    expect(
+      document.paths?.['/api/v1/users/{id}/roles']?.['put']?.responses?.['404']?.content,
+    ).toEqual(
       expect.objectContaining({
         'application/json': expect.objectContaining({
           examples: expect.objectContaining({
@@ -163,21 +161,19 @@ describe('platform foundation (e2e)', () => {
         }),
       }),
     );
+    expect(document.paths?.['/api/v1/sessions']?.['get']?.security).toEqual([{ bearer: [] }]);
+    expect(document.paths?.['/api/v1/users']?.['get']?.security).toEqual([{ bearer: [] }]);
+    expect(document.paths?.['/api/v1/auth/register']?.['post']?.security).toBeUndefined();
   });
 
   it('resumes, sanitizes, publishes, and removes an authenticated user avatar', async () => {
     const email = `avatar-e2e-${String(Date.now())}@example.com`;
     const password = 'Correct-Horse-Battery-2026!';
-    await request(app.getHttpServer())
+    const registration = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
       .send({ fullName: 'Avatar E2E', email, password })
       .expect(201);
-    const verification = await app.get(AuthService).resendVerification(email);
-    if (!verification) throw new Error('Expected avatar-user verification delivery');
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/verification/confirm')
-      .send({ token: verification.token })
-      .expect(200);
+    await app.get(UsersService).verifyEmail(String(registration.body.registrationId));
     const login = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email, password })
@@ -245,10 +241,16 @@ describe('platform foundation (e2e)', () => {
       .expect('x-correlation-id', 'e2e-avatar-claim')
       .expect(200);
     expect(attached.body.avatar).toEqual(
-      expect.objectContaining({ fileId, mimeType: 'image/png', url: expect.any(String) }),
+      expect.objectContaining({
+        fileId,
+        mimeType: 'image/png',
+        url: expect.stringMatching(
+          /^http:\/\/localhost:3000\/api\/v1\/files\/public\/[0-9a-f-]{36}$/i,
+        ),
+      }),
     );
     await request(app.getHttpServer())
-      .get(String(attached.body.avatar.url))
+      .get(new URL(String(attached.body.avatar.url)).pathname)
       .expect('content-type', /image\/png/)
       .expect(200);
 
@@ -265,29 +267,33 @@ describe('platform foundation (e2e)', () => {
   it('registers, verifies, logs in, lists sessions, rotates refresh, and detects reuse', async () => {
     const email = `identity-e2e-${String(Date.now())}@example.com`;
     const password = 'Correct-Horse-Battery-2026!';
-    await request(app.getHttpServer())
+    const registration = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
       .set('x-correlation-id', 'e2e-auth-register')
       .send({ fullName: 'Identity E2E', email, password })
       .expect('x-correlation-id', 'e2e-auth-register')
       .expect(201);
 
-    await waitForMailSubject('Verify your email address');
+    const verificationMail = await waitForMailSubject('Verify your email address', email);
     await expect(waitForSentDelivery(app.get(DataSource), 'email-verification')).resolves.toEqual({
       status: 'sent',
       correlation_id: 'e2e-auth-register',
     });
 
-    const delivery = await app.get(AuthService).resendVerification(email);
-    expect(delivery).not.toBeNull();
-    if (!delivery) throw new Error('Expected verification delivery');
     await request(app.getHttpServer())
       .post('/api/v1/auth/verification/confirm')
-      .send({ token: delivery.token })
+      .send({
+        registrationId: registration.body.registrationId,
+        code: extractEmailCode(verificationMail.HTML),
+      })
       .expect(200);
 
     const login = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
+      .set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0')
+      .set('cf-ipcountry', 'EG')
+      .set('x-vercel-ip-country-region', 'Cairo')
+      .set('x-vercel-ip-city', 'Cairo')
       .send({ email, password })
       .expect(200);
     expect(login.body).toEqual(
@@ -295,17 +301,32 @@ describe('platform foundation (e2e)', () => {
         accessToken: expect.any(String),
         refreshToken: expect.any(String),
         tokenType: 'Bearer',
-        expiresIn: 900,
+        expiresIn: expect.any(Number),
+        user: expect.objectContaining({
+          id: registration.body.registrationId,
+          roles: ['user'],
+          permissions: expect.any(Array),
+        }),
       }),
     );
 
     await request(app.getHttpServer())
-      .get('/api/v1/sessions?page=1&limit=20')
+      .get('/api/v1/sessions?page=1&limit=20&revoked=false')
       .set('authorization', `Bearer ${String(login.body.accessToken)}`)
       .expect(200)
       .expect(({ body }) => {
         expect(body).toEqual(
           expect.objectContaining({ items: expect.any(Array), meta: expect.any(Object) }),
+        );
+        expect(body.items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              revokedAt: null,
+              userAgent: expect.stringContaining('Chrome/126.0'),
+              device: { type: 'desktop', os: 'Windows', browser: 'Chrome' },
+              location: { country: 'EG', region: 'Cairo', city: 'Cairo' },
+            }),
+          ]),
         );
       });
 
@@ -360,13 +381,22 @@ describe('platform foundation (e2e)', () => {
       .post('/api/v1/auth/login')
       .send({ email, password })
       .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/sessions?page=1&limit=20&revoked=true')
+      .set('authorization', `Bearer ${String(enrollmentLogin.body.accessToken)}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items).toEqual(
+          expect.arrayContaining([expect.objectContaining({ revokedAt: expect.any(String) })]),
+        );
+      });
     const enrollment = await request(app.getHttpServer())
       .post('/api/v1/auth/two-step/enable/request')
       .set('authorization', `Bearer ${String(enrollmentLogin.body.accessToken)}`)
       .set('x-correlation-id', 'e2e-two-step-enrollment')
       .send({ currentPassword: password })
       .expect(200);
-    const enrollmentMail = await waitForMailSubject('Your security code');
+    const enrollmentMail = await waitForMailSubject('Your security code', email);
     const enrollmentCode = extractEmailCode(enrollmentMail.HTML);
     const enabled = await request(app.getHttpServer())
       .post('/api/v1/auth/two-step/enable/confirm')
@@ -417,13 +447,18 @@ describe('platform foundation (e2e)', () => {
     const inviterEmail = `inviter-e2e-${suffix}@example.com`;
     const invitedEmail = `invited-e2e-${suffix}@example.com`;
     const password = 'Correct-Horse-Battery-2026!';
-    await request(app.getHttpServer())
+    const registration = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
       .send({ fullName: 'Invitation E2E Admin', email: inviterEmail, password })
       .expect(201);
-    const verification = await app.get(AuthService).resendVerification(inviterEmail);
-    if (!verification) throw new Error('Expected inviter verification delivery');
-    await app.get(AuthService).verifyEmail(verification.token);
+    const verificationMail = await waitForMailSubject('Verify your email address', inviterEmail);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verification/confirm')
+      .send({
+        registrationId: registration.body.registrationId,
+        code: extractEmailCode(verificationMail.HTML),
+      })
+      .expect(200);
     const inviter = await app.get(UsersService).findForAuthentication(inviterEmail);
     if (!inviter) throw new Error('Expected active invitation creator');
     const principal: AuthenticatedPrincipal = {
@@ -433,7 +468,10 @@ describe('platform foundation (e2e)', () => {
       permissions: [],
     };
     await app.get(InvitationsService).create(invitedEmail, 'user', principal);
-    const invitationMail = await waitForMailSubject('You have been invited to the team');
+    const invitationMail = await waitForMailSubject(
+      'You have been invited to the team',
+      invitedEmail,
+    );
     const token = extractInvitationToken(invitationMail.HTML);
 
     await request(app.getHttpServer())
@@ -443,7 +481,7 @@ describe('platform foundation (e2e)', () => {
       .expect('x-correlation-id', 'e2e-invitation-acceptance')
       .expect(201)
       .expect({ message: 'Invitation accepted' });
-    await waitForMailSubject('Your team account is ready');
+    await waitForMailSubject('Your team account is ready', invitedEmail);
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -465,22 +503,35 @@ describe('platform foundation (e2e)', () => {
   });
 });
 
+interface OpenApiOperation {
+  security?: Record<string, never[]>[];
+  responses?: Record<string, { content?: Record<string, unknown> }>;
+}
+
 interface MailpitMessage {
   ID: string;
   Subject: string;
+  To: { Address: string }[];
 }
 
 interface MailpitMessageDetails extends MailpitMessage {
   HTML: string;
 }
 
-async function waitForMailSubject(subject: string): Promise<MailpitMessageDetails> {
+async function waitForMailSubject(
+  subject: string,
+  recipient: string,
+): Promise<MailpitMessageDetails> {
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     const response = await fetch('http://127.0.0.1:8025/api/v1/messages');
     if (response.ok) {
       const result = (await response.json()) as { messages?: MailpitMessage[] };
-      const message = result.messages?.find((candidate) => candidate.Subject === subject);
+      const message = result.messages?.find(
+        (candidate) =>
+          candidate.Subject === subject &&
+          candidate.To.some(({ Address }) => Address.toLowerCase() === recipient.toLowerCase()),
+      );
       if (message) {
         const details = await fetch(`http://127.0.0.1:8025/api/v1/message/${message.ID}`);
         if (details.ok) return (await details.json()) as MailpitMessageDetails;
@@ -488,7 +539,7 @@ async function waitForMailSubject(subject: string): Promise<MailpitMessageDetail
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  throw new Error(`Mailpit did not receive expected subject: ${subject}`);
+  throw new Error(`Mailpit did not receive expected subject for test recipient: ${subject}`);
 }
 
 function extractEmailCode(html: string): string {

@@ -20,11 +20,7 @@ import {
 } from '@nestjs/swagger';
 
 import { API_VERSION } from '@/common/http/api-version.constants';
-import {
-  ApiOffsetPaginatedResponse,
-  OffsetPaginationQueryDto,
-  type OffsetPage,
-} from '@/common/pagination';
+import { ApiOffsetPaginatedResponse, type OffsetPage } from '@/common/pagination';
 import {
   CurrentPrincipal,
   PermissionsGuard,
@@ -35,6 +31,7 @@ import {
 import { AuthService } from './auth.service';
 import { errorContent, SESSIONS_PATH } from './auth.swagger';
 import { SessionResponseDto } from './dto/session-response.dto';
+import { SessionQueryDto } from './dto/session-query.dto';
 
 @ApiTags('sessions')
 @UseGuards(PermissionsGuard)
@@ -46,7 +43,8 @@ export class SessionsController {
   @Get()
   @ApiOperation({
     summary: 'List own sessions',
-    description: 'Returns a bounded offset page of the authenticated user sessions.',
+    description:
+      'Returns a bounded offset page of the authenticated user sessions. Use revoked=true or revoked=false to filter the page.',
   })
   @ApiOffsetPaginatedResponse(SessionResponseDto, 'The requested session page was returned.')
   @ApiUnauthorizedResponse({
@@ -54,16 +52,19 @@ export class SessionsController {
     content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', SESSIONS_PATH),
   })
   @ApiUnprocessableEntityResponse({
-    description: 'Page or limit failed validation.',
+    description: 'Page, limit, or revoked filter failed validation.',
     content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', SESSIONS_PATH, {
-      fields: { page: ['page must not be less than 1'] },
+      fields: {
+        page: ['page must not be less than 1'],
+        revoked: ['revoked must be a boolean'],
+      },
     }),
   })
   public list(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
-    @Query() query: OffsetPaginationQueryDto,
+    @Query() query: SessionQueryDto,
   ): Promise<OffsetPage<SessionResponseDto>> {
-    return this.service.listSessions(principal.userId, query.page, query.limit);
+    return this.service.listSessions(principal.userId, query.page, query.limit, query.revoked);
   }
 
   @Delete(':id')

@@ -49,3 +49,24 @@ export const tokenPairContent = {
     },
   },
 };
+
+export const loginSuccessContent = {
+  'application/json': {
+    example: {
+      ...tokenPairContent['application/json'].example,
+      user: {
+        id: '7b3f8ed4-73ef-4afe-8703-b10dd32f3820',
+        fullName: 'Amina Hassan',
+        email: 'amina@example.com',
+        status: 'active',
+        emailVerifiedAt: '2026-08-12T10:00:00.000Z',
+        emailTwoStepEnabled: false,
+        roles: ['user'],
+        permissions: [],
+        avatar: null,
+        createdAt: '2026-08-12T09:45:00.000Z',
+        updatedAt: '2026-08-12T10:05:00.000Z',
+      },
+    },
+  },
+};

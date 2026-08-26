@@ -33,6 +33,11 @@ failures use 403; session ownership failures use 404. `REFRESH_TOKEN_REUSED` als
 affected session was revoked. Exact English fallbacks remain aligned across the registry, Swagger,
 translations, and error catalog.
 
+Registration verification uses `INVALID_OR_EXPIRED_VERIFICATION_CODE` for wrong, expired,
+superseded, or consumed codes and `VERIFICATION_ATTEMPTS_EXCEEDED` on the terminal fifth failure.
+Neither error reveals the submitted code or registration state; resend remains generic for unknown
+and ineligible identifiers.
+
 Email two-step failures use stable, non-secret-bearing codes. Invalid, expired, consumed,
 wrong-purpose, or wrong-owner challenges return `INVALID_TWO_STEP_CHALLENGE`. Incorrect email and
 recovery proofs return `INVALID_TWO_STEP_CODE` and `INVALID_RECOVERY_CODE`; the latter does not

@@ -71,6 +71,9 @@ describe(AuthService.name, () => {
     findRecoveryCodesForUpdate: jest.fn(),
     consumeRecoveryCode: jest.fn(),
     deleteRecoveryCodes: jest.fn(),
+    issueEmailVerificationCode: jest.fn(),
+    findEmailVerificationCodeForUpdate: jest.fn(),
+    saveEmailVerificationCode: jest.fn(),
   };
   const crypto = {
     hashPassword: jest.fn(),
@@ -85,7 +88,7 @@ describe(AuthService.name, () => {
     recoveryCodes: jest.fn(),
   };
   const users = {
-    createPendingUser: jest.fn(),
+    createOrUpdatePendingUser: jest.fn(),
     findForAuthentication: jest.fn(),
     findByIdForAuthentication: jest.fn(),
     verifyEmail: jest.fn(),
@@ -94,6 +97,7 @@ describe(AuthService.name, () => {
     changePassword: jest.fn(),
     setEmailTwoStep: jest.fn(),
     auditRecoveryCodesRegenerated: jest.fn(),
+    getSelf: jest.fn(),
   };
   const mail = {
     sendEmailVerification: jest.fn(),
@@ -113,7 +117,8 @@ describe(AuthService.name, () => {
     const values: Record<string, number> = {
       'auth.accessTokenTtlSeconds': 900,
       'auth.sessionTtlSeconds': 1_209_600,
-      'auth.verificationTokenTtlSeconds': 86_400,
+      'auth.verificationCodeTtlSeconds': 600,
+      'auth.verificationCodeMaxAttempts': 5,
       'auth.passwordResetTokenTtlSeconds': 1_800,
       'auth.maxActiveSessions': 5,
       'auth.maxFailedLoginAttempts': 5,
@@ -146,9 +151,21 @@ describe(AuthService.name, () => {
     crypto.verifySecret.mockResolvedValue(true);
     crypto.numericCode.mockReturnValue('482913');
     crypto.recoveryCodes.mockReturnValue(['7F3A-91BC-2D44-8E10']);
-    users.createPendingUser.mockResolvedValue(user);
+    users.createOrUpdatePendingUser.mockResolvedValue(user);
     users.recordSuccessfulLogin.mockResolvedValue(user);
     users.findByIdForAuthentication.mockResolvedValue(user);
+    users.getSelf.mockResolvedValue({
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      status: user.status,
+      emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+      emailTwoStepEnabled: user.emailTwoStepEnabled,
+      roles: [],
+      avatar: null,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    });
     repository.createSession.mockResolvedValue(session);
   });
 
@@ -157,20 +174,23 @@ describe(AuthService.name, () => {
   it('registers a normalized pending user and queues branded verification mail', async () => {
     const result = await service.register(' Amina Hassan ', ' AMINA@Example.com ', 'long-password');
 
-    expect(users.createPendingUser).toHaveBeenCalledWith(
+    expect(users.createOrUpdatePendingUser).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'amina@example.com', normalizedEmail: 'amina@example.com' }),
     );
-    expect(repository.issueActionToken).toHaveBeenCalledWith(
+    expect(repository.issueEmailVerificationCode).toHaveBeenCalledWith(
       expect.anything(),
       user.id,
-      'email_verification',
-      'h'.repeat(64),
+      '$argon2id$secret',
       expect.any(Date),
     );
     expect(mail.sendEmailVerification).toHaveBeenCalledWith(
-      expect.objectContaining({ email: user.email, token: 'r'.repeat(43) }),
+      expect.objectContaining({ email: user.email, code: '482913', expiresInSeconds: 600 }),
     );
-    expect(result.userId).toBe(user.id);
+    expect(result).toEqual({
+      registrationId: user.id,
+      verificationExpiresIn: 600,
+      message: 'Registration accepted; enter the code sent to your email',
+    });
   });
 
   it('hashes an account password through the configured Argon2id crypto service', async () => {
@@ -179,28 +199,58 @@ describe(AuthService.name, () => {
   });
 
   it('keeps verification resend enumeration-safe', async () => {
-    users.findForAuthentication.mockResolvedValue(null);
-    await expect(service.resendVerification('missing@example.com')).resolves.toBeNull();
+    users.findByIdForAuthentication.mockResolvedValue(null);
+    await expect(service.resendVerification(user.id)).resolves.toEqual({
+      verificationExpiresIn: 600,
+      message: 'If the registration is eligible, a verification code will be sent',
+    });
     expect(mail.sendEmailVerification).not.toHaveBeenCalled();
   });
 
-  it('consumes a valid verification token and activates the account', async () => {
-    repository.findActionTokenForUpdate.mockResolvedValue({
+  it('consumes a valid verification code and activates the account atomically', async () => {
+    const verification = {
       userId: user.id,
+      codeHash: '$argon2id$secret',
+      attempts: 0,
       consumedAt: null,
       expiresAt: new Date('2099-01-01T00:00:00.000Z'),
-    });
+    };
+    repository.findEmailVerificationCodeForUpdate.mockResolvedValue(verification);
 
-    await expect(service.verifyEmail('v'.repeat(43))).resolves.toEqual({
+    await expect(service.verifyEmail(user.id, '482913')).resolves.toEqual({
       message: 'Email address verified',
     });
-    expect(users.verifyEmail).toHaveBeenCalledWith(user.id);
-    expect(repository.consumeActionToken).toHaveBeenCalled();
+    expect(users.verifyEmail).toHaveBeenCalledWith(user.id, expect.anything());
+    expect(repository.saveEmailVerificationCode).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ consumedAt: expect.any(Date) }),
+    );
   });
 
-  it('rejects expired action tokens', async () => {
-    repository.findActionTokenForUpdate.mockResolvedValue(null);
-    await expectErrorCode(service.verifyEmail('v'.repeat(43)), 'INVALID_OR_EXPIRED_TOKEN');
+  it('persists failed verification attempts and invalidates the fifth failure', async () => {
+    const verification = {
+      userId: user.id,
+      codeHash: '$argon2id$secret',
+      attempts: 4,
+      consumedAt: null,
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    };
+    repository.findEmailVerificationCodeForUpdate.mockResolvedValue(verification);
+    crypto.verifySecret.mockResolvedValue(false);
+
+    await expectErrorCode(service.verifyEmail(user.id, '000000'), 'VERIFICATION_ATTEMPTS_EXCEEDED');
+    expect(verification).toEqual(
+      expect.objectContaining({ attempts: 5, consumedAt: expect.any(Date) }),
+    );
+    expect(repository.saveEmailVerificationCode).toHaveBeenCalled();
+  });
+
+  it('rejects unknown or expired verification codes', async () => {
+    repository.findEmailVerificationCodeForUpdate.mockResolvedValue(null);
+    await expectErrorCode(
+      service.verifyEmail(user.id, '482913'),
+      'INVALID_OR_EXPIRED_VERIFICATION_CODE',
+    );
   });
 
   it('creates a rotating session after successful login', async () => {
@@ -215,6 +265,7 @@ describe(AuthService.name, () => {
       refreshToken: 'r'.repeat(43),
       tokenType: 'Bearer',
       expiresIn: 900,
+      user: expect.objectContaining({ id: user.id, roles: [], permissions: [] }),
     });
   });
 
