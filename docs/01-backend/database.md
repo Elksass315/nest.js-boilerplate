@@ -19,6 +19,12 @@ with its history record in one transaction. A seed whose ID is already recorded 
 seed fails; add a new seed instead. Run `pnpm seed:show` or `pnpm seed:run` only as explicit one-shot
 deployment steps.
 
+The RBAC seeds never contain administrator credentials. After migrations and seeds have completed,
+run `pnpm auth:bootstrap-admin` once from an interactive terminal to create the first active,
+verified super-admin. The command hashes the prompted password, refuses to modify an existing user,
+refuses to run when an active super-admin already exists, and records an audit event. Do not put
+bootstrap passwords in seed files, committed environment files, or API requests.
+
 Migration `1787011200000-CreateTeamInvitations` adds invitation lifecycle metadata, foreign keys,
 bounded send counts, expiry indexes, and one pending invitation per normalized email. Immutable seed
 `003-team-invitations-rbac` adds the corresponding fixed RBAC permissions. Invitation tokens persist

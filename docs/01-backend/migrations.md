@@ -3,8 +3,11 @@
 Identity migration `1786579200000-CreateIdentityCore` creates users, role assignments, security
 audits, roles, permissions, and role-permission mappings with explicit checks, indexes, and foreign
 keys. Seed `002-rbac` installs deterministic fixed RBAC definitions. The seed contains no user or
-bootstrap-super-admin credentials; that optional behavior requires explicit seed configuration in a
-later auth change.
+bootstrap-super-admin credentials. After migrations and seeds, create the first administrator with
+the interactive one-shot `pnpm auth:bootstrap-admin` command. It requires a TTY for password input,
+refuses to modify an existing user, refuses to run when an active super-admin already exists, and
+records a `user.created` audit event. Never put bootstrap credentials in seed files or commit them to
+environment configuration.
 
 Auth migration `1786665600000-CreateAuthSessions` creates absolute-lifetime sessions, append-only
 rotating refresh-token records, and the original single-use verification/reset action tokens. Unique token

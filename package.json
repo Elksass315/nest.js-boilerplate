@@ -51,6 +51,7 @@
     "migration:run:prod": "typeorm -d dist/database/data-source.js migration:run",
     "seed:run": "ts-node -r tsconfig-paths/register src/database/seeds/seed-runner.ts run",
     "seed:show": "ts-node -r tsconfig-paths/register src/database/seeds/seed-runner.ts show",
+    "auth:bootstrap-admin": "ts-node -r tsconfig-paths/register src/database/bootstrap-admin.ts",
     "seed:run:prod": "node dist/database/seeds/seed-runner.js run",
     "files:migration:status": "ts-node -r tsconfig-paths/register src/apps/files-migration/main.ts status",
     "files:migrate": "ts-node -r tsconfig-paths/register src/apps/files-migration/main.ts migrate",
