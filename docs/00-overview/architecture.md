@@ -45,5 +45,3 @@ version-neutral and outside the API prefix. The system is explicitly single-tena
 tenant context, tenant columns, or tenant abstractions without a separately approved change.
 
 **Navigation:** [Previous: Documentation Index](../README.md) | [Documentation Index](../README.md) | [Next: Technology Stack](tech-stack.md)
-
-**Navigation:** [Previous: Documentation Index](../README.md) | [Documentation Index](../README.md) | [Next: Technology Stack](tech-stack.md)

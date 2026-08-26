@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   HttpException,
+  HttpStatus,
   InternalServerErrorException,
   Logger,
   type ArgumentsHost,
@@ -85,9 +86,46 @@ describe(GlobalExceptionFilter.name, () => {
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
         code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred',
+        message: 'Internal server error',
       }),
     );
+    expect(json.mock.calls[0]?.[0]).not.toHaveProperty('details');
+  });
+
+  it('returns the standard safe response for unknown failures', () => {
+    const { host, json } = createHost();
+
+    new GlobalExceptionFilter(i18n).catch(new Error('database password leaked'), host);
+
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 500,
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal server error',
+      }),
+    );
+    expect(json.mock.calls[0]?.[0]).not.toHaveProperty('details');
+  });
+
+  it('normalizes every HTTP 500 payload to the internal error contract', () => {
+    const { host, json } = createHost();
+
+    new GlobalExceptionFilter(i18n).catch(
+      new HttpException(
+        { code: 'RESOURCE_CONFLICT', details: { secret: 'hidden' } },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      ),
+      host,
+    );
+
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 500,
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal server error',
+      }),
+    );
+    expect(json.mock.calls[0]?.[0]).not.toHaveProperty('details');
   });
 
   it.each([

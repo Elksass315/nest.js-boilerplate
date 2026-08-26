@@ -9,15 +9,13 @@ const migrationsDirectory = path.resolve('src/database/migrations');
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 function runTypeOrm(args) {
-  const pnpmCli = process.env.npm_execpath;
-  const executable = pnpmCli ? process.execPath : pnpm;
+  const executable = pnpm;
   const invocation = [
-    ...(pnpmCli ? [pnpmCli] : []),
     'exec',
     'typeorm-ts-node-commonjs',
+    ...args,
     '-d',
     'src/database/data-source.ts',
-    ...args,
   ];
   const result = spawnSync(executable, invocation, {
     stdio: 'inherit',
@@ -27,7 +25,7 @@ function runTypeOrm(args) {
         .filter(Boolean)
         .join(' '),
     },
-    shell: !pnpmCli && process.platform === 'win32',
+    shell: process.platform === 'win32',
   });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);

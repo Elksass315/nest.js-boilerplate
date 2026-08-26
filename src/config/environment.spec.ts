@@ -156,6 +156,26 @@ describe('environment validation', () => {
         SWAGGER_DOCS_PASSWORD: 'weak',
       }),
     ).toThrow('SWAGGER_DOCS_USERNAME must contain at least 3 characters');
+
+    expect(() =>
+      validateApiEnvironment({
+        ...validEnvironment,
+        SWAGGER_DOCS_ACCESS: 'basic',
+        SWAGGER_DOCS_USERNAME: 'admin',
+        SWAGGER_DOCS_PASSWORD: 'short-password',
+      }),
+    ).toThrow('SWAGGER_DOCS_PASSWORD at least 16 characters');
+  });
+
+  it('rejects Swagger credentials unless basic access is enabled', () => {
+    expect(() =>
+      validateApiEnvironment({
+        ...validEnvironment,
+        SWAGGER_DOCS_ACCESS: 'public',
+        SWAGGER_DOCS_USERNAME: 'admin',
+        SWAGGER_DOCS_PASSWORD: 'strong-docs-password',
+      }),
+    ).toThrow('SWAGGER_DOCS_USERNAME and SWAGGER_DOCS_PASSWORD must be empty');
   });
 
   it('requires the fallback language to be supported', () => {

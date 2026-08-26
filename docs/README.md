@@ -15,7 +15,7 @@ request as the behavior it describes.
 - [Configuration](01-backend/configuration.md)
 - [Error handling](01-backend/error-handling.md)
 - [Structured logging](01-backend/logging.md)
-- [Sentry observability](01-backend/observability.md)
+- [Sentry](01-backend/sentry.md)
 - [Database and migrations](01-backend/database.md)
 - [Migrations and seeds](01-backend/migrations.md)
 - [Shared foundation](01-backend/shared-foundation.md)
@@ -49,7 +49,5 @@ request as the behavior it describes.
 - [Architecture rules](governance/architecture-rules.md)
 - [Module documentation template](templates/module-doc-template.md)
 - [ADR template](adr/000-template.md)
-
-**Navigation:** [Previous: Project README](../README.md) | Documentation Index | [Next: Architecture Overview](00-overview/architecture.md)
 
 **Navigation:** [Previous: Project README](../README.md) | Documentation Index | [Next: Architecture Overview](00-overview/architecture.md)

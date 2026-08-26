@@ -48,5 +48,5 @@
   "forbidden": "You are not allowed to perform this action",
   "tooManyRequests": "Too many requests",
   "serviceNotReady": "One or more required services are unavailable",
-  "internalServerError": "An unexpected error occurred"
+  "internalServerError": "Internal server error"
 }

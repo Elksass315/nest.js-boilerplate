@@ -29,6 +29,7 @@ export class SeedRunnerService {
       const statuses = await this.resolveStatuses(runner);
       for (const status of statuses) {
         if (status.status === 'applied') {
+          this.logger.log({ seedId: status.id }, 'Seed already applied; skipped');
           continue;
         }
         const seed = this.requireSeed(status.id);

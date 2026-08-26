@@ -249,7 +249,7 @@ export const ERROR_DEFINITIONS = {
   INTERNAL_SERVER_ERROR: {
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     messageKey: 'errors.internalServerError',
-    fallbackMessage: 'An unexpected error occurred',
+    fallbackMessage: 'Internal server error',
   },
 } as const;
 
