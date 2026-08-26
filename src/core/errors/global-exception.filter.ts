@@ -49,7 +49,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       path: request.originalUrl,
       requestId,
       correlationId,
-      ...(resolved.details === undefined ? {} : { details: resolved.details }),
+      ...(resolved.code === 'INTERNAL_SERVER_ERROR' || resolved.details === undefined
+        ? {}
+        : { details: resolved.details }),
     };
 
     response.setHeader('Content-Language', language);
@@ -85,8 +87,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
     const payload = exception.getResponse();
     if (isPlainRecord(payload) && isErrorCode(payload['code'])) {
+      const code = status === 500 ? 'INTERNAL_SERVER_ERROR' : payload['code'];
       return {
-        code: payload['code'],
+        code,
         status,
         ...(payload['details'] === undefined ? {} : { details: payload['details'] }),
       };

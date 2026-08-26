@@ -6,7 +6,9 @@ English is the shipped fallback language. The configured custom language header 
 
 Global translation is limited to registered error and application message keys. Business fields are
 localized explicitly in their owning service/response contract. Never recursively rewrite arbitrary
-fields. `pnpm i18n:check` keeps the error registry and English resource file synchronized.
+fields. `pnpm i18n:check` keeps the error registry and English resource file synchronized. The
+registered `INTERNAL_SERVER_ERROR` translation is always the generic `Internal server error`; it
+must not expose exception details or vary by failure cause.
 
 Feature error keys, including identity user/role/conflict messages, live in the same English catalog
 and are validated against the central registry. Stable codes do not change when a future translation

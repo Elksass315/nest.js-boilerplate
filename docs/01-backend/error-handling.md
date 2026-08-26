@@ -5,8 +5,9 @@ definition provides an HTTP status, English translation key, and safe fallback. 
 the code, English resource, error catalog, Swagger examples, tests, and module documentation together.
 
 Malformed syntax returns `400`; a well-formed request that fails DTO rules returns
-`422 VALIDATION_ERROR` with messages under `details.fields`. Unknown failures return a safe 500 and
-log internal diagnostics without exposing them.
+`422 VALIDATION_ERROR` with messages under `details.fields`. Unknown failures return a safe
+`500 INTERNAL_SERVER_ERROR` with the exact message `Internal server error`. Internal 500 responses
+never include details; diagnostics are logged and monitored without exposing them to clients.
 
 ```json
 {

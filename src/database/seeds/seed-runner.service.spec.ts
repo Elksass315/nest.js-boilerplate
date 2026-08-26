@@ -88,6 +88,25 @@ describe(SeedRunnerService.name, () => {
     expect(runner.rollbackTransaction).not.toHaveBeenCalled();
   });
 
+  it('does not execute an already applied seed on a second run', async () => {
+    const seedRun = jest.fn().mockResolvedValue(undefined);
+    registry.push({
+      id: '001-foundation',
+      description: 'Foundation data',
+      checksumSource: 'v1',
+      run: seedRun,
+    });
+    const { history, runner, service } = createHarness();
+
+    await service.run();
+    await service.run();
+
+    expect(seedRun).toHaveBeenCalledTimes(1);
+    expect(history).toHaveLength(1);
+    expect(runner.startTransaction).toHaveBeenCalledTimes(1);
+    expect(runner.commitTransaction).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects checksum drift for an already applied seed', async () => {
     registry.push({
       id: '001-foundation',

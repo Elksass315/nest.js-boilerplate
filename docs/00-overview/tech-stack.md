@@ -18,5 +18,3 @@ Dependencies are exact-pinned and added only for a demonstrated current requirem
 `package.json` and the lockfile for authoritative versions.
 
 **Navigation:** [Previous: Architecture Overview](architecture.md) | [Documentation Index](../README.md) | [Next: Configuration Standard](../01-backend/configuration.md)
-
-**Navigation:** [Previous: Architecture Overview](architecture.md) | [Documentation Index](../README.md) | [Next: Configuration Standard](../01-backend/configuration.md)

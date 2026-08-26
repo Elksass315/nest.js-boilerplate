@@ -51,7 +51,7 @@
 | 503    | `SERVICE_NOT_READY`               | `One or more required services are unavailable`                | PostgreSQL, Redis, or enabled storage readiness fails.                    |
 | 503    | `FILE_STORAGE_UNAVAILABLE`        | `File storage is temporarily unavailable`                      | An enabled file provider cannot complete the operation.                   |
 | 503    | `INVITATION_DELIVERY_UNAVAILABLE` | `The invitation email could not be queued`                     | Invitation state persisted but mail enqueue failed.                       |
-| 500    | `INTERNAL_SERVER_ERROR`           | `An unexpected error occurred`                                 | An unhandled or unknown persistence failure reaches the API.              |
+| 500    | `INTERNAL_SERVER_ERROR`           | `Internal server error`                                        | An unhandled or unknown persistence failure reaches the API.              |
 
 Swagger basic-auth failures occur before the Nest pipeline and return their own documented
 `SWAGGER_AUTH_REQUIRED` payload. All API errors contain `requestId` and `correlationId`; clients
