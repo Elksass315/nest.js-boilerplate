@@ -3,11 +3,14 @@
 Identity migration `1786579200000-CreateIdentityCore` creates users, role assignments, security
 audits, roles, permissions, and role-permission mappings with explicit checks, indexes, and foreign
 keys. Seed `002-rbac` installs deterministic fixed RBAC definitions. The seed contains no user or
-bootstrap-super-admin credentials; that optional behavior requires explicit seed configuration in a
-later auth change.
+bootstrap-super-admin credentials. After migrations and seeds, create the first administrator with
+the interactive one-shot `pnpm auth:bootstrap-admin` command. It requires a TTY for password input,
+refuses to modify an existing user, refuses to run when an active super-admin already exists, and
+records a `user.created` audit event. Never put bootstrap credentials in seed files or commit them to
+environment configuration.
 
 Auth migration `1786665600000-CreateAuthSessions` creates absolute-lifetime sessions, append-only
-rotating refresh-token records, and single-use verification/reset action tokens. Unique token
+rotating refresh-token records, and the original single-use verification/reset action tokens. Unique token
 hashes, status/purpose checks, ownership foreign keys, and stable session indexes are enforced in
 PostgreSQL. Only SHA-256 token hashes are stored. Migration reversal removes auth action tokens,
 refresh tokens, then sessions without modifying users or RBAC state.
@@ -16,6 +19,20 @@ Identity email-security migration `1786752000000-CreateIdentityEmailSecurity` cr
 expiring two-step challenges, hashed single-use recovery codes, and mail-delivery state. Delivery
 records store only a SHA-256 recipient fingerprint plus a masked address; queue payloads retain the
 full recipient only for the bounded Redis job lifetime. Reversal removes these three owned tables.
+
+Email-verification migration `1787356800000-CreateEmailVerificationCodes` invalidates legacy
+email-verification link rows, restricts action tokens to password reset, and creates dedicated
+Argon2id-hashed six-digit code state with attempts, expiry, consumption, ownership, and an active
+lookup index. Existing pending accounts remain and can resubmit registration to receive a new code.
+Reversal restores the legacy purpose constraint but cannot restore invalidated raw link tokens.
+
+Session metadata migration `1787443200000-AddSessionMetadata` adds nullable IP address, user-agent,
+device metadata, and approximate location JSON fields to `auth_sessions`. Existing sessions remain
+valid with null metadata; reversal drops only these four columns.
+
+User-permission migration `1787529600000-CreateUserPermissionOverrides` adds unique per-user grant
+or revoke rows referencing the permission catalog. Seed `006-user-permission-overrides-rbac` grants
+`users.permissions.manage` only to `super_admin`.
 
 File migration `1786838400000-CreateFileStorage` creates `stored_files` with provider/key and public
 identifier uniqueness, lifecycle/visibility/provider checks, uploader ownership, expiry indexes,

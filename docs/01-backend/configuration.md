@@ -19,10 +19,15 @@ Raw `process.env` access is restricted to configuration and CLI entrypoints. App
 typed `ConfigService` paths such as `app.port`, `auth.accessTokenTtlSeconds`, and `mail.branding`.
 Missing, malformed, insecure, or contradictory values fail before dependency connections.
 
+`APP_BASE_URL` is the canonical externally reachable origin for absolute public file URLs. It must
+use `http` or `https`; it defaults to `http://localhost:3000` for local development. Configure it
+to the public API origin in staging and production, for example `https://api.example.com`.
+
 `AUTH_ACCESS_TOKEN_SECRET` is mandatory and contains at least 32 characters. Access tokens default
-to 15 minutes; absolute session lifetime defaults to 14 days. Verification tokens default to one
-day, reset tokens to 30 minutes, active sessions to five, and password lockout to five failed
-attempts for 15 minutes.
+to 15 minutes; absolute session lifetime defaults to 14 days. Registration verification codes
+default to 10 minutes and five attempts, reset tokens to 30 minutes, active sessions to five, and
+password lockout to five failed attempts for 15 minutes. `AUTH_VERIFICATION_CODE_TTL_SECONDS` and
+`AUTH_VERIFICATION_CODE_MAX_ATTEMPTS` are bounded independently from two-step policy.
 
 Two-step email codes default to five minutes and five attempts. Enrollment creates ten single-use
 recovery codes by default. `AUTH_TWO_STEP_CODE_TTL_SECONDS`, `AUTH_TWO_STEP_MAX_ATTEMPTS`, and

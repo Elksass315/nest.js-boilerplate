@@ -33,6 +33,7 @@ import { loadTusRuntime } from './tus-loader.cjs';
 @Injectable()
 export class FilesService {
   private readonly writeDriver: AppConfiguration['files']['writeDriver'];
+  private readonly appBaseUrl: string;
   private readonly uploadExpirationMs: number;
   private readonly signedUrlTtlSeconds: number;
   private readonly maxRetries: number;
@@ -46,6 +47,7 @@ export class FilesService {
     @InjectQueue(FILE_QUEUE) private readonly queue: Queue<FileJob>,
     private readonly logger: PinoLogger,
   ) {
+    this.appBaseUrl = config.getOrThrow('app.baseUrl', { infer: true });
     const files = config.getOrThrow('files', { infer: true });
     this.writeDriver = files.writeDriver;
     this.uploadExpirationMs = files.uploadExpirationMs;
@@ -280,7 +282,12 @@ export class FilesService {
     if (file.provider !== transaction.prepared.provider) {
       throw new AppException('FILE_STORAGE_UNAVAILABLE');
     }
-    return this.repository.claimPrepared(transaction.manager, file, transaction.prepared);
+    const descriptor = await this.repository.claimPrepared(
+      transaction.manager,
+      file,
+      transaction.prepared,
+    );
+    return { ...descriptor, url: this.toAbsolutePublicUrl(descriptor.url) };
   }
 
   public async markDeletingForOwner(
@@ -298,7 +305,9 @@ export class FilesService {
   }
 
   public findPublicDescriptors(ids: readonly string[]): Promise<PublicFileDescriptor[]> {
-    return this.repository.findReadyPublicByIds(ids);
+    return this.repository
+      .findReadyPublicByIds(ids)
+      .then((descriptors) => descriptors.map((descriptor) => this.toPublicDescriptor(descriptor)));
   }
 
   public async enqueueClaimCleanup(
@@ -315,6 +324,14 @@ export class FilesService {
         'File cleanup enqueue will be recovered by the sweeper',
       );
     }
+  }
+
+  private toPublicDescriptor(descriptor: PublicFileDescriptor): PublicFileDescriptor {
+    return { ...descriptor, url: this.toAbsolutePublicUrl(descriptor.url) };
+  }
+
+  private toAbsolutePublicUrl(url: string): string {
+    return new URL(url, `${this.appBaseUrl}/`).toString();
   }
 
   public async getPublicAccess(publicId: string): Promise<PublicFileAccess> {

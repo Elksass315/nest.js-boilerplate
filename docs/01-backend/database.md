@@ -19,6 +19,12 @@ with its history record in one transaction. A seed whose ID is already recorded 
 seed fails; add a new seed instead. Run `pnpm seed:show` or `pnpm seed:run` only as explicit one-shot
 deployment steps.
 
+The RBAC seeds never contain administrator credentials. After migrations and seeds have completed,
+run `pnpm auth:bootstrap-admin` once from an interactive terminal to create the first active,
+verified super-admin. The command hashes the prompted password, refuses to modify an existing user,
+refuses to run when an active super-admin already exists, and records an audit event. Do not put
+bootstrap passwords in seed files, committed environment files, or API requests.
+
 Migration `1787011200000-CreateTeamInvitations` adds invitation lifecycle metadata, foreign keys,
 bounded send counts, expiry indexes, and one pending invitation per normalized email. Immutable seed
 `003-team-invitations-rbac` adds the corresponding fixed RBAC permissions. Invitation tokens persist
@@ -35,5 +41,21 @@ Migration `1787270400000-CreateFeatureFlags` adds global flag definitions with o
 and append-only change audits containing request/correlation context. Creation and effective state
 changes write the flag and audit in one transaction. Immutable seed `005-feature-flags-rbac` adds
 read and management permissions but intentionally creates no project-specific flags.
+
+Migration `1787356800000-CreateEmailVerificationCodes` replaces registration link persistence with
+dedicated Argon2id-hashed OTP rows and an indexed, row-locked active-code lookup. Its forward
+migration intentionally deletes legacy verification-link rows while retaining pending users; those
+users recover by resubmitting registration. The schema rollback restores the legacy action-token
+purpose constraint but cannot reconstruct deleted raw verification credentials.
+
+Migration `1787443200000-AddSessionMetadata` adds nullable IP, user-agent, device metadata, and
+approximate location fields to `auth_sessions`; existing sessions remain valid with null metadata.
+
+Role assignment policy keeps `email_two_step_enabled` true for active `admin` and `super_admin`
+accounts, including accounts created through invitations or the bootstrap command.
+
+Migration `1787529600000-CreateUserPermissionOverrides` creates grant/revoke rows owned by users
+and catalog permissions. Immutable seed `006-user-permission-overrides-rbac` grants only
+`super_admin` the `users.permissions.manage` permission.
 
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

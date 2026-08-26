@@ -121,6 +121,16 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.invalidOrExpiredToken',
     fallbackMessage: 'The token is invalid or has expired',
   },
+  INVALID_OR_EXPIRED_VERIFICATION_CODE: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidOrExpiredVerificationCode',
+    fallbackMessage: 'The verification code is invalid or has expired',
+  },
+  VERIFICATION_ATTEMPTS_EXCEEDED: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.verificationAttemptsExceeded',
+    fallbackMessage: 'Too many email verification attempts; request a new code',
+  },
   INVALID_REFRESH_TOKEN: {
     status: HttpStatus.UNAUTHORIZED,
     messageKey: 'errors.invalidRefreshToken',
@@ -160,6 +170,11 @@ export const ERROR_DEFINITIONS = {
     status: HttpStatus.CONFLICT,
     messageKey: 'errors.twoStepNotEnabled',
     fallbackMessage: 'Email two-step verification is not enabled',
+  },
+  TWO_STEP_REQUIRED_FOR_ADMIN_ROLE: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.twoStepRequiredForAdminRole',
+    fallbackMessage: 'Email two-step verification is required for administrator roles',
   },
   EMAIL_NOT_VERIFIED: {
     status: HttpStatus.FORBIDDEN,

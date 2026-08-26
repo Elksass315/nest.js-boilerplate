@@ -9,6 +9,7 @@ export type FileStorageDriver = 'local' | 's3';
 export interface AppConfig {
   nodeEnv: NodeEnvironment;
   name: string;
+  baseUrl: string;
   port: number;
   apiPrefix: string;
 }
@@ -53,7 +54,8 @@ export interface AuthConfig {
   tokenAudience: string;
   accessTokenTtlSeconds: number;
   sessionTtlSeconds: number;
-  verificationTokenTtlSeconds: number;
+  verificationCodeTtlSeconds: number;
+  verificationCodeMaxAttempts: number;
   passwordResetTokenTtlSeconds: number;
   maxActiveSessions: number;
   maxFailedLoginAttempts: number;

@@ -46,12 +46,12 @@ describe(MailService.name, () => {
 
   afterEach(() => jest.clearAllMocks());
 
-  it('enqueues a correlated verification job without logging its token', async () => {
+  it('enqueues a correlated verification-code job without a link or token', async () => {
     await service.sendEmailVerification({
       email: 'amina@example.com',
       fullName: 'Amina Hassan',
-      token: 'secret-token',
-      expiresInSeconds: 3600,
+      code: '482913',
+      expiresInSeconds: 600,
     });
 
     expect(queue.add).toHaveBeenCalledWith(
@@ -62,8 +62,8 @@ describe(MailService.name, () => {
         template: 'email-verification',
         correlationId: 'corr-mail-1',
         context: expect.objectContaining({
-          actionUrl: 'https://app.example.com/verify-email?token=secret-token',
-          expiresInMinutes: 60,
+          code: '482913',
+          expiresInMinutes: 10,
         }),
       }),
       expect.objectContaining({ attempts: 5, removeOnComplete: { age: 3600 } }),
@@ -87,7 +87,7 @@ describe(MailService.name, () => {
     await service.sendEmailVerification({
       email: 'amina@example.com',
       fullName: 'Amina Hassan',
-      token: 'ignored',
+      code: '482913',
       expiresInSeconds: 60,
     });
     expect(queue.add).toHaveBeenCalledTimes(1);

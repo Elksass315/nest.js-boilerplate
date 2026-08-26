@@ -1,4 +1,5 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiConflictResponse,
   ApiBody,
@@ -27,18 +28,26 @@ import {
   AUTH_PATH,
   errorContent,
   errorExample,
+  loginSuccessContent,
   messageContent,
   tokenPairContent,
 } from './auth.swagger';
-import { ActionTokenDto } from './dto/action-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { EmailDto } from './dto/email.dto';
+import {
+  ConfirmEmailVerificationDto,
+  RegistrationIdentifierDto,
+  RegistrationResponseDto,
+  VerificationResendResponseDto,
+} from './dto/email-verification.dto';
 import { LoginDto } from './dto/login.dto';
+import { LoginResponseDto } from './dto/login-response.dto';
 import { MessageResponseDto } from './dto/message-response.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { TokenPairResponseDto } from './dto/token-pair-response.dto';
+import type { SessionMetadata } from './auth.types';
 import {
   CompleteLoginTwoStepDto,
   LoginTwoStepEmailCodeDto,
@@ -135,6 +144,7 @@ const passwordConfirmationErrorContent = (route: string): SwaggerErrorContent =>
 @ApiTags('auth')
 @ApiExtraModels(
   TokenPairResponseDto,
+  LoginResponseDto,
   TwoStepChallengeResponseDto,
   LoginTwoStepEmailCodeDto,
   LoginTwoStepRecoveryCodeDto,
@@ -147,11 +157,20 @@ export class AuthController {
   @Post('register')
   @ApiOperation({
     summary: 'Register an account',
-    description: 'Creates a pending account and a single-use email-verification token.',
+    description:
+      'Creates a pending account or revises an existing pending account and emails a six-digit verification code.',
   })
   @ApiCreatedResponse({
-    description: 'The account was created and verification delivery was requested.',
-    content: messageContent('Registration accepted; check your email to verify the account'),
+    description: 'The pending registration was saved and verification delivery was requested.',
+    content: {
+      'application/json': {
+        example: {
+          registrationId: '7b3f8ed4-73ef-4afe-8703-b10dd32f3820',
+          verificationExpiresIn: 600,
+          message: 'Registration accepted; enter the code sent to your email',
+        },
+      },
+    },
   })
   @ApiConflictResponse({
     description: 'The normalized email already belongs to an account.',
@@ -166,9 +185,8 @@ export class AuthController {
     description: 'The name, email, or password failed validation.',
     content: validationContent(`${AUTH_PATH}/register`),
   })
-  public async register(@Body() body: RegisterDto): Promise<MessageResponseDto> {
-    await this.service.register(body.fullName, body.email, body.password);
-    return { message: 'Registration accepted; check your email to verify the account' };
+  public register(@Body() body: RegisterDto): Promise<RegistrationResponseDto> {
+    return this.service.register(body.fullName, body.email, body.password);
   }
 
   @Post('verification/resend')
@@ -179,35 +197,68 @@ export class AuthController {
   })
   @ApiOkResponse({
     description: 'The generic resend response was returned.',
-    content: messageContent('If the account is eligible, a verification email will be sent'),
+    content: {
+      'application/json': {
+        example: {
+          verificationExpiresIn: 600,
+          message: 'If the registration is eligible, a verification code will be sent',
+        },
+      },
+    },
   })
   @ApiUnprocessableEntityResponse({
-    description: 'The email failed validation.',
-    content: validationContent(`${AUTH_PATH}/verification/resend`),
+    description: 'The registration identifier failed validation.',
+    content: errorContent(
+      422,
+      'VALIDATION_ERROR',
+      'Input validation failed',
+      `${AUTH_PATH}/verification/resend`,
+      { fields: { registrationId: ['registrationId must be a UUID'] } },
+    ),
   })
-  public async resendVerification(@Body() body: EmailDto): Promise<MessageResponseDto> {
-    await this.service.resendVerification(body.email);
-    return { message: 'If the account is eligible, a verification email will be sent' };
+  public resendVerification(
+    @Body() body: RegistrationIdentifierDto,
+  ): Promise<VerificationResendResponseDto> {
+    return this.service.resendVerification(body.registrationId);
   }
 
   @Post('verification/confirm')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Confirm email verification',
-    description: 'Consumes one valid verification token and activates the pending account.',
+    description:
+      'Consumes one valid six-digit verification code and activates the pending account.',
   })
   @ApiOkResponse({
     description: 'The email was verified.',
     content: messageContent('Email address verified'),
   })
   @ApiUnauthorizedResponse({
-    description: 'The token is unknown, expired, superseded, or already consumed.',
-    content: errorContent(
-      401,
-      'INVALID_OR_EXPIRED_TOKEN',
-      'The token is invalid or has expired',
-      `${AUTH_PATH}/verification/confirm`,
-    ),
+    description: 'The code cannot be accepted or its failed-attempt limit was reached.',
+    content: {
+      'application/json': {
+        examples: {
+          invalidOrExpiredCode: {
+            summary: 'The code is invalid, expired, superseded, or consumed',
+            value: errorExample(
+              401,
+              'INVALID_OR_EXPIRED_VERIFICATION_CODE',
+              'The verification code is invalid or has expired',
+              `${AUTH_PATH}/verification/confirm`,
+            ),
+          },
+          attemptsExceeded: {
+            summary: 'The code reached its failed-attempt limit',
+            value: errorExample(
+              401,
+              'VERIFICATION_ATTEMPTS_EXCEEDED',
+              'Too many email verification attempts; request a new code',
+              `${AUTH_PATH}/verification/confirm`,
+            ),
+          },
+        },
+      },
+    },
   })
   @ApiForbiddenResponse({
     description: 'The target account is suspended.',
@@ -219,11 +270,17 @@ export class AuthController {
     ),
   })
   @ApiUnprocessableEntityResponse({
-    description: 'The token shape failed validation.',
-    content: validationContent(`${AUTH_PATH}/verification/confirm`),
+    description: 'The registration identifier or six-digit code failed validation.',
+    content: errorContent(
+      422,
+      'VALIDATION_ERROR',
+      'Input validation failed',
+      `${AUTH_PATH}/verification/confirm`,
+      { fields: { code: ['code must match /^\\d{6}$/ regular expression'] } },
+    ),
   })
-  public verifyEmail(@Body() body: ActionTokenDto): Promise<MessageResponseDto> {
-    return this.service.verifyEmail(body.token);
+  public verifyEmail(@Body() body: ConfirmEmailVerificationDto): Promise<MessageResponseDto> {
+    return this.service.verifyEmail(body.registrationId, body.code);
   }
 
   @Post('login')
@@ -239,14 +296,14 @@ export class AuthController {
       'application/json': {
         schema: {
           oneOf: [
-            { $ref: getSchemaPath(TokenPairResponseDto) },
+            { $ref: getSchemaPath(LoginResponseDto) },
             { $ref: getSchemaPath(TwoStepChallengeResponseDto) },
           ],
         },
         examples: {
           sessionCreated: {
             summary: 'Two-step is disabled',
-            value: tokenPairContent['application/json'].example,
+            value: loginSuccessContent['application/json'].example,
           },
           twoStepRequired: {
             summary: 'Email two-step verification is required',
@@ -320,8 +377,9 @@ export class AuthController {
   })
   public login(
     @Body() body: LoginDto,
-  ): Promise<TokenPairResponseDto | TwoStepChallengeResponseDto> {
-    return this.service.login(body.email, body.password);
+    @Req() request?: Request,
+  ): Promise<LoginResponseDto | TwoStepChallengeResponseDto> {
+    return this.service.login(body.email, body.password, sessionMetadataFromRequest(request));
   }
 
   @Post('login/two-step')
@@ -357,7 +415,10 @@ export class AuthController {
       },
     },
   })
-  @ApiOkResponse({ description: 'The two-step proof was accepted.', content: tokenPairContent })
+  @ApiOkResponse({
+    description: 'The two-step proof was accepted and the authenticated user was returned.',
+    content: loginSuccessContent,
+  })
   @ApiUnauthorizedResponse({
     description: 'The challenge, emailed code, or recovery code cannot be accepted.',
     content: {
@@ -418,12 +479,14 @@ export class AuthController {
   })
   public completeLoginTwoStep(
     @Body() body: CompleteLoginTwoStepDto,
-  ): Promise<TokenPairResponseDto> {
+    @Req() request?: Request,
+  ): Promise<LoginResponseDto> {
     return this.service.completeLoginTwoStep(
       body.challengeToken,
       body.method === 'email_code'
         ? { method: 'email_code', code: body.code ?? '' }
         : { method: 'recovery_code', recoveryCode: body.recoveryCode ?? '' },
+      sessionMetadataFromRequest(request),
     );
   }
 
@@ -751,4 +814,61 @@ export class AuthController {
   public logout(@CurrentPrincipal() principal: AuthenticatedPrincipal): Promise<void> {
     return this.service.logout(principal.sessionId, principal.userId);
   }
+}
+
+function sessionMetadataFromRequest(request?: Request): SessionMetadata {
+  if (!request) {
+    return { ipAddress: null, userAgent: null, device: null, location: null };
+  }
+  const userAgent = headerValue(request, 'user-agent', 512);
+  const country =
+    headerValue(request, 'cf-ipcountry', 16) ?? headerValue(request, 'x-vercel-ip-country', 16);
+  const region = headerValue(request, 'x-vercel-ip-country-region', 128);
+  const city = headerValue(request, 'x-vercel-ip-city', 128);
+  return {
+    ipAddress: request.ip?.slice(0, 64) ?? null,
+    userAgent,
+    device: userAgent ? parseDeviceMetadata(userAgent) : null,
+    location: country || region || city ? { country, region, city } : null,
+  };
+}
+
+function headerValue(request: Request | undefined, name: string, maxLength: number): string | null {
+  if (!request) return null;
+  const value = request.headers[name];
+  const first = Array.isArray(value) ? value[0] : value;
+  return typeof first === 'string' && first.trim() ? first.trim().slice(0, maxLength) : null;
+}
+
+function parseDeviceMetadata(userAgent: string): {
+  type: string;
+  os: string | null;
+  browser: string | null;
+} {
+  const type = /mobile|android|iphone|ipad/i.test(userAgent)
+    ? 'mobile'
+    : /tablet/i.test(userAgent)
+      ? 'tablet'
+      : 'desktop';
+  const os = /Windows/i.test(userAgent)
+    ? 'Windows'
+    : /Android/i.test(userAgent)
+      ? 'Android'
+      : /iPhone|iPad|iOS/i.test(userAgent)
+        ? 'iOS'
+        : /Mac OS X/i.test(userAgent)
+          ? 'macOS'
+          : /Linux/i.test(userAgent)
+            ? 'Linux'
+            : null;
+  const browser = /Edg\//i.test(userAgent)
+    ? 'Edge'
+    : /Chrome\//i.test(userAgent)
+      ? 'Chrome'
+      : /Firefox\//i.test(userAgent)
+        ? 'Firefox'
+        : /Safari\//i.test(userAgent)
+          ? 'Safari'
+          : null;
+  return { type, os, browser };
 }

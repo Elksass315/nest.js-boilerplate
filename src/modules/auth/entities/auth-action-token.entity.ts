@@ -7,7 +7,7 @@ import type { AuthTokenPurpose } from '../auth.constants';
 @Entity({ name: 'auth_action_tokens' })
 @Unique('UQ_auth_action_tokens_hash', ['tokenHash'])
 @Index('IDX_auth_action_tokens_user_purpose', ['userId', 'purpose', 'consumedAt'])
-@Check('CHK_auth_action_tokens_purpose', `"purpose" IN ('email_verification', 'password_reset')`)
+@Check('CHK_auth_action_tokens_purpose', `"purpose" = 'password_reset'`)
 export class AuthActionTokenEntity extends AppBaseEntity {
   @ForeignKey('UserEntity', { name: 'FK_auth_action_tokens_user', onDelete: 'CASCADE' })
   @Column({ name: 'user_id', type: 'uuid' })

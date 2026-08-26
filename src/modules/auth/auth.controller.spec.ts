@@ -42,6 +42,15 @@ describe(AuthController.name, () => {
   afterEach(() => jest.clearAllMocks());
 
   it('delegates public authentication workflows without exposing delivery tokens', async () => {
+    service.register.mockResolvedValue({
+      registrationId: principal.userId,
+      verificationExpiresIn: 600,
+      message: 'Registration accepted; enter the code sent to your email',
+    });
+    service.resendVerification.mockResolvedValue({
+      verificationExpiresIn: 600,
+      message: 'If the registration is eligible, a verification code will be sent',
+    });
     service.login.mockResolvedValue({ accessToken: 'access' });
     service.refresh.mockResolvedValue({ accessToken: 'next' });
     service.verifyEmail.mockResolvedValue({ message: 'Email address verified' });
@@ -54,15 +63,20 @@ describe(AuthController.name, () => {
         password: 'password',
       }),
     ).resolves.toEqual({
-      message: 'Registration accepted; check your email to verify the account',
+      registrationId: principal.userId,
+      verificationExpiresIn: 600,
+      message: 'Registration accepted; enter the code sent to your email',
     });
-    await expect(controller.resendVerification({ email: 'a@example.com' })).resolves.toEqual({
-      message: 'If the account is eligible, a verification email will be sent',
+    await expect(
+      controller.resendVerification({ registrationId: principal.userId }),
+    ).resolves.toEqual({
+      verificationExpiresIn: 600,
+      message: 'If the registration is eligible, a verification code will be sent',
     });
     await expect(controller.forgotPassword({ email: 'a@example.com' })).resolves.toEqual({
       message: 'If the account is eligible, password reset instructions will be sent',
     });
-    await controller.verifyEmail({ token: 't'.repeat(43) });
+    await controller.verifyEmail({ registrationId: principal.userId, code: '482913' });
     await controller.login({ email: 'a@example.com', password: 'password' });
     await controller.refresh({ refreshToken: 'r'.repeat(43) });
     await controller.resetPassword({ token: 't'.repeat(43), newPassword: 'new-password' });
@@ -85,20 +99,28 @@ describe(AuthController.name, () => {
       challengeToken: 'c'.repeat(43),
       code: '482913',
     });
-    expect(service.completeLoginTwoStep).toHaveBeenCalledWith('c'.repeat(43), {
-      method: 'email_code',
-      code: '482913',
-    });
+    expect(service.completeLoginTwoStep).toHaveBeenCalledWith(
+      'c'.repeat(43),
+      {
+        method: 'email_code',
+        code: '482913',
+      },
+      expect.objectContaining({ ipAddress: null, userAgent: null }),
+    );
 
     await controller.completeLoginTwoStep({
       method: 'recovery_code',
       challengeToken: 'c'.repeat(43),
       recoveryCode: '7F3A-91BC-2D44-8E10',
     });
-    expect(service.completeLoginTwoStep).toHaveBeenLastCalledWith('c'.repeat(43), {
-      method: 'recovery_code',
-      recoveryCode: '7F3A-91BC-2D44-8E10',
-    });
+    expect(service.completeLoginTwoStep).toHaveBeenLastCalledWith(
+      'c'.repeat(43),
+      {
+        method: 'recovery_code',
+        recoveryCode: '7F3A-91BC-2D44-8E10',
+      },
+      expect.objectContaining({ ipAddress: null, userAgent: null }),
+    );
 
     await controller.requestTwoStepEnable(principal, { currentPassword: 'current-password' });
     await controller.confirmTwoStepEnable(principal, {

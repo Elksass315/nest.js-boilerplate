@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBody,
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiGoneResponse,
@@ -44,6 +45,8 @@ import {
 } from '@/modules/authorization';
 
 import { ReplaceUserRolesDto } from './dto/replace-user-roles.dto';
+import { ReplaceUserPermissionsDto } from './dto/replace-user-permissions.dto';
+import { UserPermissionsResponseDto } from './dto/user-permissions-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateAvatarDto } from './dto/update-avatar.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
@@ -83,12 +86,21 @@ const userContent = {
       roles: ['user'],
       avatar: {
         fileId: '4e951b98-9250-4414-b88c-33f184543d8c',
-        url: '/api/v1/files/public/67aa21ed-3e95-40cd-a2a1-67370da05d32',
+        url: 'http://localhost:3000/api/v1/files/public/67aa21ed-3e95-40cd-a2a1-67370da05d32',
         mimeType: 'image/webp',
         size: 148352,
       },
       createdAt: '2026-08-12T09:45:00.000Z',
       updatedAt: '2026-08-12T10:05:00.000Z',
+    },
+  },
+};
+const permissionContent = {
+  'application/json': {
+    example: {
+      effective: ['users.read', 'feature-flags.read'],
+      grants: ['feature-flags.read'],
+      revokes: ['sessions.read.any'],
     },
   },
 };
@@ -488,5 +500,42 @@ export class UsersController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ): Promise<UserResponseDto> {
     return this.service.replaceRoles(id, body.roleIds, principal.userId);
+  }
+
+  @Get(':id/permissions')
+  @RequirePermissions('users.permissions.manage')
+  @ApiOperation({
+    summary: 'Get a user permission override set',
+    description: 'Returns inherited and explicit permission state.',
+  })
+  @ApiOkResponse({
+    type: UserPermissionsResponseDto,
+    description: 'Permission overrides returned.',
+    content: permissionContent,
+  })
+  public getPermissions(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<UserPermissionsResponseDto> {
+    return this.service.getPermissionOverrides(id);
+  }
+
+  @Put(':id/permissions')
+  @RequirePermissions('users.permissions.manage')
+  @ApiOperation({
+    summary: 'Replace a user permission override set',
+    description: 'Replaces explicit grants and revokes while preserving role inheritance.',
+  })
+  @ApiBody({ type: ReplaceUserPermissionsDto })
+  @ApiOkResponse({
+    type: UserPermissionsResponseDto,
+    description: 'Permission overrides replaced.',
+    content: permissionContent,
+  })
+  public replacePermissions(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: ReplaceUserPermissionsDto,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+  ): Promise<UserPermissionsResponseDto> {
+    return this.service.replacePermissionOverrides(id, body, principal.userId);
   }
 }

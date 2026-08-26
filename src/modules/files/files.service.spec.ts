@@ -48,7 +48,9 @@ describe(FilesService.name, () => {
   beforeEach(() => {
     jest.clearAllMocks();
     const config = {
-      getOrThrow: jest.fn(() => filesConfig),
+      getOrThrow: jest.fn((key: string) =>
+        key === 'app.baseUrl' ? 'https://api.example.test' : filesConfig,
+      ),
     } as unknown as ConfigService<AppConfiguration, true>;
     service = new FilesService(
       config,
@@ -92,6 +94,22 @@ describe(FilesService.name, () => {
     local.signedDownloadUrl.mockRejectedValue(new Error('provider unavailable'));
     await expect(service.getPublicAccess('public-id')).rejects.toBeInstanceOf(AppException);
     expect(logger.error).toHaveBeenCalled();
+  });
+
+  it('returns absolute public URLs from the configured application base URL', async () => {
+    repository.findReadyPublicByIds.mockResolvedValue([
+      {
+        fileId: 'file-1',
+        publicId: 'public-1',
+        url: '/api/v1/files/public/public-1',
+        mimeType: 'image/png',
+        sizeBytes: 9,
+      },
+    ]);
+
+    await expect(service.findPublicDescriptors(['file-1'])).resolves.toEqual([
+      expect.objectContaining({ url: 'https://api.example.test/api/v1/files/public/public-1' }),
+    ]);
   });
 
   it('enqueues bounded correlated deletion jobs', async () => {
@@ -157,7 +175,7 @@ describe(FilesService.name, () => {
     repository.claimPrepared.mockResolvedValue({
       fileId: upload.id,
       publicId: upload.publicId,
-      url: `/api/v1/files/public/${upload.publicId}`,
+      url: `http://localhost:3000/api/v1/files/public/${upload.publicId}`,
       mimeType: 'image/png',
       sizeBytes: 9,
     });

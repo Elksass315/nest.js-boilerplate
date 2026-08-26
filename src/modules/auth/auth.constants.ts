@@ -1,4 +1,4 @@
-export type AuthTokenPurpose = 'email_verification' | 'password_reset';
+export type AuthTokenPurpose = 'password_reset';
 
 export type TwoStepPurpose = 'login' | 'enable' | 'disable' | 'recovery_regenerate';
 

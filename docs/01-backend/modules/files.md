@@ -28,6 +28,10 @@ URL. Protected, unfinished, and unknown records all return `404 FILE_NOT_FOUND`;
 return `503 FILE_STORAGE_UNAVAILABLE`. The controller owns the versioned `files` path; the global
 API prefix and URI-versioning policy produce the documented URL exactly once.
 
+Every public file descriptor returned by the service uses an absolute URL built from `APP_BASE_URL`,
+for example `https://api.example.com/api/v1/files/public/<public-id>`. This applies consistently to
+avatars and any future public file consumer; protected files are never included in these descriptors.
+
 `FilesService.handleTus` supports creation, HEAD offset discovery, sequential PATCH continuation,
 expiration, and termination. Deferred length, concatenation, and parallel uploads are disabled.
 OPTIONS may advertise protocol capabilities anonymously. Every stateful consumer route must pass
