@@ -218,6 +218,12 @@ export class AuthService {
     if (purpose === 'enable' && user.emailTwoStepEnabled) {
       throw new AppException('TWO_STEP_ALREADY_ENABLED');
     }
+    if (
+      purpose !== 'enable' &&
+      user.roles.some(({ key }) => key === 'admin' || key === 'super_admin')
+    ) {
+      throw new AppException('TWO_STEP_REQUIRED_FOR_ADMIN_ROLE');
+    }
     if (purpose !== 'enable' && !user.emailTwoStepEnabled) {
       throw new AppException('TWO_STEP_NOT_ENABLED');
     }

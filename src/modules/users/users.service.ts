@@ -25,6 +25,9 @@ import type {
   UserWithRoles,
 } from './users.types';
 import type { UserStatus } from './users.constants';
+import type { Permission } from '@/modules/authorization';
+import type { ReplaceUserPermissionsDto } from './dto/replace-user-permissions.dto';
+import type { UserPermissionsResponseDto } from './dto/user-permissions-response.dto';
 import { UsersRepository, type SecurityAuditInput } from './users.repository';
 
 type AvatarClaimResult =
@@ -43,6 +46,7 @@ const PUBLIC_AUDIT_DETAIL_KEYS: Partial<
   'user.avatar.changed': ['action', 'hadPreviousAvatar'],
   'user.status.changed': ['previousStatus', 'nextStatus'],
   'user.roles.changed': ['nextRoleKeys'],
+  'user.permissions.changed': ['grants', 'revokes'],
   'auth.login.failed': ['failedLoginCount', 'locked'],
   'team.invitation.created': ['invitationId', 'role'],
   'team.invitation.resent': ['invitationId'],
@@ -87,6 +91,55 @@ export class UsersService {
 
   public getSelf(userId: string): Promise<UserResponseDto> {
     return this.getById(userId);
+  }
+
+  public async getPermissionOverrides(userId: string): Promise<UserPermissionsResponseDto> {
+    await this.requireUser(userId);
+    const roles = await this.rolesForUser(userId);
+    const overrides = await this.authorization.getUserPermissionOverrides(userId);
+    return {
+      effective: [...new Set(roles.flatMap(({ permissions }) => permissions))].sort(),
+      grants: overrides.filter(({ effect }) => effect === 'grant').map(({ key }) => key),
+      revokes: overrides.filter(({ effect }) => effect === 'revoke').map(({ key }) => key),
+    };
+  }
+
+  public async replacePermissionOverrides(
+    userId: string,
+    input: ReplaceUserPermissionsDto,
+    actorUserId: string,
+  ): Promise<UserPermissionsResponseDto> {
+    const grants = [...new Set(input.grants)] as Permission[];
+    const revokes = [...new Set(input.revokes)] as Permission[];
+    if (grants.some((permission) => revokes.includes(permission))) {
+      throw new AppException('RESOURCE_CONFLICT');
+    }
+    const user = await this.requireUser(userId);
+    const roles = await this.rolesForUser(userId);
+    if (roles.some(({ key }) => key === 'super_admin')) throw new AppException('FORBIDDEN');
+    const permissionIds = await this.authorization.resolvePermissionKeys([...grants, ...revokes]);
+    if (permissionIds.size !== grants.length + revokes.length)
+      throw new AppException('RESOURCE_NOT_FOUND');
+    await this.dataSource.transaction(async (manager) => {
+      const rows = [...grants, ...revokes].flatMap((key) => {
+        const permissionId = permissionIds.get(key);
+        return permissionId
+          ? [
+              {
+                permissionId,
+                effect: grants.includes(key) ? ('grant' as const) : ('revoke' as const),
+              },
+            ]
+          : [];
+      });
+      await this.authorization.replaceUserPermissionOverrides(manager, userId, rows);
+      user.authVersion += 1;
+      await this.repository.saveWithAudit(manager, user, {
+        ...this.auditContext(userId, actorUserId, 'user.permissions.changed'),
+        metadata: { grants, revokes },
+      });
+    });
+    return this.getPermissionOverrides(userId);
   }
 
   public listOwnSecurityAudits(
@@ -238,14 +291,13 @@ export class UsersService {
       ) {
         throw new AppException('LAST_SUPER_ADMIN');
       }
-      return this.repository.replaceRoles(
-        manager,
-        id,
-        roleIds,
-        this.auditContext(id, actorUserId, 'user.roles.changed', {
-          nextRoleKeys: requestedRoles.map(({ key }) => key),
-        }),
-      );
+      const audit = this.auditContext(id, actorUserId, 'user.roles.changed', {
+        nextRoleKeys: requestedRoles.map(({ key }) => key),
+      });
+      const privileged = requestedRoles.some(({ key }) => key === 'admin' || key === 'super_admin');
+      return privileged
+        ? this.repository.replaceRoles(manager, id, roleIds, audit, true)
+        : this.repository.replaceRoles(manager, id, roleIds, audit);
     });
     if (!user) throw new AppException('USER_NOT_FOUND');
     await this.mail.sendRoleChanged({
@@ -300,12 +352,12 @@ export class UsersService {
     invitationId: string,
   ): Promise<InvitedUserResult> {
     try {
-      const user = await this.repository.createActiveWithRole(
-        manager,
-        input,
-        roleId,
-        this.auditContext(null, null, 'team.invitation.accepted', { invitationId }),
-      );
+      const [role] = await this.authorization.resolveRoles([roleId]);
+      const audit = this.auditContext(null, null, 'team.invitation.accepted', { invitationId });
+      const privileged = role?.key === 'admin' || role?.key === 'super_admin';
+      const user = privileged
+        ? await this.repository.createActiveWithRole(manager, input, roleId, audit, true)
+        : await this.repository.createActiveWithRole(manager, input, roleId, audit);
       return { id: user.id, fullName: user.fullName, email: user.email };
     } catch (error) {
       if (this.isUniqueViolation(error)) throw new AppException('MEMBER_ALREADY_EXISTS');
@@ -537,7 +589,7 @@ export class UsersService {
     const allRoleIds = [...new Set([...roleIdsByUser.values()].flat())];
     const roles = await this.authorization.resolveRoles(allRoleIds);
     const rolesById = new Map(roles.map((role) => [role.id, role]));
-    return new Map(
+    const result = new Map(
       userIds.map((userId) => [
         userId,
         (roleIdsByUser.get(userId) ?? []).flatMap((roleId) => {
@@ -546,6 +598,14 @@ export class UsersService {
         }),
       ]),
     );
+    for (const userId of userIds) {
+      const effectiveRoles = await this.authorization.applyUserOverrides(
+        userId,
+        result.get(userId) ?? [],
+      );
+      result.set(userId, effectiveRoles);
+    }
+    return result;
   }
 
   private async responseFor(

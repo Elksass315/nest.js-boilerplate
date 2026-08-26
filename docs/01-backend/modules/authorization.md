@@ -57,6 +57,9 @@ session state.
 Authorization errors use the global localized error contract and retain request/correlation IDs. No
 credentials or personal data enter RBAC logs.
 
+Per-user permission overrides are resolved live as role permissions plus explicit grants minus
+explicit revokes. The override management permission is seeded only for `super_admin`.
+
 ## Test strategy and change impact
 
 Unit tests cover pagination, effective permissions, missing roles, incomplete role sets, successful
@@ -67,5 +70,8 @@ constraints and immutable reference data in PostgreSQL.
 
 Not applicable. The fixed role set is small and uses offset pagination to preserve one collection
 contract across business APIs.
+
+Users inherit role permissions by default. Super administrators may manage per-user grant and revoke
+overrides; effective permissions are resolved live as role permissions plus grants minus revokes.
 
 **Navigation:** [Previous: Auth and Sessions Module](auth.md) | [Documentation Index](../../README.md) | [Next: Files Module](files.md)

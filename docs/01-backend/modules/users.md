@@ -70,6 +70,14 @@ this module; foreign keys preserve referential integrity without cross-module en
 `user_security_audits` stores actor, subject, event, safe metadata, request ID, and correlation ID.
 Updates run in service-owned transactions. Status/role mutations increment `authVersion` so later
 token validation can invalidate stale authorization state.
+
+Administrator accounts (`admin` and `super_admin`) always require email two-step verification. It is
+enabled automatically when such an account is created or promoted, and the disable workflow rejects
+attempts to turn it off. Standard `user` accounts keep two-step disabled by default and may opt in.
+
+Administrator accounts (`admin` and `super_admin`) always require email two-step verification. It is
+enabled automatically when such an account is created or promoted, and the disable workflow rejects
+attempts to turn it off. Standard `user` accounts keep two-step disabled by default and may opt in.
 Migration `1787184000000-IndexSecurityAuditPagination` replaces the earlier subject/time index with
 `(user_id, created_at, id)` so the API's deterministic tie-breaker is indexed and reversible.
 
@@ -116,5 +124,9 @@ removal, transactional replacement races, idempotency, deletion, and correlation
 
 Not applicable. User administration uses bounded offset pagination; no measured scale or stable
 append traversal requirement justifies cursor pagination.
+
+Per-user permission overrides are managed with `GET`/`PUT /users/:id/permissions`. Only
+`super_admin` may manage them; super-admin targets are protected. Overrides are audited and increment
+`authVersion`.
 
 **Navigation:** [Previous: Mail Module](mail.md) | [Documentation Index](../../README.md) | [Next: REST and Versioning Standard](../../02-api/rest-standard.md)

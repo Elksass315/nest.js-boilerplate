@@ -5,6 +5,7 @@ import { AuthorizationRepository } from './authorization.repository';
 import { PermissionEntity } from './entities/permission.entity';
 import { RolePermissionEntity } from './entities/role-permission.entity';
 import { RoleEntity } from './entities/role.entity';
+import { UserPermissionOverrideEntity } from './entities/user-permission-override.entity';
 
 describe(AuthorizationRepository.name, () => {
   const queryBuilder = {
@@ -30,6 +31,10 @@ describe(AuthorizationRepository.name, () => {
         { provide: getRepositoryToken(RoleEntity), useValue: roles },
         { provide: getRepositoryToken(PermissionEntity), useValue: {} },
         { provide: getRepositoryToken(RolePermissionEntity), useValue: rolePermissions },
+        {
+          provide: getRepositoryToken(UserPermissionOverrideEntity),
+          useValue: { find: jest.fn() },
+        },
       ],
     }).compile();
     repository = module.get(AuthorizationRepository);

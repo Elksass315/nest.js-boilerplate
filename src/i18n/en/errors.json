@@ -33,6 +33,7 @@
   "twoStepAttemptsExceeded": "Too many two-step verification attempts",
   "twoStepAlreadyEnabled": "Email two-step verification is already enabled",
   "twoStepNotEnabled": "Email two-step verification is not enabled",
+  "twoStepRequiredForAdminRole": "Email two-step verification is required for administrator roles",
   "emailNotVerified": "Verify the email address before signing in",
   "accountSuspended": "The account is suspended",
   "sessionNotFound": "The requested session was not found",

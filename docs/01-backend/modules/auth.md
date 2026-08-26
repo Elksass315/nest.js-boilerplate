@@ -81,6 +81,9 @@ code. Enrollment returns ten recovery codes exactly once; only Argon2id hashes a
 codes are single-use, regeneration invalidates every old code, and no trusted-device bypass exists.
 Enabling/disabling increments `authVersion` and revokes every session.
 
+Email two-step verification is mandatory for `admin` and `super_admin` roles. Those roles are
+enabled automatically at account creation or promotion, and their disable request is rejected.
+
 ## Data and migrations
 
 `auth_sessions` holds user ownership, issuing `authVersion`, last use, absolute expiry, revocation

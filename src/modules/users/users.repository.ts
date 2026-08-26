@@ -126,6 +126,7 @@ export class UsersRepository {
     input: Pick<UserEntity, 'fullName' | 'email' | 'normalizedEmail' | 'passwordHash'>,
     roleId: string,
     audit: SecurityAuditInput,
+    emailTwoStepEnabled = false,
   ): Promise<UserEntity> {
     const userRepository = manager.getRepository(UserEntity);
     const user = await userRepository.save(
@@ -133,7 +134,7 @@ export class UsersRepository {
         ...input,
         status: 'active',
         emailVerifiedAt: new Date(),
-        emailTwoStepEnabled: false,
+        emailTwoStepEnabled,
         authVersion: 1,
         failedLoginCount: 0,
         lockedUntil: null,
@@ -180,6 +181,7 @@ export class UsersRepository {
     userId: string,
     roleIds: readonly string[],
     audit: SecurityAuditInput,
+    emailTwoStepEnabled = false,
   ): Promise<UserEntity | null> {
     const user = await this.findById(userId, manager);
     if (!user) return null;
@@ -190,6 +192,7 @@ export class UsersRepository {
         roleIds.map((roleId) => manager.getRepository(UserRoleEntity).create({ userId, roleId })),
       );
     user.authVersion += 1;
+    user.emailTwoStepEnabled = emailTwoStepEnabled;
     const saved = await manager.getRepository(UserEntity).save(user);
     await this.appendAudit(manager, audit);
     return saved;

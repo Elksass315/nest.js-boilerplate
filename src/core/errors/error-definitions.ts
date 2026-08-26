@@ -171,6 +171,11 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.twoStepNotEnabled',
     fallbackMessage: 'Email two-step verification is not enabled',
   },
+  TWO_STEP_REQUIRED_FOR_ADMIN_ROLE: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.twoStepRequiredForAdminRole',
+    fallbackMessage: 'Email two-step verification is required for administrator roles',
+  },
   EMAIL_NOT_VERIFIED: {
     status: HttpStatus.FORBIDDEN,
     messageKey: 'errors.emailNotVerified',

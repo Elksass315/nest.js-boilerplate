@@ -71,6 +71,7 @@ describe(UsersService.name, () => {
     resolveRoles: jest.fn(),
     getRequiredRole: jest.fn(),
     requireRoleIds: jest.fn(),
+    applyUserOverrides: jest.fn((_: string, roles: unknown[]) => Promise.resolve(roles)),
   };
   const context = {
     getRequestId: jest.fn(() => 'request-1'),

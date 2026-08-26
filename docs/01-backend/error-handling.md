@@ -33,6 +33,9 @@ failures use 403; session ownership failures use 404. `REFRESH_TOKEN_REUSED` als
 affected session was revoked. Exact English fallbacks remain aligned across the registry, Swagger,
 translations, and error catalog.
 
+Administrator-role accounts cannot disable mandatory email two-step verification; this returns the
+stable `TWO_STEP_REQUIRED_FOR_ADMIN_ROLE` conflict.
+
 Registration verification uses `INVALID_OR_EXPIRED_VERIFICATION_CODE` for wrong, expired,
 superseded, or consumed codes and `VERIFICATION_ATTEMPTS_EXCEEDED` on the terminal fifth failure.
 Neither error reveals the submitted code or registration state; resend remains generic for unknown
@@ -68,5 +71,8 @@ The catch-all filter reports unexpected exceptions to Sentry only when monitorin
 HTTP exceptions remain expected and are not captured. The client response shape is unchanged;
 Sentry processing removes request bodies, cookies, query strings, sensitive headers, email,
 username, and IP address while retaining request/correlation IDs as event tags.
+
+Permission override requests use `RESOURCE_NOT_FOUND` for unknown catalog permissions,
+`RESOURCE_CONFLICT` when a key is both granted and revoked, and `FORBIDDEN` for protected targets.
 
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Health Endpoints](health.md)

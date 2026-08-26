@@ -30,6 +30,10 @@ Session metadata migration `1787443200000-AddSessionMetadata` adds nullable IP a
 device metadata, and approximate location JSON fields to `auth_sessions`. Existing sessions remain
 valid with null metadata; reversal drops only these four columns.
 
+User-permission migration `1787529600000-CreateUserPermissionOverrides` adds unique per-user grant
+or revoke rows referencing the permission catalog. Seed `006-user-permission-overrides-rbac` grants
+`users.permissions.manage` only to `super_admin`.
+
 File migration `1786838400000-CreateFileStorage` creates `stored_files` with provider/key and public
 identifier uniqueness, lifecycle/visibility/provider checks, uploader ownership, expiry indexes,
 checksums, safe failure state, and correlation context. Online provider moves are separate explicit

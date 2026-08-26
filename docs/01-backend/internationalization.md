@@ -19,7 +19,7 @@ reuse, suspension, and session lookup. Raw tokens, OTPs, email addresses, regist
 and validation-field values are never interpolated into stable localized top-level messages.
 
 Email two-step keys cover invalid challenges, email codes, recovery codes, bounded-attempt failures,
-and enabled-state conflicts. These translations remain generic: challenge tokens, codes, recipient
+and enabled-state conflicts, including the mandatory administrator-role policy. These translations remain generic: challenge tokens, codes, recipient
 addresses, attempt values, and account state are never interpolated into the localized message.
 
 File keys cover missing/hidden files, upload expiry, incomplete state, purpose size/type/image
@@ -36,5 +36,7 @@ from one rotated by resend or successful acceptance.
 Feature-flag translations cover missing keys, duplicate definitions, and optimistic concurrency
 conflicts. Flag keys, descriptions, actor identifiers, and audit context are never interpolated into
 the stable localized message.
+
+Permission override errors remain generic and never interpolate user IDs or permission keys.
 
 **Navigation:** [Previous: Health Endpoints](health.md) | [Documentation Index](../README.md) | [Next: Structured Logging](logging.md)
