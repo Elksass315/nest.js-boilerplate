@@ -63,6 +63,12 @@ When configuration changes, update schema, tests, `.env.example`, Compose/CI/dep
 this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments
 reject public access.
 
+Rate limiting uses named global, authentication, OTP, recovery, and email-delivery windows backed
+by Redis. `TRUSTED_PROXY_IPS` is disabled by default and must be an explicit IP allowlist in staging
+and production; the API uses it when determining the client address, so forwarded headers from
+untrusted proxies cannot bypass limits. Managed deployments should tune the named `RATE_LIMIT_*`
+values for their traffic profile.
+
 Sentry is a separate typed namespace shared by API and worker profiles. `SENTRY_ENABLED` and
 `SENTRY_DSN` must agree, tracing is bounded from zero to one, and disabled monitoring performs no
 transmission. Migration and seed profiles remain database-only and do not load Sentry configuration.

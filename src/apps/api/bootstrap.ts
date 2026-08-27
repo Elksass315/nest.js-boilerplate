@@ -20,6 +20,7 @@ export async function createApplication(
   const config = app.get(ConfigService<AppConfiguration, true>);
 
   app.useLogger(app.get(Logger));
+  app.set('trust proxy', config.getOrThrow('rateLimit.trustedProxyIps', { infer: true }));
   app.use(helmet());
   const corsOptions: CorsOptions = {
     origin: config.getOrThrow('cors.origins', { infer: true }),

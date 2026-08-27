@@ -20,7 +20,11 @@ import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config'
 import { createInvitationsConfig, invitationsEnvironmentSchema } from './invitations.config';
 import { createMailConfig, mailEnvironmentSchema } from './mail.config';
 import { createFilesConfig, filesEnvironmentSchema, parseFileStorageDrivers } from './files.config';
-import { createRateLimitConfig, rateLimitEnvironmentSchema } from './rate-limit.config';
+import {
+  createRateLimitConfig,
+  parseTrustedProxyIps,
+  rateLimitEnvironmentSchema,
+} from './rate-limit.config';
 import { createSwaggerConfig, swaggerEnvironmentSchema } from './swagger.config';
 import {
   createSentryConfig,
@@ -69,6 +73,8 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'Managed database connections require SSL certificate verification and a password of at least 16 characters',
     'environment.smtpTls': 'MAIL_SMTP_REQUIRE_TLS must be true in staging and production',
     'environment.productionFiles': 'Production file writes require the S3 storage driver',
+    'environment.trustedProxy':
+      'TRUSTED_PROXY_IPS must contain an explicit proxy allowlist in staging and production',
   });
 
 const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
@@ -167,6 +173,9 @@ function validateApiContradictions(
   }
   if (nodeEnvironment === 'production' && environment['FILES_WRITE_DRIVER'] !== 's3') {
     return helpers.error('environment.productionFiles');
+  }
+  if (isManaged && !trustedProxyConfigurationAgrees(environment)) {
+    return helpers.error('environment.trustedProxy');
   }
   if (isManaged && (typeof redisPassword !== 'string' || redisPassword.length < 16)) {
     return helpers.error('environment.redisPassword');
@@ -372,6 +381,16 @@ function databaseSecurityAgrees(environment: Record<string, unknown>): boolean {
     typeof environment['DATABASE_PASSWORD'] === 'string' &&
     environment['DATABASE_PASSWORD'].length >= 16
   );
+}
+
+function trustedProxyConfigurationAgrees(environment: Record<string, unknown>): boolean {
+  const value = environment['TRUSTED_PROXY_IPS'];
+  if (typeof value !== 'string') return false;
+  try {
+    return parseTrustedProxyIps(value).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 function validateWithSchema(
