@@ -10,6 +10,10 @@ Business collection endpoints never return raw arrays. Offset pagination is the 
 with page, limit, totalItems, totalPages, hasNextPage, and hasPreviousPage. Use the canonical query
 DTO, result builder, and `ApiOffsetPaginatedResponse` decorator.
 
+The generated OpenAPI contract requires every collection response to include a deterministic page
+example. Controllers pass the example to the canonical decorator; the CI OpenAPI linter checks that
+the example remains present alongside the complete pagination metadata.
+
 Cursor pagination is available only for high-volume, append-oriented, or stable traversal needs.
 Its opaque cursor contains a versioned stable sort value and unique entity ID. The repository orders
 by both values and fetches one extra row to determine `hasNextPage`. Document the evidence under

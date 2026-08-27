@@ -15,10 +15,12 @@ All routes are versioned under `/api/v1/feature-flags`, authenticated, and prote
 Administrators and super administrators may list and read flags; only super administrators may
 create or change them. Collection responses use canonical page/limit pagination.
 
-- `GET /api/v1/feature-flags?page=1&limit=20`
-- `GET /api/v1/feature-flags/:key`
-- `POST /api/v1/feature-flags`
-- `PATCH /api/v1/feature-flags/:key`
+| Method | Route                 | Policy                 | Success | Reachable errors                         |
+| ------ | --------------------- | ---------------------- | ------- | ---------------------------------------- |
+| GET    | `/feature-flags`      | `feature-flags.read`   | 200     | 401, 403, 422                            |
+| GET    | `/feature-flags/:key` | `feature-flags.read`   | 200     | 401, 403, 404                            |
+| POST   | `/feature-flags`      | `feature-flags.manage` | 201     | 401, 403, 409, 422                       |
+| PATCH  | `/feature-flags/:key` | `feature-flags.manage` | 200     | 401, 403, 404, 409 version conflict, 422 |
 
 Updates include `expectedVersion`; stale concurrent changes fail with
 `FEATURE_FLAG_VERSION_CONFLICT`. Stable module errors are `FEATURE_FLAG_NOT_FOUND`,

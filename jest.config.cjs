@@ -10,6 +10,7 @@ module.exports = {
     '!src/**/*.types.ts',
     '!src/**/*.d.ts',
     '!src/**/*.dto.ts',
+    '!src/**/*.entity.ts',
     '!src/**/index.ts',
     '!src/common/pagination/api-paginated-response.decorator.ts',
     '!src/database/migrations/*.ts',
@@ -36,6 +37,17 @@ module.exports = {
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.spec.ts'],
   transform: {
-    '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
+    '^.+\\.ts$': [
+      '@swc/jest',
+      {
+        jsc: {
+          parser: { syntax: 'typescript', decorators: true, dynamicImport: true },
+          transform: { decoratorMetadata: true },
+          target: 'es2023',
+        },
+        module: { type: 'commonjs' },
+        sourceMaps: 'inline',
+      },
+    ],
   },
 };

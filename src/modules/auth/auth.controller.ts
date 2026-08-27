@@ -59,7 +59,7 @@ import {
 } from './dto/two-step.dto';
 
 const validationContent = (route: string): Record<string, { example: Record<string, unknown> }> =>
-  errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', route, {
+  errorContent('VALIDATION_ERROR', route, {
     fields: { email: ['email must be an email'] },
   });
 
@@ -93,34 +93,19 @@ const twoStepConfirmationErrorContent = (route: string): SwaggerErrorContent => 
     examples: {
       authenticationRequired: {
         summary: 'No valid access token was supplied',
-        value: errorExample(401, 'UNAUTHORIZED', 'Authentication is required', route),
+        value: errorExample('UNAUTHORIZED', route),
       },
       invalidChallenge: {
         summary: 'The challenge is invalid, expired, or belongs to another user',
-        value: errorExample(
-          401,
-          'INVALID_TWO_STEP_CHALLENGE',
-          'The two-step challenge is invalid or has expired',
-          route,
-        ),
+        value: errorExample('INVALID_TWO_STEP_CHALLENGE', route),
       },
       invalidCode: {
         summary: 'The emailed code is incorrect',
-        value: errorExample(
-          401,
-          'INVALID_TWO_STEP_CODE',
-          'The two-step verification code is incorrect',
-          route,
-        ),
+        value: errorExample('INVALID_TWO_STEP_CODE', route),
       },
       attemptsExceeded: {
         summary: 'The challenge attempt limit was reached',
-        value: errorExample(
-          401,
-          'TWO_STEP_ATTEMPTS_EXCEEDED',
-          'Too many two-step verification attempts',
-          route,
-        ),
+        value: errorExample('TWO_STEP_ATTEMPTS_EXCEEDED', route),
       },
     },
   },
@@ -131,11 +116,11 @@ const passwordConfirmationErrorContent = (route: string): SwaggerErrorContent =>
     examples: {
       authenticationRequired: {
         summary: 'No valid access token was supplied',
-        value: errorExample(401, 'UNAUTHORIZED', 'Authentication is required', route),
+        value: errorExample('UNAUTHORIZED', route),
       },
       invalidPassword: {
         summary: 'The current password is incorrect',
-        value: errorExample(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect', route),
+        value: errorExample('INVALID_CREDENTIALS', route),
       },
     },
   },
@@ -174,12 +159,7 @@ export class AuthController {
   })
   @ApiConflictResponse({
     description: 'The normalized email already belongs to an account.',
-    content: errorContent(
-      409,
-      'EMAIL_ALREADY_REGISTERED',
-      'An account with this email already exists',
-      `${AUTH_PATH}/register`,
-    ),
+    content: errorContent('EMAIL_ALREADY_REGISTERED', `${AUTH_PATH}/register`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The name, email, or password failed validation.',
@@ -208,13 +188,9 @@ export class AuthController {
   })
   @ApiUnprocessableEntityResponse({
     description: 'The registration identifier failed validation.',
-    content: errorContent(
-      422,
-      'VALIDATION_ERROR',
-      'Input validation failed',
-      `${AUTH_PATH}/verification/resend`,
-      { fields: { registrationId: ['registrationId must be a UUID'] } },
-    ),
+    content: errorContent('VALIDATION_ERROR', `${AUTH_PATH}/verification/resend`, {
+      fields: { registrationId: ['registrationId must be a UUID'] },
+    }),
   })
   public resendVerification(
     @Body() body: RegistrationIdentifierDto,
@@ -241,18 +217,14 @@ export class AuthController {
           invalidOrExpiredCode: {
             summary: 'The code is invalid, expired, superseded, or consumed',
             value: errorExample(
-              401,
               'INVALID_OR_EXPIRED_VERIFICATION_CODE',
-              'The verification code is invalid or has expired',
               `${AUTH_PATH}/verification/confirm`,
             ),
           },
           attemptsExceeded: {
             summary: 'The code reached its failed-attempt limit',
             value: errorExample(
-              401,
               'VERIFICATION_ATTEMPTS_EXCEEDED',
-              'Too many email verification attempts; request a new code',
               `${AUTH_PATH}/verification/confirm`,
             ),
           },
@@ -262,22 +234,13 @@ export class AuthController {
   })
   @ApiForbiddenResponse({
     description: 'The target account is suspended.',
-    content: errorContent(
-      403,
-      'ACCOUNT_SUSPENDED',
-      'The account is suspended',
-      `${AUTH_PATH}/verification/confirm`,
-    ),
+    content: errorContent('ACCOUNT_SUSPENDED', `${AUTH_PATH}/verification/confirm`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The registration identifier or six-digit code failed validation.',
-    content: errorContent(
-      422,
-      'VALIDATION_ERROR',
-      'Input validation failed',
-      `${AUTH_PATH}/verification/confirm`,
-      { fields: { code: ['code must match /^\\d{6}$/ regular expression'] } },
-    ),
+    content: errorContent('VALIDATION_ERROR', `${AUTH_PATH}/verification/confirm`, {
+      fields: { code: ['code must match /^\\d{6}$/ regular expression'] },
+    }),
   })
   public verifyEmail(@Body() body: ConfirmEmailVerificationDto): Promise<MessageResponseDto> {
     return this.service.verifyEmail(body.registrationId, body.code);
@@ -324,21 +287,11 @@ export class AuthController {
         examples: {
           invalidCredentials: {
             summary: 'Invalid credentials',
-            value: errorExample(
-              401,
-              'INVALID_CREDENTIALS',
-              'Email or password is incorrect',
-              `${AUTH_PATH}/login`,
-            ),
+            value: errorExample('INVALID_CREDENTIALS', `${AUTH_PATH}/login`),
           },
           accountLocked: {
             summary: 'Temporary lockout',
-            value: errorExample(
-              401,
-              'ACCOUNT_LOCKED',
-              'The account is temporarily locked',
-              `${AUTH_PATH}/login`,
-            ),
+            value: errorExample('ACCOUNT_LOCKED', `${AUTH_PATH}/login`),
           },
         },
       },
@@ -351,21 +304,11 @@ export class AuthController {
         examples: {
           emailNotVerified: {
             summary: 'Email not verified',
-            value: errorExample(
-              403,
-              'EMAIL_NOT_VERIFIED',
-              'Verify the email address before signing in',
-              `${AUTH_PATH}/login`,
-            ),
+            value: errorExample('EMAIL_NOT_VERIFIED', `${AUTH_PATH}/login`),
           },
           accountSuspended: {
             summary: 'Account suspended',
-            value: errorExample(
-              403,
-              'ACCOUNT_SUSPENDED',
-              'The account is suspended',
-              `${AUTH_PATH}/login`,
-            ),
+            value: errorExample('ACCOUNT_SUSPENDED', `${AUTH_PATH}/login`),
           },
         },
       },
@@ -426,39 +369,19 @@ export class AuthController {
         examples: {
           invalidChallenge: {
             summary: 'Invalid or expired challenge',
-            value: errorExample(
-              401,
-              'INVALID_TWO_STEP_CHALLENGE',
-              'The two-step challenge is invalid or has expired',
-              `${AUTH_PATH}/login/two-step`,
-            ),
+            value: errorExample('INVALID_TWO_STEP_CHALLENGE', `${AUTH_PATH}/login/two-step`),
           },
           invalidCode: {
             summary: 'Invalid emailed code',
-            value: errorExample(
-              401,
-              'INVALID_TWO_STEP_CODE',
-              'The two-step verification code is incorrect',
-              `${AUTH_PATH}/login/two-step`,
-            ),
+            value: errorExample('INVALID_TWO_STEP_CODE', `${AUTH_PATH}/login/two-step`),
           },
           invalidRecoveryCode: {
             summary: 'Invalid recovery code',
-            value: errorExample(
-              401,
-              'INVALID_RECOVERY_CODE',
-              'The recovery code is invalid or has already been used',
-              `${AUTH_PATH}/login/two-step`,
-            ),
+            value: errorExample('INVALID_RECOVERY_CODE', `${AUTH_PATH}/login/two-step`),
           },
           attemptsExceeded: {
             summary: 'Attempt limit reached',
-            value: errorExample(
-              401,
-              'TWO_STEP_ATTEMPTS_EXCEEDED',
-              'Too many two-step verification attempts',
-              `${AUTH_PATH}/login/two-step`,
-            ),
+            value: errorExample('TWO_STEP_ATTEMPTS_EXCEEDED', `${AUTH_PATH}/login/two-step`),
           },
         },
       },
@@ -466,12 +389,7 @@ export class AuthController {
   })
   @ApiForbiddenResponse({
     description: 'The account became unavailable before challenge completion.',
-    content: errorContent(
-      403,
-      'ACCOUNT_SUSPENDED',
-      'The account is suspended',
-      `${AUTH_PATH}/login/two-step`,
-    ),
+    content: errorContent('ACCOUNT_SUSPENDED', `${AUTH_PATH}/login/two-step`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The selected proof body failed validation.',
@@ -504,21 +422,11 @@ export class AuthController {
         examples: {
           invalid: {
             summary: 'Invalid refresh token',
-            value: errorExample(
-              401,
-              'INVALID_REFRESH_TOKEN',
-              'The refresh token is invalid or expired',
-              `${AUTH_PATH}/refresh`,
-            ),
+            value: errorExample('INVALID_REFRESH_TOKEN', `${AUTH_PATH}/refresh`),
           },
           reused: {
             summary: 'Rotated token reused',
-            value: errorExample(
-              401,
-              'REFRESH_TOKEN_REUSED',
-              'Refresh token reuse was detected and the session was revoked',
-              `${AUTH_PATH}/refresh`,
-            ),
+            value: errorExample('REFRESH_TOKEN_REUSED', `${AUTH_PATH}/refresh`),
           },
         },
       },
@@ -563,12 +471,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({
     description: 'The reset token is invalid or expired.',
-    content: errorContent(
-      401,
-      'INVALID_OR_EXPIRED_TOKEN',
-      'The token is invalid or has expired',
-      `${AUTH_PATH}/reset-password`,
-    ),
+    content: errorContent('INVALID_OR_EXPIRED_TOKEN', `${AUTH_PATH}/reset-password`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The token or password failed validation.',
@@ -591,12 +494,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication or the current password is invalid.',
-    content: errorContent(
-      401,
-      'INVALID_CREDENTIALS',
-      'Email or password is incorrect',
-      `${AUTH_PATH}/change-password`,
-    ),
+    content: errorContent('INVALID_CREDENTIALS', `${AUTH_PATH}/change-password`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'A password failed validation.',
@@ -623,12 +521,7 @@ export class AuthController {
   })
   @ApiConflictResponse({
     description: 'Email two-step verification is already enabled.',
-    content: errorContent(
-      409,
-      'TWO_STEP_ALREADY_ENABLED',
-      'Email two-step verification is already enabled',
-      `${AUTH_PATH}/two-step/enable/request`,
-    ),
+    content: errorContent('TWO_STEP_ALREADY_ENABLED', `${AUTH_PATH}/two-step/enable/request`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The current password failed validation.',
@@ -682,12 +575,7 @@ export class AuthController {
   })
   @ApiConflictResponse({
     description: 'Email two-step verification is not enabled.',
-    content: errorContent(
-      409,
-      'TWO_STEP_NOT_ENABLED',
-      'Email two-step verification is not enabled',
-      `${AUTH_PATH}/two-step/disable/request`,
-    ),
+    content: errorContent('TWO_STEP_NOT_ENABLED', `${AUTH_PATH}/two-step/disable/request`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The current password failed validation.',
@@ -746,9 +634,7 @@ export class AuthController {
   @ApiConflictResponse({
     description: 'Email two-step verification is not enabled.',
     content: errorContent(
-      409,
       'TWO_STEP_NOT_ENABLED',
-      'Email two-step verification is not enabled',
       `${AUTH_PATH}/two-step/recovery-codes/regenerate/request`,
     ),
   })
@@ -809,7 +695,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({
     description: 'No valid authenticated session was supplied.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', `${AUTH_PATH}/logout`),
+    content: errorContent('UNAUTHORIZED', `${AUTH_PATH}/logout`),
   })
   public logout(@CurrentPrincipal() principal: AuthenticatedPrincipal): Promise<void> {
     return this.service.logout(principal.sessionId, principal.userId);

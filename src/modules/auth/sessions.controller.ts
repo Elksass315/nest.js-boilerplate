@@ -49,11 +49,11 @@ export class SessionsController {
   @ApiOffsetPaginatedResponse(SessionResponseDto, 'The requested session page was returned.')
   @ApiUnauthorizedResponse({
     description: 'No valid access token was supplied.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', SESSIONS_PATH),
+    content: errorContent('UNAUTHORIZED', SESSIONS_PATH),
   })
   @ApiUnprocessableEntityResponse({
     description: 'Page, limit, or revoked filter failed validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', SESSIONS_PATH, {
+    content: errorContent('VALIDATION_ERROR', SESSIONS_PATH, {
       fields: {
         page: ['page must not be less than 1'],
         revoked: ['revoked must be a boolean'],
@@ -79,28 +79,16 @@ export class SessionsController {
   })
   @ApiUnauthorizedResponse({
     description: 'No valid access token was supplied.',
-    content: errorContent(
-      401,
-      'UNAUTHORIZED',
-      'Authentication is required',
-      `${SESSIONS_PATH}/b8f10c56-5e3c-42ee-8436-7994b9691ced`,
-    ),
+    content: errorContent('UNAUTHORIZED', `${SESSIONS_PATH}/b8f10c56-5e3c-42ee-8436-7994b9691ced`),
   })
   @ApiBadRequestResponse({
     description: 'The session identifier is not a UUID.',
-    content: errorContent(
-      400,
-      'BAD_REQUEST',
-      'The request could not be processed',
-      `${SESSIONS_PATH}/not-a-uuid`,
-    ),
+    content: errorContent('BAD_REQUEST', `${SESSIONS_PATH}/not-a-uuid`),
   })
   @ApiNotFoundResponse({
     description: 'The session does not exist or belongs to another user.',
     content: errorContent(
-      404,
       'SESSION_NOT_FOUND',
-      'The requested session was not found',
       `${SESSIONS_PATH}/b8f10c56-5e3c-42ee-8436-7994b9691ced`,
     ),
   })
@@ -124,7 +112,7 @@ export class SessionsController {
   })
   @ApiUnauthorizedResponse({
     description: 'No valid access token was supplied.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', SESSIONS_PATH),
+    content: errorContent('UNAUTHORIZED', SESSIONS_PATH),
   })
   public revokeAll(@CurrentPrincipal() principal: AuthenticatedPrincipal): Promise<void> {
     return this.service.revokeAllSessions(principal.userId);

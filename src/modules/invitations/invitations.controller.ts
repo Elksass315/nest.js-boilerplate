@@ -33,6 +33,8 @@ import {
   OffsetPaginationQueryDto,
   type OffsetPage,
 } from '@/common/pagination';
+import { swaggerErrorContent, swaggerErrorExample } from '@/common/swagger/api-error-response';
+import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
   PermissionsGuard,
@@ -61,30 +63,16 @@ const invitationExample = {
 };
 const invitationContent = { 'application/json': { example: invitationExample } };
 const errorExample = (
-  statusCode: number,
-  code: string,
-  message: string,
+  code: ErrorCode,
   route = path,
   details?: Record<string, unknown>,
-): Record<string, unknown> => ({
-  statusCode,
-  code,
-  message,
-  timestamp: '2026-08-18T12:00:00.000Z',
-  path: route,
-  requestId: 'req_team_invitation_example',
-  correlationId: 'corr_team_invitation_example',
-  ...(details ? { details } : {}),
-});
+): Record<string, unknown> => swaggerErrorExample(code, route, details);
 const errorContent = (
-  statusCode: number,
-  code: string,
-  message: string,
+  code: ErrorCode,
   route = path,
   details?: Record<string, unknown>,
-): Record<string, { example: Record<string, unknown> }> => ({
-  'application/json': { example: errorExample(statusCode, code, message, route, details) },
-});
+): Record<string, { example: Record<string, unknown> }> =>
+  swaggerErrorContent(code, route, details);
 
 @ApiTags('team invitations')
 @UseGuards(PermissionsGuard)
@@ -109,21 +97,11 @@ export class InvitationsController {
   })
   @ApiUnauthorizedResponse({
     description: 'The invitation token is unknown or was replaced by a resend or prior acceptance.',
-    content: errorContent(
-      401,
-      'INVALID_INVITATION_TOKEN',
-      'The invitation token is invalid',
-      `${path}/accept`,
-    ),
+    content: errorContent('INVALID_INVITATION_TOKEN', `${path}/accept`),
   })
   @ApiGoneResponse({
     description: 'The otherwise valid invitation has expired.',
-    content: errorContent(
-      410,
-      'INVITATION_EXPIRED',
-      'The invitation has expired',
-      `${path}/accept`,
-    ),
+    content: errorContent('INVITATION_EXPIRED', `${path}/accept`),
   })
   @ApiConflictResponse({
     description: 'The invitation is terminal or its email is already registered.',
@@ -132,21 +110,11 @@ export class InvitationsController {
         examples: {
           notPending: {
             summary: 'The invitation was revoked or accepted',
-            value: errorExample(
-              409,
-              'INVITATION_NOT_PENDING',
-              'The invitation is no longer pending',
-              `${path}/accept`,
-            ),
+            value: errorExample('INVITATION_NOT_PENDING', `${path}/accept`),
           },
           memberExists: {
             summary: 'The invited email became registered before acceptance',
-            value: errorExample(
-              409,
-              'MEMBER_ALREADY_EXISTS',
-              'A member with this email already exists',
-              `${path}/accept`,
-            ),
+            value: errorExample('MEMBER_ALREADY_EXISTS', `${path}/accept`),
           },
         },
       },
@@ -154,7 +122,7 @@ export class InvitationsController {
   })
   @ApiUnprocessableEntityResponse({
     description: 'The token, full name, or password failed DTO validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', `${path}/accept`, {
+    content: errorContent('VALIDATION_ERROR', `${path}/accept`, {
       fields: { password: ['password must be longer than or equal to 12 characters'] },
     }),
   })
@@ -176,7 +144,7 @@ export class InvitationsController {
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal cannot create invitations or assign the requested role.',
@@ -185,15 +153,11 @@ export class InvitationsController {
         examples: {
           missingPermission: {
             summary: 'Invitation creation is not permitted',
-            value: errorExample(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+            value: errorExample('FORBIDDEN'),
           },
           roleAssignment: {
             summary: 'The requested role exceeds the inviter authority',
-            value: errorExample(
-              403,
-              'ROLE_ASSIGNMENT_FORBIDDEN',
-              'You are not allowed to assign the requested role',
-            ),
+            value: errorExample('ROLE_ASSIGNMENT_FORBIDDEN'),
           },
         },
       },
@@ -206,19 +170,11 @@ export class InvitationsController {
         examples: {
           memberExists: {
             summary: 'A member already owns the email',
-            value: errorExample(
-              409,
-              'MEMBER_ALREADY_EXISTS',
-              'A member with this email already exists',
-            ),
+            value: errorExample('MEMBER_ALREADY_EXISTS'),
           },
           pendingInvitation: {
             summary: 'An active invitation already exists',
-            value: errorExample(
-              409,
-              'INVITATION_ALREADY_PENDING',
-              'A pending invitation already exists for this email',
-            ),
+            value: errorExample('INVITATION_ALREADY_PENDING'),
           },
         },
       },
@@ -226,17 +182,13 @@ export class InvitationsController {
   })
   @ApiUnprocessableEntityResponse({
     description: 'The email or role failed DTO validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', path, {
+    content: errorContent('VALIDATION_ERROR', path, {
       fields: { email: ['email must be an email'] },
     }),
   })
   @ApiServiceUnavailableResponse({
     description: 'The invitation was stored but its email could not be queued.',
-    content: errorContent(
-      503,
-      'INVITATION_DELIVERY_UNAVAILABLE',
-      'The invitation email could not be queued',
-    ),
+    content: errorContent('INVITATION_DELIVERY_UNAVAILABLE'),
   })
   public create(
     @Body() body: CreateInvitationDto,
@@ -254,15 +206,15 @@ export class InvitationsController {
   @ApiOffsetPaginatedResponse(InvitationResponseDto, 'The requested invitation page was returned.')
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal cannot inspect invitations.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiUnprocessableEntityResponse({
     description: 'Page or limit failed validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', path, {
+    content: errorContent('VALIDATION_ERROR', path, {
       fields: { page: ['page must not be less than 1'] },
     }),
   })
@@ -281,19 +233,19 @@ export class InvitationsController {
   @ApiOkResponse({ description: 'The invitation was returned.', content: invitationContent })
   @ApiBadRequestResponse({
     description: 'The invitation identifier is not a UUID.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal cannot inspect invitations.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The invitation does not exist.',
-    content: errorContent(404, 'INVITATION_NOT_FOUND', 'The requested invitation was not found'),
+    content: errorContent('INVITATION_NOT_FOUND'),
   })
   public getById(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -315,23 +267,23 @@ export class InvitationsController {
   })
   @ApiBadRequestResponse({
     description: 'The invitation identifier is not a UUID.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal cannot resend invitations.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The invitation does not exist.',
-    content: errorContent(404, 'INVITATION_NOT_FOUND', 'The requested invitation was not found'),
+    content: errorContent('INVITATION_NOT_FOUND'),
   })
   @ApiGoneResponse({
     description: 'The invitation expired before the resend request.',
-    content: errorContent(410, 'INVITATION_EXPIRED', 'The invitation has expired'),
+    content: errorContent('INVITATION_EXPIRED'),
   })
   @ApiConflictResponse({
     description: 'The invitation is terminal, too recent, or has reached its send limit.',
@@ -340,27 +292,15 @@ export class InvitationsController {
         examples: {
           notPending: {
             summary: 'Only pending invitations can be resent',
-            value: errorExample(
-              409,
-              'INVITATION_NOT_PENDING',
-              'The invitation is no longer pending',
-            ),
+            value: errorExample('INVITATION_NOT_PENDING'),
           },
           tooSoon: {
             summary: 'The resend cooldown is active',
-            value: errorExample(
-              409,
-              'INVITATION_RESEND_TOO_SOON',
-              'Wait before resending this invitation',
-            ),
+            value: errorExample('INVITATION_RESEND_TOO_SOON'),
           },
           sendLimit: {
             summary: 'The invitation reached its send limit',
-            value: errorExample(
-              409,
-              'INVITATION_RESEND_LIMIT_REACHED',
-              'The invitation resend limit has been reached',
-            ),
+            value: errorExample('INVITATION_RESEND_LIMIT_REACHED'),
           },
         },
       },
@@ -368,11 +308,7 @@ export class InvitationsController {
   })
   @ApiServiceUnavailableResponse({
     description: 'The rotated invitation email could not be queued.',
-    content: errorContent(
-      503,
-      'INVITATION_DELIVERY_UNAVAILABLE',
-      'The invitation email could not be queued',
-    ),
+    content: errorContent('INVITATION_DELIVERY_UNAVAILABLE'),
   })
   public resend(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -395,23 +331,23 @@ export class InvitationsController {
   })
   @ApiBadRequestResponse({
     description: 'The invitation identifier is not a UUID.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal cannot revoke invitations.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The invitation does not exist.',
-    content: errorContent(404, 'INVITATION_NOT_FOUND', 'The requested invitation was not found'),
+    content: errorContent('INVITATION_NOT_FOUND'),
   })
   @ApiConflictResponse({
     description: 'An accepted or expired invitation cannot be revoked.',
-    content: errorContent(409, 'INVITATION_NOT_PENDING', 'The invitation is no longer pending'),
+    content: errorContent('INVITATION_NOT_PENDING'),
   })
   public revoke(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

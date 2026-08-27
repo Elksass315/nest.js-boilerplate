@@ -17,6 +17,8 @@ import {
   OffsetPaginationQueryDto,
   type OffsetPage,
 } from '@/common/pagination';
+import { swaggerErrorContent } from '@/common/swagger/api-error-response';
+import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
   PermissionsGuard,
@@ -40,23 +42,8 @@ const flagExample = {
   createdAt: '2026-08-19T12:00:00.000Z',
   updatedAt: '2026-08-19T12:00:00.000Z',
 };
-const error = (
-  statusCode: number,
-  code: string,
-  message: string,
-): Record<string, { example: Record<string, unknown> }> => ({
-  'application/json': {
-    example: {
-      statusCode,
-      code,
-      message,
-      timestamp: '2026-08-19T12:00:00.000Z',
-      path,
-      requestId: 'req_feature_flag_example',
-      correlationId: 'corr_feature_flag_example',
-    },
-  },
-});
+const error = (code: ErrorCode): Record<string, { example: Record<string, unknown> }> =>
+  swaggerErrorContent(code, path);
 
 @ApiTags('feature flags')
 @UseGuards(PermissionsGuard)
@@ -76,15 +63,15 @@ export class FeatureFlagsController {
   )
   @ApiUnauthorizedResponse({
     description: 'Authentication is required.',
-    content: error(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: error('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'Feature-flag read permission is required.',
-    content: error(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: error('FORBIDDEN'),
   })
   @ApiUnprocessableEntityResponse({
     description: 'Page or limit failed validation.',
-    content: error(422, 'VALIDATION_ERROR', 'Input validation failed'),
+    content: error('VALIDATION_ERROR'),
   })
   public list(
     @Query() query: OffsetPaginationQueryDto,
@@ -104,15 +91,15 @@ export class FeatureFlagsController {
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication is required.',
-    content: error(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: error('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'Feature-flag read permission is required.',
-    content: error(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: error('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The key is not registered.',
-    content: error(404, 'FEATURE_FLAG_NOT_FOUND', 'The requested feature flag was not found'),
+    content: error('FEATURE_FLAG_NOT_FOUND'),
   })
   public get(@Param() params: FeatureFlagKeyParamsDto): Promise<FeatureFlagResponseDto> {
     return this.service.get(params.key);
@@ -131,23 +118,19 @@ export class FeatureFlagsController {
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication is required.',
-    content: error(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: error('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'Feature-flag management permission is required.',
-    content: error(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: error('FORBIDDEN'),
   })
   @ApiConflictResponse({
     description: 'The key is already registered.',
-    content: error(
-      409,
-      'FEATURE_FLAG_ALREADY_EXISTS',
-      'A feature flag with this key already exists',
-    ),
+    content: error('FEATURE_FLAG_ALREADY_EXISTS'),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The key, description, or enabled value failed validation.',
-    content: error(422, 'VALIDATION_ERROR', 'Input validation failed'),
+    content: error('VALIDATION_ERROR'),
   })
   public create(
     @Body() body: CreateFeatureFlagDto,
@@ -169,27 +152,23 @@ export class FeatureFlagsController {
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication is required.',
-    content: error(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: error('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'Feature-flag management permission is required.',
-    content: error(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: error('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The key is not registered.',
-    content: error(404, 'FEATURE_FLAG_NOT_FOUND', 'The requested feature flag was not found'),
+    content: error('FEATURE_FLAG_NOT_FOUND'),
   })
   @ApiConflictResponse({
     description: 'The supplied version is stale.',
-    content: error(
-      409,
-      'FEATURE_FLAG_VERSION_CONFLICT',
-      'The feature flag changed; read it again before retrying',
-    ),
+    content: error('FEATURE_FLAG_VERSION_CONFLICT'),
   })
   @ApiUnprocessableEntityResponse({
     description: 'Enabled or expectedVersion failed validation.',
-    content: error(422, 'VALIDATION_ERROR', 'Input validation failed'),
+    content: error('VALIDATION_ERROR'),
   })
   public update(
     @Param() params: FeatureFlagKeyParamsDto,

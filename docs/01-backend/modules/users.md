@@ -31,22 +31,25 @@ pending registration updates only its full name, canonical email, and password h
 All routes use URI version `v1` and require the `PermissionsGuard`. The global access-token guard
 hydrates the typed `request.user` principal from current user/session state before permission checks.
 
-| Method                 | Route                                  | Policy                           | Success | Reachable errors                                                 |
-| ---------------------- | -------------------------------------- | -------------------------------- | ------- | ---------------------------------------------------------------- |
-| GET                    | `/users/me`                            | authenticated                    | 200     | 401                                                              |
-| GET                    | `/users/me/security-audits`            | authenticated                    | 200     | 401, 422 `VALIDATION_ERROR`                                      |
-| PATCH                  | `/users/me`                            | authenticated                    | 200     | 401, 422 `VALIDATION_ERROR`                                      |
-| OPTIONS                | `/users/me/avatar/uploads`             | public capability                | 204     | none                                                             |
-| POST/HEAD/PATCH/DELETE | `/users/me/avatar/uploads[/:uploadId]` | authenticated owner              | tus     | 400, 401, 403, 404, 409, 410, 412, 413, 415, 503                 |
-| PATCH                  | `/users/me/avatar`                     | authenticated                    | 200     | 401, 403, 404, 409, 410, 413, 415, 422, 503                      |
-| DELETE                 | `/users/me/avatar`                     | authenticated                    | 204     | 401, 404                                                         |
-| GET                    | `/users`                               | `users.read`                     | 200     | 401, 403, 422 `VALIDATION_ERROR`                                 |
-| GET                    | `/users/:id`                           | `users.read`                     | 200     | 400 `BAD_REQUEST`, 401, 403, 404 `USER_NOT_FOUND`                |
-| GET                    | `/users/:id/security-audits`           | `users.security-audits.read.any` | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 422 `VALIDATION_ERROR`      |
-| PATCH                  | `/users/:id/status`                    | `users.status.manage`            | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 409 `LAST_SUPER_ADMIN`, 422 |
-| PUT                    | `/users/:id/roles`                     | `users.roles.manage`             | 200     | 400, 401, 403, 404 user/role, 409 `LAST_SUPER_ADMIN`, 422        |
-| GET                    | `/users/:id/permissions`               | `users.permissions.manage`       | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`                              |
-| PUT                    | `/users/:id/permissions`               | permission + real `super_admin`  | 200     | 400, 401, 403, 404 user/catalog, 409 `RESOURCE_CONFLICT`, 422    |
+| Method  | Route                                | Policy                           | Success | Reachable errors                                                 |
+| ------- | ------------------------------------ | -------------------------------- | ------- | ---------------------------------------------------------------- |
+| GET     | `/users/me`                          | authenticated                    | 200     | 401                                                              |
+| GET     | `/users/me/security-audits`          | authenticated                    | 200     | 401, 422 `VALIDATION_ERROR`                                      |
+| PATCH   | `/users/me`                          | authenticated                    | 200     | 401, 422 `VALIDATION_ERROR`                                      |
+| OPTIONS | `/users/me/avatar/uploads`           | public capability                | 204     | none                                                             |
+| POST    | `/users/me/avatar/uploads`           | authenticated owner              | 201     | 400, 401, 412, 413, 415, 503                                     |
+| HEAD    | `/users/me/avatar/uploads/:uploadId` | authenticated owner              | 200     | 400, 401, 403, 404, 410, 412, 503                                |
+| PATCH   | `/users/me/avatar/uploads/:uploadId` | authenticated owner              | 204     | 400, 401, 403, 404, 409, 410, 412, 503                           |
+| DELETE  | `/users/me/avatar/uploads/:uploadId` | authenticated owner              | 204     | 400, 401, 403, 404, 410, 412, 503                                |
+| PATCH   | `/users/me/avatar`                   | authenticated                    | 200     | 401, 403, 404, 409, 410, 413, 415, 422, 503                      |
+| DELETE  | `/users/me/avatar`                   | authenticated                    | 204     | 401, 404                                                         |
+| GET     | `/users`                             | `users.read`                     | 200     | 401, 403, 422 `VALIDATION_ERROR`                                 |
+| GET     | `/users/:id`                         | `users.read`                     | 200     | 400 `BAD_REQUEST`, 401, 403, 404 `USER_NOT_FOUND`                |
+| GET     | `/users/:id/security-audits`         | `users.security-audits.read.any` | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 422 `VALIDATION_ERROR`      |
+| PATCH   | `/users/:id/status`                  | `users.status.manage`            | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 409 `LAST_SUPER_ADMIN`, 422 |
+| PUT     | `/users/:id/roles`                   | `users.roles.manage`             | 200     | 400, 401, 403, 404 user/role, 409 `LAST_SUPER_ADMIN`, 422        |
+| GET     | `/users/:id/permissions`             | `users.permissions.manage`       | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`                              |
+| PUT     | `/users/:id/permissions`             | permission + real `super_admin`  | 200     | 400, 401, 403, 404 user/catalog, 409 `RESOURCE_CONFLICT`, 422    |
 
 Collections use canonical page/limit offset pagination. Responses never contain `passwordHash`,
 normalized email, login counters, lock timestamps, or ORM entities. Swagger contains concrete

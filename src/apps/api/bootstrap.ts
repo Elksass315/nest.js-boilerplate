@@ -13,7 +13,9 @@ import { validationPipeOptions } from '@/core/errors/validation-pipe-options';
 
 import { AppModule } from './app.module';
 
-export async function createApplication(): Promise<NestExpressApplication> {
+export async function createApplication(
+  options: { configureDocumentation?: boolean } = {},
+): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   const config = app.get(ConfigService<AppConfiguration, true>);
 
@@ -40,7 +42,7 @@ export async function createApplication(): Promise<NestExpressApplication> {
   });
   app.enableVersioning({ type: VersioningType.URI, prefix: 'v' });
   app.enableShutdownHooks();
-  configureSwagger(app, config);
+  if (options.configureDocumentation !== false) configureSwagger(app, config);
 
   return app;
 }

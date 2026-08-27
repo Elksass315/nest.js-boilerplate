@@ -30,9 +30,12 @@ lock while public operations remain unlocked.
 
 ## API contracts
 
-`GET /api/v1/authorization/roles?page=1&limit=20` requires `users.read` and returns the canonical
-offset page of role IDs, keys, names, descriptions, and effective permission keys. Reachable failures
-are `401 UNAUTHORIZED`, `403 FORBIDDEN`, and `422 VALIDATION_ERROR`; Swagger documents exact payloads.
+| Method | Route                  | Policy       | Success | Reachable errors                                    |
+| ------ | ---------------------- | ------------ | ------- | --------------------------------------------------- |
+| GET    | `/authorization/roles` | `users.read` | 200     | 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 422 validation |
+
+The route accepts `page` and `limit` and returns the canonical offset page of role IDs, keys, names,
+descriptions, and effective permission keys. Swagger documents exact payloads.
 
 ## Data, migration, and seed
 

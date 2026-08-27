@@ -22,11 +22,13 @@ the same native tus runtime is exercised rather than mocked.
 
 ## API contracts
 
-`GET /api/v1/files/public/:publicId` is anonymously readable and serves only `ready + public`
-records. It streams local bytes with immutable safe headers or redirects to a short-lived signed S3
-URL. Protected, unfinished, and unknown records all return `404 FILE_NOT_FOUND`; provider failures
-return `503 FILE_STORAGE_UNAVAILABLE`. The controller owns the versioned `files` path; the global
-API prefix and URI-versioning policy produce the documented URL exactly once.
+| Method | Route                     | Policy    | Success    | Reachable errors                               |
+| ------ | ------------------------- | --------- | ---------- | ---------------------------------------------- |
+| GET    | `/files/public/:publicId` | anonymous | 200 or 302 | 400, 404 `FILE_NOT_FOUND`, 503 storage failure |
+
+The public-file route serves only `ready + public` records. It streams local bytes with immutable
+safe headers or redirects to a short-lived signed S3 URL. Protected, unfinished, and unknown records
+all return `404 FILE_NOT_FOUND`; provider failures return `503 FILE_STORAGE_UNAVAILABLE`.
 
 Every public file descriptor returned by the service uses an absolute URL built from `APP_BASE_URL`,
 for example `https://api.example.com/api/v1/files/public/<public-id>`. This applies consistently to
