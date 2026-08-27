@@ -149,6 +149,7 @@ describe('platform foundation (e2e)', () => {
     expect(document.paths).toHaveProperty('/api/v1/users/me/avatar');
     expect(document.paths).toHaveProperty('/api/v1/users/me/security-audits');
     expect(document.paths).toHaveProperty('/api/v1/users/{id}/security-audits');
+    expect(document.paths).toHaveProperty('/api/v1/users/{id}/permissions');
     expect(
       document.paths?.['/api/v1/users/{id}/roles']?.['put']?.responses?.['404']?.content,
     ).toEqual(
@@ -163,7 +164,57 @@ describe('platform foundation (e2e)', () => {
     );
     expect(document.paths?.['/api/v1/sessions']?.['get']?.security).toEqual([{ bearer: [] }]);
     expect(document.paths?.['/api/v1/users']?.['get']?.security).toEqual([{ bearer: [] }]);
+    expect(document.paths?.['/api/v1/users/{id}/permissions']?.['put']?.responses).toEqual(
+      expect.objectContaining({
+        '400': expect.any(Object),
+        '401': expect.any(Object),
+        '403': expect.any(Object),
+        '404': expect.any(Object),
+        '409': expect.any(Object),
+        '422': expect.any(Object),
+      }),
+    );
     expect(document.paths?.['/api/v1/auth/register']?.['post']?.security).toBeUndefined();
+  });
+
+  it('rejects permission administration delegated through an override', async () => {
+    const email = `delegated-permission-e2e-${String(Date.now())}@example.com`;
+    const password = 'Correct-Horse-Battery-2026!';
+    const registration = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ fullName: 'Delegated Permission E2E', email, password })
+      .expect(201);
+    const userId = String(registration.body.registrationId);
+    await app.get(UsersService).verifyEmail(userId);
+    const dataSource = app.get(DataSource);
+    await dataSource.query(
+      `INSERT INTO user_permission_overrides (user_id, permission_id, effect)
+       SELECT $1, id, 'grant'
+       FROM authorization_permissions
+       WHERE key = 'users.permissions.manage'`,
+      [userId],
+    );
+
+    const login = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email, password })
+      .expect(200);
+    expect(login.body.user).toEqual(
+      expect.objectContaining({
+        emailTwoStepEnabled: false,
+        emailTwoStepRequired: false,
+        permissions: expect.arrayContaining(['users.permissions.manage']),
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/users/${userId}/permissions`)
+      .set('authorization', `Bearer ${String(login.body.accessToken)}`)
+      .send({ grants: ['feature-flags.read'], revokes: [] })
+      .expect(403)
+      .expect(({ body }) => {
+        expect(body).toEqual(expect.objectContaining({ code: 'FORBIDDEN' }));
+      });
   });
 
   it('resumes, sanitizes, publishes, and removes an authenticated user avatar', async () => {

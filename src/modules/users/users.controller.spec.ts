@@ -21,6 +21,8 @@ describe(UsersController.name, () => {
     replaceRoles: jest.fn(),
     replaceOwnAvatar: jest.fn(),
     deleteOwnAvatar: jest.fn(),
+    getPermissionOverrides: jest.fn(),
+    replacePermissionOverrides: jest.fn(),
   };
   let controller: UsersController;
 
@@ -86,5 +88,26 @@ describe(UsersController.name, () => {
       '4e951b98-9250-4414-b88c-33f184543d8c',
     );
     expect(service.deleteOwnAvatar).toHaveBeenCalledWith(principal.userId);
+  });
+
+  it('passes the actor identity and actual roles to permission mutation policy', async () => {
+    service.replacePermissionOverrides.mockResolvedValue({
+      effective: [],
+      grants: [],
+      revokes: [],
+    });
+
+    await controller.replacePermissions(
+      principal.userId,
+      { grants: ['feature-flags.read'], revokes: [] },
+      principal,
+    );
+
+    expect(service.replacePermissionOverrides).toHaveBeenCalledWith(
+      principal.userId,
+      { grants: ['feature-flags.read'], revokes: [] },
+      principal.userId,
+      ['super_admin'],
+    );
   });
 });

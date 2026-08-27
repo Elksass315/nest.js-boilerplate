@@ -61,6 +61,7 @@ export const loginSuccessContent = {
         status: 'active',
         emailVerifiedAt: '2026-08-12T10:00:00.000Z',
         emailTwoStepEnabled: false,
+        emailTwoStepRequired: false,
         roles: ['user'],
         permissions: [],
         avatar: null,

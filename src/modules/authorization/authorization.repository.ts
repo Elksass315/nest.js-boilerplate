@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, type Repository } from 'typeorm';
 
@@ -18,8 +18,7 @@ export class AuthorizationRepository {
     @InjectRepository(RolePermissionEntity)
     private readonly rolePermissions: Repository<RolePermissionEntity>,
     @InjectRepository(UserPermissionOverrideEntity)
-    @Optional()
-    private readonly overrides: Repository<UserPermissionOverrideEntity> | undefined,
+    private readonly overrides: Repository<UserPermissionOverrideEntity>,
   ) {}
 
   public async findPage(page: number, limit: number): Promise<[RoleEntity[], number]> {
@@ -31,9 +30,18 @@ export class AuthorizationRepository {
   }
 
   public findUserOverrides(userId: string): Promise<UserPermissionOverrideEntity[]> {
-    return this.overrides
-      ? this.overrides.find({ where: { userId }, order: { createdAt: 'ASC', id: 'ASC' } })
-      : Promise.resolve([]);
+    return this.findUserOverridesByUserIds([userId]);
+  }
+
+  public findUserOverridesByUserIds(
+    userIds: readonly string[],
+  ): Promise<UserPermissionOverrideEntity[]> {
+    return userIds.length === 0
+      ? Promise.resolve([])
+      : this.overrides.find({
+          where: { userId: In([...new Set(userIds)]) },
+          order: { userId: 'ASC', createdAt: 'ASC', id: 'ASC' },
+        });
   }
 
   public findPermissionKeysByIds(ids: readonly string[]): Promise<PermissionEntity[]> {

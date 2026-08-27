@@ -58,13 +58,17 @@ Authorization errors use the global localized error contract and retain request/
 credentials or personal data enter RBAC logs.
 
 Per-user permission overrides are resolved live as role permissions plus explicit grants minus
-explicit revokes. The override management permission is seeded only for `super_admin`.
+explicit revokes. Collection and authentication resolution load all overrides and permission keys
+in bounded batch queries. The override management permission is seeded only for `super_admin`, and
+mutation independently verifies that the live principal has a real `super_admin` role. Explicit
+grants cannot delegate `users.permissions.manage` or `users.roles.manage`.
 
 ## Test strategy and change impact
 
-Unit tests cover pagination, effective permissions, missing roles, incomplete role sets, successful
-authorization, absent authentication, and inadequate permissions. Migration/seed validation confirms
-constraints and immutable reference data in PostgreSQL.
+Unit tests cover pagination, batched effective permissions, missing roles, incomplete role sets,
+successful authorization, absent authentication, and inadequate permissions. Service and E2E tests
+prove that a delegated management permission cannot mutate overrides. Migration/seed validation
+confirms constraints and immutable reference data in PostgreSQL.
 
 ## Cursor pagination rationale
 

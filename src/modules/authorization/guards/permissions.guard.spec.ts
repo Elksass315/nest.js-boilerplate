@@ -31,6 +31,19 @@ describe(PermissionsGuard.name, () => {
     expect(new PermissionsGuard(reflector).canActivate(context(principal))).toBe(true);
   });
 
+  it('leaves actual-role policy to the mutation service after a delegated permission passes', () => {
+    const reflector = new Reflector();
+    Reflect.defineMetadata(REQUIRED_PERMISSIONS_KEY, ['users.permissions.manage'], context);
+    const delegatedPrincipal: AuthenticatedPrincipal = {
+      ...principal,
+      roleKeys: ['admin'],
+      permissions: ['users.permissions.manage'],
+    };
+
+    expect(new PermissionsGuard(reflector).canActivate(context(delegatedPrincipal))).toBe(true);
+    expect(delegatedPrincipal.roleKeys).not.toContain('super_admin');
+  });
+
   it('rejects a protected route without a principal', () => {
     const reflector = new Reflector();
     Reflect.defineMetadata(AUTHENTICATED_ROUTE_KEY, true, context);

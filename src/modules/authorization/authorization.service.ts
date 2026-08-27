@@ -36,23 +36,47 @@ export class AuthorizationService {
     userId: string,
     roles: RoleDefinition[],
   ): Promise<RoleDefinition[]> {
-    const overrides = await this.repository.findUserOverrides(userId);
-    if (overrides.length === 0) return roles;
-    const permissions = await this.repository.findPermissionKeysByIds(
-      overrides.map(({ permissionId }) => permissionId),
+    return (await this.applyUserOverridesForUsers(new Map([[userId, roles]]))).get(userId) ?? [];
+  }
+
+  public async applyUserOverridesForUsers(
+    rolesByUserId: ReadonlyMap<string, RoleDefinition[]>,
+  ): Promise<Map<string, RoleDefinition[]>> {
+    const result = new Map(
+      [...rolesByUserId].map(([userId, roles]) => [
+        userId,
+        roles.map((role) => ({ ...role, permissions: [...role.permissions] })),
+      ]),
     );
+    const overrides = await this.repository.findUserOverridesByUserIds([...rolesByUserId.keys()]);
+    if (overrides.length === 0) return result;
+    const permissions = await this.repository.findPermissionKeysByIds([
+      ...new Set(overrides.map(({ permissionId }) => permissionId)),
+    ]);
     const keysById = new Map(permissions.map(({ id, key }) => [id, key]));
-    const effective = new Set<Permission>(
-      roles.flatMap(({ permissions: rolePermissions }) => rolePermissions),
-    );
+    const overridesByUserId = new Map<string, typeof overrides>();
     for (const override of overrides) {
-      const key = keysById.get(override.permissionId);
-      if (!key) continue;
-      if (override.effect === 'grant') effective.add(key);
-      else effective.delete(key);
+      const existing = overridesByUserId.get(override.userId) ?? [];
+      existing.push(override);
+      overridesByUserId.set(override.userId, existing);
     }
-    const sorted = [...effective].sort();
-    return roles.map((role, index) => ({ ...role, permissions: index === 0 ? sorted : [] }));
+    for (const [userId, roles] of result) {
+      const effective = new Set<Permission>(
+        roles.flatMap(({ permissions: rolePermissions }) => rolePermissions),
+      );
+      for (const override of overridesByUserId.get(userId) ?? []) {
+        const key = keysById.get(override.permissionId);
+        if (!key) continue;
+        if (override.effect === 'grant') effective.add(key);
+        else effective.delete(key);
+      }
+      const sorted = [...effective].sort();
+      result.set(
+        userId,
+        roles.map((role, index) => ({ ...role, permissions: index === 0 ? sorted : [] })),
+      );
+    }
+    return result;
   }
 
   public async getUserPermissionOverrides(

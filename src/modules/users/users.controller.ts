@@ -83,6 +83,7 @@ const userContent = {
       status: 'active',
       emailVerifiedAt: '2026-08-12T10:00:00.000Z',
       emailTwoStepEnabled: false,
+      emailTwoStepRequired: false,
       roles: ['user'],
       avatar: {
         fileId: '4e951b98-9250-4414-b88c-33f184543d8c',
@@ -513,6 +514,22 @@ export class UsersController {
     description: 'Permission overrides returned.',
     content: permissionContent,
   })
+  @ApiBadRequestResponse({
+    description: 'The target user identifier is not a UUID.',
+    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+  })
+  @ApiUnauthorizedResponse({
+    description: 'No authenticated principal was provided.',
+    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+  })
+  @ApiForbiddenResponse({
+    description: 'The principal does not have users.permissions.manage.',
+    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+  })
+  @ApiNotFoundResponse({
+    description: 'The target user does not exist.',
+    content: errorContent(404, 'USER_NOT_FOUND', 'The requested user was not found'),
+  })
   public getPermissions(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
   ): Promise<UserPermissionsResponseDto> {
@@ -523,7 +540,8 @@ export class UsersController {
   @RequirePermissions('users.permissions.manage')
   @ApiOperation({
     summary: 'Replace a user permission override set',
-    description: 'Replaces explicit grants and revokes while preserving role inheritance.',
+    description:
+      'Replaces explicit grants and revokes while preserving role inheritance. The actor must both hold users.permissions.manage and have an actual super_admin role. Protected administration permissions and super-admin targets cannot be changed.',
   })
   @ApiBody({ type: ReplaceUserPermissionsDto })
   @ApiOkResponse({
@@ -531,11 +549,59 @@ export class UsersController {
     description: 'Permission overrides replaced.',
     content: permissionContent,
   })
+  @ApiBadRequestResponse({
+    description: 'The target user identifier is not a UUID.',
+    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+  })
+  @ApiUnauthorizedResponse({
+    description: 'No authenticated principal was provided.',
+    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+  })
+  @ApiForbiddenResponse({
+    description:
+      'The actor lacks the real super-admin role, a protected grant was requested, or the target is a super administrator.',
+    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+  })
+  @ApiNotFoundResponse({
+    description: 'The target user or a catalog permission does not exist.',
+    content: {
+      'application/json': {
+        examples: {
+          userNotFound: {
+            summary: 'The target user does not exist',
+            value: errorContent(404, 'USER_NOT_FOUND', 'The requested user was not found')[
+              'application/json'
+            ]?.example,
+          },
+          permissionNotFound: {
+            summary: 'A validated permission is absent from the database catalog',
+            value: errorContent(404, 'RESOURCE_NOT_FOUND', 'The requested resource was not found')[
+              'application/json'
+            ]?.example,
+          },
+        },
+      },
+    },
+  })
+  @ApiConflictResponse({
+    description: 'The same permission appears in both grants and revokes.',
+    content: errorContent(
+      409,
+      'RESOURCE_CONFLICT',
+      'The request conflicts with the current resource state',
+    ),
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'The grant or revoke arrays failed validation.',
+    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', path, {
+      fields: { grants: ['each value in grants must be one of the following values'] },
+    }),
+  })
   public replacePermissions(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() body: ReplaceUserPermissionsDto,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ): Promise<UserPermissionsResponseDto> {
-    return this.service.replacePermissionOverrides(id, body, principal.userId);
+    return this.service.replacePermissionOverrides(id, body, principal.userId, principal.roleKeys);
   }
 }

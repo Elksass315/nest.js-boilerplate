@@ -125,7 +125,7 @@ async function main(): Promise<void> {
         `INSERT INTO users
           (full_name, email, normalized_email, password_hash, status, email_verified_at,
            email_two_step_enabled, auth_version, failed_login_count)
-         VALUES ($1, $2, $2, $3, 'active', CURRENT_TIMESTAMP, true, 1, 0)
+         VALUES ($1, $2, $2, $3, 'active', CURRENT_TIMESTAMP, false, 1, 0)
          RETURNING id`,
         [fullName, email, passwordHash],
       );

@@ -193,7 +193,7 @@ export class AuthService {
     }
     this.assertLoginAllowed(user);
     const current = await this.users.recordSuccessfulLogin(user.id);
-    if (current.emailTwoStepEnabled) return this.issueTwoStepChallenge(current, 'login');
+    if (this.requiresEmailTwoStep(current)) return this.issueTwoStepChallenge(current, 'login');
     return this.createSession(current, metadata);
   }
 
@@ -204,7 +204,9 @@ export class AuthService {
   ): Promise<LoginResponseDto> {
     const userId = await this.consumeTwoStepProof(challengeToken, 'login', credential);
     const user = await this.users.findByIdForAuthentication(userId);
-    if (!user?.emailTwoStepEnabled) throw new AppException('INVALID_TWO_STEP_CHALLENGE');
+    if (!user || !this.requiresEmailTwoStep(user)) {
+      throw new AppException('INVALID_TWO_STEP_CHALLENGE');
+    }
     this.assertLoginAllowed(user);
     return this.createSession(user, metadata);
   }
@@ -487,6 +489,7 @@ export class AuthService {
         status: profile.status,
         emailVerifiedAt: profile.emailVerifiedAt,
         emailTwoStepEnabled: profile.emailTwoStepEnabled,
+        emailTwoStepRequired: profile.emailTwoStepRequired,
         roles: profile.roles,
         permissions: [...new Set(user.roles.flatMap(({ permissions }) => permissions))],
         avatar: profile.avatar,
@@ -494,6 +497,13 @@ export class AuthService {
         updatedAt: profile.updatedAt,
       },
     };
+  }
+
+  private requiresEmailTwoStep(user: UserWithRoles): boolean {
+    return (
+      user.emailTwoStepEnabled ||
+      user.roles.some(({ key }) => key === 'admin' || key === 'super_admin')
+    );
   }
 
   private async issueTwoStepChallenge(

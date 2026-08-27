@@ -32,7 +32,9 @@ valid with null metadata; reversal drops only these four columns.
 
 User-permission migration `1787529600000-CreateUserPermissionOverrides` adds unique per-user grant
 or revoke rows referencing the permission catalog. Seed `006-user-permission-overrides-rbac` grants
-`users.permissions.manage` only to `super_admin`.
+`users.permissions.manage` only to `super_admin`. Runtime mutation additionally requires the actor's
+real super-admin role and rejects protected grants, so an override cannot delegate authorization
+administration.
 
 File migration `1786838400000-CreateFileStorage` creates `stored_files` with provider/key and public
 identifier uniqueness, lifecycle/visibility/provider checks, uploader ownership, expiry indexes,
