@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+        image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
         env:
           POSTGRES_DB: nestjs_saas_test
           POSTGRES_USER: nestjs_saas
@@ -33,7 +33,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:8.4.0-bookworm@sha256:c22af04bb576503bf16b3e34a1fd2fd82de0f765afd866d2e380145e0af30d78
+        image: redis:8.4.6-trixie@sha256:02ec5d8629b6313c9d02739576b6b1f102d152b7231497aff6502da412a93651
         env:
           REDIS_PASSWORD: integration-redis-password
         ports:
@@ -140,6 +140,7 @@ jobs:
           pnpm arch:check
           pnpm i18n:check
           pnpm docs:check
+          pnpm runtime-images:check
           pnpm deps:check
           pnpm deps:duplicates:check
 
@@ -252,4 +253,25 @@ jobs:
           format: table
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan PostgreSQL service image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+          format: table
+          scanners: vuln
+          vuln-type: os
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan Redis service image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: redis:8.4.6-trixie@sha256:02ec5d8629b6313c9d02739576b6b1f102d152b7231497aff6502da412a93651
+          format: table
+          scanners: vuln
+          vuln-type: os
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore.redis
           exit-code: '1'

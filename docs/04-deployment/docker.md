@@ -9,8 +9,13 @@ updates are accepted only after their container health checks and integration wo
 `compose.deploy.yaml` adds the immutable runtime image, read-only filesystems, dropped capabilities,
 and one-shot migration and seed jobs.
 
+The local and CI service baseline is PostgreSQL `18.6-bookworm` and Redis `8.4.6-trixie`, each
+pinned to its multi-platform image digest. Redis 8.4 no longer publishes a Bookworm variant, so the
+approved patched image uses Trixie. Compose and CI must retain the same exact references.
+
 ```bash
 pnpm docker:config
+pnpm runtime-images:check
 pnpm docker:up
 pnpm docker:ps
 pnpm docker:logs
@@ -40,5 +45,10 @@ Redis uses append-only persistence and `noeviction`. BullMQ must never run again
 policy because evicted queue keys can corrupt job state. Capacity alerts and scaling must address
 memory pressure before Redis reaches its configured limit; deployment must not switch to an LRU/LFU
 policy while queues are enabled.
+
+`pnpm runtime-images:check` enforces the approved major and patch floors, complete digests,
+Compose/CI parity, CI scan coverage, and root Docker monitoring by Dependabot. Dependabot proposes
+future Docker digest and patch updates from `compose.yaml`; update the matching CI service and scan
+references in the same pull request.
 
 **Navigation:** [Previous: Pull-Request Review](../03-dev-process/review-process.md) | [Documentation Index](../README.md) | [Next: CI/CD Ownership](ci-cd.md)
