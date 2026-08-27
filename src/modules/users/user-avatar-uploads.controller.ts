@@ -35,7 +35,9 @@ import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 
 import { API_VERSION } from '@/common/http/api-version.constants';
+import { swaggerErrorContent, type SwaggerErrorContent } from '@/common/swagger/api-error-response';
 import type { AppConfiguration } from '@/config/configuration.types';
+import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
   PermissionsGuard,
@@ -45,34 +47,8 @@ import {
 import { FilesService } from '@/modules/files';
 
 const uploadPath = '/api/v1/users/me/avatar/uploads';
-type SwaggerErrorContent = Record<
-  string,
-  {
-    example: {
-      statusCode: number;
-      code: string;
-      message: string;
-      timestamp: string;
-      path: string;
-      requestId: string;
-      correlationId: string;
-    };
-  }
->;
-
-const errorContent = (statusCode: number, code: string, message: string): SwaggerErrorContent => ({
-  'application/json': {
-    example: {
-      statusCode,
-      code,
-      message,
-      timestamp: '2026-08-14T12:00:00.000Z',
-      path: `${uploadPath}/4e951b98-9250-4414-b88c-33f184543d8c`,
-      requestId: 'req_avatar_example',
-      correlationId: 'corr_avatar_example',
-    },
-  },
-});
+const errorContent = (code: ErrorCode): SwaggerErrorContent =>
+  swaggerErrorContent(code, `${uploadPath}/4e951b98-9250-4414-b88c-33f184543d8c`);
 
 @ApiTags('users')
 @UseGuards(PermissionsGuard)
@@ -106,11 +82,7 @@ export class UserAvatarUploadsController {
   })
   @ApiServiceUnavailableResponse({
     description: 'The selected storage provider cannot advertise upload capabilities.',
-    content: errorContent(
-      503,
-      'FILE_STORAGE_UNAVAILABLE',
-      'File storage is temporarily unavailable',
-    ),
+    content: errorContent('FILE_STORAGE_UNAVAILABLE'),
   })
   public options(@Req() request: Request, @Res() response: Response): Promise<void> {
     return this.handle(request, response, null);
@@ -158,35 +130,27 @@ export class UserAvatarUploadsController {
   })
   @ApiBadRequestResponse({
     description: 'Upload length or metadata is missing or malformed.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication is required.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiPreconditionFailedResponse({
     description: 'The tus protocol version is unsupported.',
-    content: errorContent(
-      412,
-      'TUS_VERSION_UNSUPPORTED',
-      'The tus protocol version is not supported',
-    ),
+    content: errorContent('TUS_VERSION_UNSUPPORTED'),
   })
   @ApiPayloadTooLargeResponse({
     description: 'The source exceeds the configured avatar limit.',
-    content: errorContent(413, 'FILE_TOO_LARGE', 'The file exceeds the allowed size'),
+    content: errorContent('FILE_TOO_LARGE'),
   })
   @ApiUnsupportedMediaTypeResponse({
     description: 'The declared media type is not JPEG, PNG, or WebP.',
-    content: errorContent(415, 'FILE_TYPE_NOT_ALLOWED', 'The file type is not allowed'),
+    content: errorContent('FILE_TYPE_NOT_ALLOWED'),
   })
   @ApiServiceUnavailableResponse({
     description: 'The selected storage provider is unavailable.',
-    content: errorContent(
-      503,
-      'FILE_STORAGE_UNAVAILABLE',
-      'File storage is temporarily unavailable',
-    ),
+    content: errorContent('FILE_STORAGE_UNAVAILABLE'),
   })
   public create(
     @Req() request: Request,
@@ -223,43 +187,31 @@ export class UserAvatarUploadsController {
   })
   @ApiBadRequestResponse({
     description: 'The upload identifier is malformed.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication is required.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The upload belongs to another user.',
-    content: errorContent(
-      403,
-      'FILE_OWNERSHIP_MISMATCH',
-      'The file does not belong to the authenticated user',
-    ),
+    content: errorContent('FILE_OWNERSHIP_MISMATCH'),
   })
   @ApiNotFoundResponse({
     description: 'The upload does not exist for this purpose.',
-    content: errorContent(404, 'FILE_NOT_FOUND', 'The requested file was not found'),
+    content: errorContent('FILE_NOT_FOUND'),
   })
   @ApiGoneResponse({
     description: 'The upload expired.',
-    content: errorContent(410, 'FILE_UPLOAD_EXPIRED', 'The file upload has expired'),
+    content: errorContent('FILE_UPLOAD_EXPIRED'),
   })
   @ApiPreconditionFailedResponse({
     description: 'The tus protocol version is unsupported.',
-    content: errorContent(
-      412,
-      'TUS_VERSION_UNSUPPORTED',
-      'The tus protocol version is not supported',
-    ),
+    content: errorContent('TUS_VERSION_UNSUPPORTED'),
   })
   @ApiServiceUnavailableResponse({
     description: 'Storage failed while inspecting the upload offset.',
-    content: errorContent(
-      503,
-      'FILE_STORAGE_UNAVAILABLE',
-      'File storage is temporarily unavailable',
-    ),
+    content: errorContent('FILE_STORAGE_UNAVAILABLE'),
   })
   public inspect(
     @Param('uploadId', new ParseUUIDPipe({ version: '4' })) _uploadId: string,
@@ -307,51 +259,35 @@ export class UserAvatarUploadsController {
   })
   @ApiBadRequestResponse({
     description: 'The upload identifier or binary request is malformed.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication is required.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The upload belongs to another user.',
-    content: errorContent(
-      403,
-      'FILE_OWNERSHIP_MISMATCH',
-      'The file does not belong to the authenticated user',
-    ),
+    content: errorContent('FILE_OWNERSHIP_MISMATCH'),
   })
   @ApiNotFoundResponse({
     description: 'The upload does not exist for this purpose.',
-    content: errorContent(404, 'FILE_NOT_FOUND', 'The requested file was not found'),
+    content: errorContent('FILE_NOT_FOUND'),
   })
   @ApiConflictResponse({
     description: 'Upload-Offset differs from the stored offset.',
-    content: errorContent(
-      409,
-      'FILE_OFFSET_MISMATCH',
-      'The upload offset does not match the stored offset',
-    ),
+    content: errorContent('FILE_OFFSET_MISMATCH'),
   })
   @ApiGoneResponse({
     description: 'The upload expired.',
-    content: errorContent(410, 'FILE_UPLOAD_EXPIRED', 'The file upload has expired'),
+    content: errorContent('FILE_UPLOAD_EXPIRED'),
   })
   @ApiPreconditionFailedResponse({
     description: 'The tus protocol version is unsupported.',
-    content: errorContent(
-      412,
-      'TUS_VERSION_UNSUPPORTED',
-      'The tus protocol version is not supported',
-    ),
+    content: errorContent('TUS_VERSION_UNSUPPORTED'),
   })
   @ApiServiceUnavailableResponse({
     description: 'Storage failed while appending or completing the upload.',
-    content: errorContent(
-      503,
-      'FILE_STORAGE_UNAVAILABLE',
-      'File storage is temporarily unavailable',
-    ),
+    content: errorContent('FILE_STORAGE_UNAVAILABLE'),
   })
   public append(
     @Param('uploadId', new ParseUUIDPipe({ version: '4' })) _uploadId: string,
@@ -384,43 +320,31 @@ export class UserAvatarUploadsController {
   })
   @ApiBadRequestResponse({
     description: 'The upload identifier is malformed.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication is required.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The upload belongs to another user.',
-    content: errorContent(
-      403,
-      'FILE_OWNERSHIP_MISMATCH',
-      'The file does not belong to the authenticated user',
-    ),
+    content: errorContent('FILE_OWNERSHIP_MISMATCH'),
   })
   @ApiNotFoundResponse({
     description: 'The upload does not exist for this purpose.',
-    content: errorContent(404, 'FILE_NOT_FOUND', 'The requested file was not found'),
+    content: errorContent('FILE_NOT_FOUND'),
   })
   @ApiGoneResponse({
     description: 'The upload expired.',
-    content: errorContent(410, 'FILE_UPLOAD_EXPIRED', 'The file upload has expired'),
+    content: errorContent('FILE_UPLOAD_EXPIRED'),
   })
   @ApiPreconditionFailedResponse({
     description: 'The tus protocol version is unsupported.',
-    content: errorContent(
-      412,
-      'TUS_VERSION_UNSUPPORTED',
-      'The tus protocol version is not supported',
-    ),
+    content: errorContent('TUS_VERSION_UNSUPPORTED'),
   })
   @ApiServiceUnavailableResponse({
     description: 'Storage failed while terminating the upload.',
-    content: errorContent(
-      503,
-      'FILE_STORAGE_UNAVAILABLE',
-      'File storage is temporarily unavailable',
-    ),
+    content: errorContent('FILE_STORAGE_UNAVAILABLE'),
   })
   public terminate(
     @Param('uploadId', new ParseUUIDPipe({ version: '4' })) _uploadId: string,

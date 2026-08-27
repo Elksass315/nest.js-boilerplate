@@ -13,6 +13,14 @@ CodeQL, SBOM, license, and deeper scans. File-storage integration runs against l
 digest-pinned LocalStack S3 service before deployment. CI creates a private bucket explicitly and
 uses path-style S3 access with synthetic credentials.
 
+The quality job generates and lints the OpenAPI document against the executable route metadata before
+running tests. Jest uses the exact-pinned SWC transformer; `tsc` remains the authoritative typecheck.
+After coverage, `coverage:changed` compares executable changed lines with the PR base and requires at
+least 80% changed-line coverage in addition to the 80% global coverage floor. The CI checkout keeps
+full history so the base SHA is available to this comparison.
+Coverage collection excludes DTOs, entities, module wiring, migration files, and process entrypoints;
+the gate is intended to measure executable application behavior.
+
 The secret-scan job examines full Git history with Gitleaks. Confirmed false positives are ignored
 only by their exact finding fingerprint in `.gitleaksignore`; broad path, rule, commit, or regular
 expression exclusions are forbidden. The workflow passes the ignore file explicitly so container

@@ -57,6 +57,9 @@ examples for each reachable stable error. Session records include the creation I
 coarse device metadata, and approximate country/region/city when trusted proxy headers provide it;
 missing metadata is returned as `null`.
 
+Stable error examples in the auth and session controllers are generated through the shared
+`swaggerErrorContent` helper, which reads status and fallback messages from the central error catalog.
+
 `POST /auth/register` creates a pending user or revises the name/password of an existing pending
 user with the same normalized email. It invalidates earlier codes, emails a six-digit code, and
 returns `{ registrationId, verificationExpiresIn, message }`. Active and suspended duplicates

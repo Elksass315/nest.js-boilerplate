@@ -36,6 +36,8 @@ import {
   OffsetPaginationQueryDto,
   type OffsetPage,
 } from '@/common/pagination';
+import { swaggerErrorContent } from '@/common/swagger/api-error-response';
+import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
   PermissionsGuard,
@@ -55,25 +57,11 @@ import { UsersService } from './users.service';
 
 const path = '/api/v1/users';
 const errorContent = (
-  statusCode: number,
-  code: string,
-  message: string,
+  code: ErrorCode,
   route = path,
   details?: Record<string, unknown>,
-): Record<string, { example: Record<string, unknown> }> => ({
-  'application/json': {
-    example: {
-      statusCode,
-      code,
-      message,
-      timestamp: '2026-08-12T12:00:00.000Z',
-      path: route,
-      requestId: 'req_identity_example',
-      correlationId: 'corr_identity_example',
-      ...(details ? { details } : {}),
-    },
-  },
-});
+): Record<string, { example: Record<string, unknown> }> =>
+  swaggerErrorContent(code, route, details);
 const userContent = {
   'application/json': {
     example: {
@@ -121,7 +109,7 @@ export class UsersController {
   @ApiOkResponse({ description: 'The current profile was returned.', content: userContent })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', `${path}/me`),
+    content: errorContent('UNAUTHORIZED', `${path}/me`),
   })
   public getMe(@CurrentPrincipal() principal: AuthenticatedPrincipal): Promise<UserResponseDto> {
     return this.service.getSelf(principal.userId);
@@ -137,11 +125,11 @@ export class UsersController {
   @ApiOkResponse({ description: 'The profile was updated.', content: userContent })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', `${path}/me`),
+    content: errorContent('UNAUTHORIZED', `${path}/me`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The full name failed validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', `${path}/me`, {
+    content: errorContent('VALIDATION_ERROR', `${path}/me`, {
       fields: { fullName: ['fullName must be longer than or equal to 2 characters'] },
     }),
   })
@@ -162,16 +150,11 @@ export class UsersController {
   @ApiOkResponse({ description: 'The sanitized avatar was attached.', content: userContent })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', `${path}/me/avatar`),
+    content: errorContent('UNAUTHORIZED', `${path}/me/avatar`),
   })
   @ApiForbiddenResponse({
     description: 'The upload belongs to another user.',
-    content: errorContent(
-      403,
-      'FILE_OWNERSHIP_MISMATCH',
-      'The file does not belong to the authenticated user',
-      `${path}/me/avatar`,
-    ),
+    content: errorContent('FILE_OWNERSHIP_MISMATCH', `${path}/me/avatar`),
   })
   @ApiNotFoundResponse({
     description: 'The user or upload no longer exists.',
@@ -180,21 +163,11 @@ export class UsersController {
         examples: {
           fileNotFound: {
             summary: 'The upload does not exist',
-            value: errorContent(
-              404,
-              'FILE_NOT_FOUND',
-              'The requested file was not found',
-              `${path}/me/avatar`,
-            )['application/json']?.example,
+            value: errorContent('FILE_NOT_FOUND', `${path}/me/avatar`)['application/json']?.example,
           },
           userNotFound: {
             summary: 'The authenticated user no longer exists',
-            value: errorContent(
-              404,
-              'USER_NOT_FOUND',
-              'The requested user was not found',
-              `${path}/me/avatar`,
-            )['application/json']?.example,
+            value: errorContent('USER_NOT_FOUND', `${path}/me/avatar`)['application/json']?.example,
           },
         },
       },
@@ -202,40 +175,20 @@ export class UsersController {
   })
   @ApiConflictResponse({
     description: 'The upload has not completed or cannot be claimed.',
-    content: errorContent(
-      409,
-      'FILE_NOT_READY',
-      'The file is not ready to use',
-      `${path}/me/avatar`,
-    ),
+    content: errorContent('FILE_NOT_READY', `${path}/me/avatar`),
   })
   @ApiGoneResponse({
     description: 'The completed upload expired before it was claimed.',
-    content: errorContent(
-      410,
-      'FILE_UPLOAD_EXPIRED',
-      'The file upload has expired',
-      `${path}/me/avatar`,
-    ),
+    content: errorContent('FILE_UPLOAD_EXPIRED', `${path}/me/avatar`),
   })
   @ApiPayloadTooLargeResponse({
     description: 'The source exceeds the configured avatar byte limit.',
-    content: errorContent(
-      413,
-      'FILE_TOO_LARGE',
-      'The file exceeds the allowed size',
-      `${path}/me/avatar`,
-    ),
+    content: errorContent('FILE_TOO_LARGE', `${path}/me/avatar`),
   })
   @ApiUnsupportedMediaTypeResponse({
     description:
       'The declaration, extension, or detected format is not an allowed matching JPEG, PNG, or WebP image.',
-    content: errorContent(
-      415,
-      'FILE_TYPE_NOT_ALLOWED',
-      'The file type is not allowed',
-      `${path}/me/avatar`,
-    ),
+    content: errorContent('FILE_TYPE_NOT_ALLOWED', `${path}/me/avatar`),
   })
   @ApiUnprocessableEntityResponse({
     description:
@@ -245,24 +198,14 @@ export class UsersController {
         examples: {
           invalidFileId: {
             summary: 'The file identifier is not a UUID',
-            value: errorContent(
-              422,
-              'VALIDATION_ERROR',
-              'Input validation failed',
-              `${path}/me/avatar`,
-              {
-                fields: { fileId: ['fileId must be a UUID'] },
-              },
-            )['application/json']?.example,
+            value: errorContent('VALIDATION_ERROR', `${path}/me/avatar`, {
+              fields: { fileId: ['fileId must be a UUID'] },
+            })['application/json']?.example,
           },
           invalidImage: {
             summary: 'The image cannot be safely processed',
-            value: errorContent(
-              422,
-              'FILE_INVALID_IMAGE',
-              'The uploaded image is invalid',
-              `${path}/me/avatar`,
-            )['application/json']?.example,
+            value: errorContent('FILE_INVALID_IMAGE', `${path}/me/avatar`)['application/json']
+              ?.example,
           },
         },
       },
@@ -270,12 +213,7 @@ export class UsersController {
   })
   @ApiServiceUnavailableResponse({
     description: 'Storage could not read the upload or persist the sanitized result.',
-    content: errorContent(
-      503,
-      'FILE_STORAGE_UNAVAILABLE',
-      'File storage is temporarily unavailable',
-      `${path}/me/avatar`,
-    ),
+    content: errorContent('FILE_STORAGE_UNAVAILABLE', `${path}/me/avatar`),
   })
   public replaceAvatar(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -298,16 +236,11 @@ export class UsersController {
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', `${path}/me/avatar`),
+    content: errorContent('UNAUTHORIZED', `${path}/me/avatar`),
   })
   @ApiNotFoundResponse({
     description: 'The authenticated user no longer exists.',
-    content: errorContent(
-      404,
-      'USER_NOT_FOUND',
-      'The requested user was not found',
-      `${path}/me/avatar`,
-    ),
+    content: errorContent('USER_NOT_FOUND', `${path}/me/avatar`),
   })
   public deleteAvatar(@CurrentPrincipal() principal: AuthenticatedPrincipal): Promise<void> {
     return this.service.deleteOwnAvatar(principal.userId);
@@ -322,15 +255,15 @@ export class UsersController {
   @ApiOffsetPaginatedResponse(UserResponseDto, 'The requested user page was returned.')
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal does not have users.read.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiUnprocessableEntityResponse({
     description: 'Page or limit failed validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', path, {
+    content: errorContent('VALIDATION_ERROR', path, {
       fields: { page: ['page must not be less than 1'] },
     }),
   })
@@ -348,39 +281,19 @@ export class UsersController {
   @ApiOkResponse({ description: 'The user account was returned.', content: userContent })
   @ApiBadRequestResponse({
     description: 'The path identifier is not a UUID.',
-    content: errorContent(
-      400,
-      'BAD_REQUEST',
-      'The request could not be processed',
-      `${path}/not-a-uuid`,
-    ),
+    content: errorContent('BAD_REQUEST', `${path}/not-a-uuid`),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(
-      401,
-      'UNAUTHORIZED',
-      'Authentication is required',
-      `${path}/7b3f8ed4-73ef-4afe-8703-b10dd32f3820`,
-    ),
+    content: errorContent('UNAUTHORIZED', `${path}/7b3f8ed4-73ef-4afe-8703-b10dd32f3820`),
   })
   @ApiForbiddenResponse({
     description: 'The principal does not have users.read.',
-    content: errorContent(
-      403,
-      'FORBIDDEN',
-      'You are not allowed to perform this action',
-      `${path}/7b3f8ed4-73ef-4afe-8703-b10dd32f3820`,
-    ),
+    content: errorContent('FORBIDDEN', `${path}/7b3f8ed4-73ef-4afe-8703-b10dd32f3820`),
   })
   @ApiNotFoundResponse({
     description: 'No user exists with the supplied identifier.',
-    content: errorContent(
-      404,
-      'USER_NOT_FOUND',
-      'The requested user was not found',
-      `${path}/7b3f8ed4-73ef-4afe-8703-b10dd32f3820`,
-    ),
+    content: errorContent('USER_NOT_FOUND', `${path}/7b3f8ed4-73ef-4afe-8703-b10dd32f3820`),
   })
   public getById(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -398,31 +311,27 @@ export class UsersController {
   @ApiOkResponse({ description: 'The user status was changed.', content: userContent })
   @ApiBadRequestResponse({
     description: 'The path identifier is not a UUID.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal cannot manage user status.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The target user does not exist.',
-    content: errorContent(404, 'USER_NOT_FOUND', 'The requested user was not found'),
+    content: errorContent('USER_NOT_FOUND'),
   })
   @ApiConflictResponse({
     description: 'The change would remove the last active super administrator.',
-    content: errorContent(
-      409,
-      'LAST_SUPER_ADMIN',
-      'At least one active super administrator must remain',
-    ),
+    content: errorContent('LAST_SUPER_ADMIN'),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The requested status failed validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', path, {
+    content: errorContent('VALIDATION_ERROR', path, {
       fields: {
         status: [
           'status must be one of the following values: pending_verification, active, suspended',
@@ -448,15 +357,15 @@ export class UsersController {
   @ApiOkResponse({ description: 'The user role assignments were replaced.', content: userContent })
   @ApiBadRequestResponse({
     description: 'The path identifier is not a UUID.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal cannot manage user roles.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The target user or a requested role does not exist.',
@@ -465,17 +374,11 @@ export class UsersController {
         examples: {
           userNotFound: {
             summary: 'The target user does not exist',
-            value: errorContent(404, 'USER_NOT_FOUND', 'The requested user was not found')[
-              'application/json'
-            ]?.example,
+            value: errorContent('USER_NOT_FOUND')['application/json']?.example,
           },
           roleNotFound: {
             summary: 'At least one requested role does not exist',
-            value: errorContent(
-              404,
-              'ROLE_NOT_FOUND',
-              'One or more requested roles were not found',
-            )['application/json']?.example,
+            value: errorContent('ROLE_NOT_FOUND')['application/json']?.example,
           },
         },
       },
@@ -483,15 +386,11 @@ export class UsersController {
   })
   @ApiConflictResponse({
     description: 'The change would remove the last active super administrator.',
-    content: errorContent(
-      409,
-      'LAST_SUPER_ADMIN',
-      'At least one active super administrator must remain',
-    ),
+    content: errorContent('LAST_SUPER_ADMIN'),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The role identifier set failed validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', path, {
+    content: errorContent('VALIDATION_ERROR', path, {
       fields: { roleIds: ['each value in roleIds must be a UUID'] },
     }),
   })
@@ -516,19 +415,19 @@ export class UsersController {
   })
   @ApiBadRequestResponse({
     description: 'The target user identifier is not a UUID.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description: 'The principal does not have users.permissions.manage.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The target user does not exist.',
-    content: errorContent(404, 'USER_NOT_FOUND', 'The requested user was not found'),
+    content: errorContent('USER_NOT_FOUND'),
   })
   public getPermissions(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -551,16 +450,16 @@ export class UsersController {
   })
   @ApiBadRequestResponse({
     description: 'The target user identifier is not a UUID.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required'),
+    content: errorContent('UNAUTHORIZED'),
   })
   @ApiForbiddenResponse({
     description:
       'The actor lacks the real super-admin role, a protected grant was requested, or the target is a super administrator.',
-    content: errorContent(403, 'FORBIDDEN', 'You are not allowed to perform this action'),
+    content: errorContent('FORBIDDEN'),
   })
   @ApiNotFoundResponse({
     description: 'The target user or a catalog permission does not exist.',
@@ -569,15 +468,11 @@ export class UsersController {
         examples: {
           userNotFound: {
             summary: 'The target user does not exist',
-            value: errorContent(404, 'USER_NOT_FOUND', 'The requested user was not found')[
-              'application/json'
-            ]?.example,
+            value: errorContent('USER_NOT_FOUND')['application/json']?.example,
           },
           permissionNotFound: {
             summary: 'A validated permission is absent from the database catalog',
-            value: errorContent(404, 'RESOURCE_NOT_FOUND', 'The requested resource was not found')[
-              'application/json'
-            ]?.example,
+            value: errorContent('RESOURCE_NOT_FOUND')['application/json']?.example,
           },
         },
       },
@@ -585,15 +480,11 @@ export class UsersController {
   })
   @ApiConflictResponse({
     description: 'The same permission appears in both grants and revokes.',
-    content: errorContent(
-      409,
-      'RESOURCE_CONFLICT',
-      'The request conflicts with the current resource state',
-    ),
+    content: errorContent('RESOURCE_CONFLICT'),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The grant or revoke arrays failed validation.',
-    content: errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', path, {
+    content: errorContent('VALIDATION_ERROR', path, {
       fields: { grants: ['each value in grants must be one of the following values'] },
     }),
   })

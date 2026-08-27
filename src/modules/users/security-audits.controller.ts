@@ -15,6 +15,8 @@ import {
   OffsetPaginationQueryDto,
   type OffsetPage,
 } from '@/common/pagination';
+import { swaggerErrorContent } from '@/common/swagger/api-error-response';
+import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
   PermissionsGuard,
@@ -49,23 +51,9 @@ const auditPageExample = {
   },
 };
 const errorContent = (
-  statusCode: number,
-  code: string,
-  message: string,
+  code: ErrorCode,
   route: string,
-): Record<string, { example: Record<string, unknown> }> => ({
-  'application/json': {
-    example: {
-      statusCode,
-      code,
-      message,
-      timestamp: '2026-08-18T12:00:00.000Z',
-      path: route,
-      requestId: 'req_security_center_example',
-      correlationId: 'corr_security_center_example',
-    },
-  },
-});
+): Record<string, { example: Record<string, unknown> }> => swaggerErrorContent(code, route);
 
 @ApiTags('users')
 @UseGuards(PermissionsGuard)
@@ -87,21 +75,11 @@ export class SecurityAuditsController {
   )
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(
-      401,
-      'UNAUTHORIZED',
-      'Authentication is required',
-      `${path}/me/security-audits`,
-    ),
+    content: errorContent('UNAUTHORIZED', `${path}/me/security-audits`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'Page or limit failed validation.',
-    content: errorContent(
-      422,
-      'VALIDATION_ERROR',
-      'Input validation failed',
-      `${path}/me/security-audits?page=0`,
-    ),
+    content: errorContent('VALIDATION_ERROR', `${path}/me/security-audits?page=0`),
   })
   public listOwn(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -124,48 +102,23 @@ export class SecurityAuditsController {
   )
   @ApiBadRequestResponse({
     description: 'The path identifier is not a UUID.',
-    content: errorContent(
-      400,
-      'BAD_REQUEST',
-      'The request could not be processed',
-      `${path}/not-a-uuid/security-audits`,
-    ),
+    content: errorContent('BAD_REQUEST', `${path}/not-a-uuid/security-audits`),
   })
   @ApiUnauthorizedResponse({
     description: 'No authenticated principal was provided.',
-    content: errorContent(
-      401,
-      'UNAUTHORIZED',
-      'Authentication is required',
-      `${path}/${userId}/security-audits`,
-    ),
+    content: errorContent('UNAUTHORIZED', `${path}/${userId}/security-audits`),
   })
   @ApiForbiddenResponse({
     description: 'The principal does not have users.security-audits.read.any.',
-    content: errorContent(
-      403,
-      'FORBIDDEN',
-      'You are not allowed to perform this action',
-      `${path}/${userId}/security-audits`,
-    ),
+    content: errorContent('FORBIDDEN', `${path}/${userId}/security-audits`),
   })
   @ApiNotFoundResponse({
     description: 'No user exists with the supplied identifier.',
-    content: errorContent(
-      404,
-      'USER_NOT_FOUND',
-      'The requested user was not found',
-      `${path}/${userId}/security-audits`,
-    ),
+    content: errorContent('USER_NOT_FOUND', `${path}/${userId}/security-audits`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'Page or limit failed validation.',
-    content: errorContent(
-      422,
-      'VALIDATION_ERROR',
-      'Input validation failed',
-      `${path}/${userId}/security-audits?limit=101`,
-    ),
+    content: errorContent('VALIDATION_ERROR', `${path}/${userId}/security-audits?limit=101`),
   })
   public listForUser(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

@@ -16,3 +16,4 @@ allowBuilds:
   sharp: true
   msgpackr-extract: false
   unrs-resolver: true
+  '@swc/core': true

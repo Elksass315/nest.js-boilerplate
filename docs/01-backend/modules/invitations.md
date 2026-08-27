@@ -17,15 +17,19 @@ Other modules may import only public feature indexes.
 
 ## API contracts
 
-- `POST /api/v1/team/invitations` creates a pending invitation. Admins may assign `user`;
-  super administrators may assign any fixed role.
-- `GET /api/v1/team/invitations?page=1&limit=20` returns the canonical offset page.
-- `GET /api/v1/team/invitations/:id` returns one safe contract without a token hash.
-- `POST /api/v1/team/invitations/:id/resend` rotates the token, extends expiry, and enforces cooldown
-  and maximum-send policy.
-- `DELETE /api/v1/team/invitations/:id` idempotently revokes a pending invitation.
-- `POST /api/v1/team/invitations/accept` publicly consumes a token, full name, and password. It
-  creates an active verified account with the invited role and never creates a login session.
+| Method | Route                          | Policy                    | Success | Reachable errors                  |
+| ------ | ------------------------------ | ------------------------- | ------- | --------------------------------- |
+| POST   | `/team/invitations/accept`     | anonymous                 | 201     | 401, 409, 422                     |
+| POST   | `/team/invitations`            | `team.invitations.create` | 201     | 401, 403, 409, 422, 503           |
+| GET    | `/team/invitations`            | `team.invitations.read`   | 200     | 401, 403, 422                     |
+| GET    | `/team/invitations/:id`        | `team.invitations.read`   | 200     | 400, 401, 403, 404                |
+| POST   | `/team/invitations/:id/resend` | `team.invitations.resend` | 200     | 400, 401, 403, 404, 409, 410, 503 |
+| DELETE | `/team/invitations/:id`        | `team.invitations.revoke` | 204     | 400, 401, 403, 404, 409           |
+
+Creation lets admins assign `user` while super administrators may assign any fixed role. Acceptance
+publicly consumes a token, full name, and password, creates an active verified account with the
+invited role, and never creates a login session. Resend rotates the token and enforces cooldown and
+maximum-send policy.
 
 Swagger is authoritative for concrete success payloads and exact errors. Stable feature errors cover
 invalid tokens, missing/expired/non-pending invitations, duplicate members or pending invitations,
