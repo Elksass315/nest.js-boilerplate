@@ -34,9 +34,15 @@ recovery codes by default. `AUTH_TWO_STEP_CODE_TTL_SECONDS`, `AUTH_TWO_STEP_MAX_
 `AUTH_RECOVERY_CODE_COUNT` are bounded and fail validation when unsafe.
 
 Mail configuration owns sender, public action URL, SMTP connection timeouts, worker concurrency,
-retry policy, and branding. `MAIL_ENABLED=false` safely suppresses queue production and worker SMTP
+retry policy, TLS policy, and branding. `MAIL_ENABLED=false` safely suppresses queue production and worker SMTP
 startup. When enabled, auth queues named HBS templates with correlation context; no SMTP password,
 token, code, body, or full recipient is logged.
+
+Staging and production reject template credentials, example branding addresses, localhost URLs, and
+non-HTTPS public URLs. They require a database password of at least 16 characters, PostgreSQL SSL
+with certificate verification (`DATABASE_SSL_ENABLED=true` and `DATABASE_REJECT_UNAUTHORIZED=true`),
+and `MAIL_SMTP_REQUIRE_TLS=true`. Production file writes must use S3; local storage remains a
+development-only option.
 
 Invitation configuration owns the public acceptance URL, 1-168 hour token lifetime, total send
 limit, and resend cooldown. Defaults are 72 hours, five sends, and 60 seconds. Raw invitation tokens

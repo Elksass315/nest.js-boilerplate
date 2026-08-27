@@ -73,6 +73,11 @@ HTTP exceptions remain expected and are not captured. The client response shape 
 Sentry processing removes request bodies, cookies, query strings, sensitive headers, email,
 username, and IP address while retaining request/correlation IDs as event tags.
 
+Server logs use a safe exception projection: error type, request route, request/correlation IDs, and
+allowlisted PostgreSQL error codes/constraint names only. SQL text, parameters, raw driver errors,
+request bodies, tokens, and personal data are never logged. Startup failures follow the same policy
+and include only allowlisted process diagnostics such as error code, syscall, address, and port.
+
 Permission override requests use `RESOURCE_NOT_FOUND` for unknown catalog permissions,
 `RESOURCE_CONFLICT` when a key is both granted and revoked, and `FORBIDDEN` for protected targets.
 

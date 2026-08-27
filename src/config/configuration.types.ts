@@ -73,6 +73,7 @@ export interface MailConfig {
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
+  smtpRequireTls: boolean;
   smtpUsername: string;
   smtpPassword: string;
   maxRetries: number;

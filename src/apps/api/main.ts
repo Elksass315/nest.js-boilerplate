@@ -3,6 +3,7 @@ import '../../instrument';
 import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 
+import { projectSafeError } from '@/common/logging/safe-error';
 import type { AppConfiguration } from '@/config/configuration.types';
 import { captureStartupFailure } from '@/observability/sentry';
 
@@ -43,14 +44,7 @@ void bootstrap().catch(async (error: unknown) => {
 });
 
 function startupFailureDetails(error: unknown): Record<string, string | number> {
-  if (!(error instanceof Error)) {
-    return { errorType: 'UnknownError', errorMessage: String(error) };
-  }
-
-  const details: Record<string, string | number> = {
-    errorType: error.name,
-    errorMessage: error.message,
-  };
+  const details: Record<string, string | number> = { ...projectSafeError(error) };
   if (isRecord(error)) {
     addStringDetail(details, 'errorCode', error['code']);
     addStringDetail(details, 'syscall', error['syscall']);
