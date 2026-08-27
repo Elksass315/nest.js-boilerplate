@@ -5,7 +5,9 @@ Jenkins deploys an already-tested image by digest; it never builds or rsyncs sou
 
 Pull-request CI runs frozen install, formatting, lint, strict type checking, architecture/API docs
 checks, tests and coverage, dependency policies, Compose/Docker builds, secret scanning, and image
-scanning. Integration setup applies migrations and immutable seeds before E2E so fixed reference data,
+scanning. The container job scans the application image and checks the PostgreSQL and Redis
+operating-system packages for fixed high and critical vulnerabilities. Integration setup applies
+migrations and immutable seeds before E2E so fixed reference data,
 including RBAC roles and permissions, matches a real deployment. Main and scheduled workflows add
 CodeQL, SBOM, license, and deeper scans. File-storage integration runs against local storage and a
 digest-pinned LocalStack S3 service before deployment. CI creates a private bucket explicitly and
@@ -21,6 +23,17 @@ fingerprint must be verified and added explicitly rather than weakening the scan
 Every service-container upgrade must pass its configured readiness command in CI before it is
 accepted. If a pinned upgrade cannot become healthy, restore the last verified version and digest
 while the incompatibility is investigated separately.
+
+The runtime-image contract gate requires exact patch tags and full digests, keeps Compose service
+images synchronized with both CI service and scan references, and verifies that Dependabot monitors
+root Docker manifests. PostgreSQL and Redis updates therefore include readiness, migrations, seeds,
+E2E coverage, and image scanning in one reviewable change.
+
+The Redis scan has one narrow exception in `.trivyignore.redis` for `CVE-2026-14456`. The advisory
+affects OpenSSL QUIC server behavior, which Redis does not expose or use. The exception expires on
+2026-09-30, is applied only to the Redis image scan, and must be removed as soon as the official
+Redis 8.4 image contains fixed OpenSSL packages. The runtime-image contract rejects additional
+exceptions and fails after the expiry date.
 
 `develop` deploys to development, `release/*` to staging, and `main`/SemVer tags to production after
 approval. Jenkins runs one-shot migration and seed jobs from the immutable image, rolls out the API,
