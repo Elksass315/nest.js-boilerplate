@@ -71,7 +71,12 @@ describe(UsersService.name, () => {
     resolveRoles: jest.fn(),
     getRequiredRole: jest.fn(),
     requireRoleIds: jest.fn(),
-    applyUserOverrides: jest.fn((_: string, roles: unknown[]) => Promise.resolve(roles)),
+    applyUserOverridesForUsers: jest.fn((roles: Map<string, RoleDefinition[]>) =>
+      Promise.resolve(roles),
+    ),
+    getUserPermissionOverrides: jest.fn(),
+    resolvePermissionKeys: jest.fn(),
+    replaceUserPermissionOverrides: jest.fn(),
   };
   const context = {
     getRequestId: jest.fn(() => 'request-1'),
@@ -138,7 +143,44 @@ describe(UsersService.name, () => {
       expect.objectContaining({ id: user.id, roles: ['user'], fullName: 'Amina Hassan' }),
     );
     expect(result.items[0]).not.toHaveProperty('passwordHash');
+    expect(result.items[0]).toEqual(expect.objectContaining({ emailTwoStepRequired: false }));
     expect(result.meta.totalItems).toBe(1);
+  });
+
+  it('derives required two-step policy from privileged roles', async () => {
+    repository.findPage.mockResolvedValue([[user], 1]);
+    repository.roleIdsByUserIds.mockResolvedValue(new Map([[user.id, [superAdminRole.id]]]));
+    authorization.resolveRoles.mockResolvedValue([superAdminRole]);
+
+    const result = await service.list(1, 20);
+
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        emailTwoStepEnabled: false,
+        emailTwoStepRequired: true,
+        roles: ['super_admin'],
+      }),
+    );
+  });
+
+  it('batches override resolution for a user collection', async () => {
+    repository.findPage.mockResolvedValue([
+      [user, Object.assign(new UserEntity(), user, { id: 'user-2' })],
+      2,
+    ]);
+    repository.roleIdsByUserIds.mockResolvedValue(
+      new Map([
+        [user.id, [userRole.id]],
+        ['user-2', [userRole.id]],
+      ]),
+    );
+
+    await service.list(1, 20);
+
+    expect(authorization.applyUserOverridesForUsers).toHaveBeenCalledTimes(1);
+    expect(authorization.applyUserOverridesForUsers).toHaveBeenCalledWith(
+      expect.objectContaining({ size: 2 }),
+    );
   });
 
   it('returns only allowlisted audit details with correlation context', async () => {
@@ -304,6 +346,131 @@ describe(UsersService.name, () => {
     expect(mail.sendRoleChanged).toHaveBeenCalledWith(
       expect.objectContaining({ email: user.email, roles: ['user'] }),
     );
+  });
+
+  it('does not change voluntary two-step enrollment when roles change', async () => {
+    authorization.requireRoleIds.mockResolvedValue([superAdminRole]);
+    repository.findById.mockResolvedValue(
+      Object.assign(new UserEntity(), user, { emailTwoStepEnabled: true }),
+    );
+    repository.hasRole.mockResolvedValue(false);
+    repository.replaceRoles.mockResolvedValue(
+      Object.assign(new UserEntity(), user, { emailTwoStepEnabled: true }),
+    );
+
+    const result = await service.replaceRoles(user.id, [superAdminRole.id], superAdminRole.id);
+
+    expect(repository.replaceRoles).toHaveBeenCalledWith(
+      expect.anything(),
+      user.id,
+      [superAdminRole.id],
+      expect.anything(),
+    );
+    expect(result.emailTwoStepEnabled).toBe(true);
+    expect(result.emailTwoStepRequired).toBe(true);
+  });
+
+  it('rejects permission mutation authorized only by a delegated permission', async () => {
+    await expect(
+      service.replacePermissionOverrides(
+        user.id,
+        { grants: ['feature-flags.read'], revokes: [] },
+        'actor-1',
+        ['admin'],
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(repository.findById).not.toHaveBeenCalled();
+  });
+
+  it('rejects protected permission grants even from a super administrator', async () => {
+    await expect(
+      service.replacePermissionOverrides(
+        user.id,
+        { grants: ['users.roles.manage'], revokes: [] },
+        'actor-1',
+        ['super_admin'],
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(repository.findById).not.toHaveBeenCalled();
+  });
+
+  it('rejects permission override changes for super-admin targets', async () => {
+    repository.findById.mockResolvedValue(user);
+    repository.roleIdsByUserIds.mockResolvedValue(new Map([[user.id, [superAdminRole.id]]]));
+    authorization.resolveRoles.mockResolvedValue([superAdminRole]);
+
+    await expect(
+      service.replacePermissionOverrides(
+        user.id,
+        { grants: ['feature-flags.read'], revokes: [] },
+        'actor-1',
+        ['super_admin'],
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('persists and audits ordinary overrides from a real super administrator', async () => {
+    const target = Object.assign(new UserEntity(), user);
+    repository.findById.mockResolvedValue(target);
+    repository.roleIdsByUserIds.mockResolvedValue(new Map([[target.id, [userRole.id]]]));
+    authorization.resolveRoles.mockResolvedValue([userRole]);
+    authorization.resolvePermissionKeys.mockResolvedValue(
+      new Map([
+        ['feature-flags.read', 'permission-1'],
+        ['sessions.read.any', 'permission-2'],
+      ]),
+    );
+    authorization.getUserPermissionOverrides.mockResolvedValue([
+      { key: 'feature-flags.read', effect: 'grant' },
+      { key: 'sessions.read.any', effect: 'revoke' },
+    ]);
+    const withEffectiveGrant = (
+      rolesByUser: Map<string, RoleDefinition[]>,
+    ): Promise<Map<string, RoleDefinition[]>> =>
+      Promise.resolve(
+        new Map(
+          [...rolesByUser].map(([userId, roles]) => [
+            userId,
+            roles.map((role, index): RoleDefinition => ({
+              ...role,
+              permissions: index === 0 ? ['feature-flags.read'] : [],
+            })),
+          ]),
+        ),
+      );
+    authorization.applyUserOverridesForUsers
+      .mockImplementationOnce(withEffectiveGrant)
+      .mockImplementationOnce(withEffectiveGrant);
+    repository.saveWithAudit.mockResolvedValue(target);
+
+    const result = await service.replacePermissionOverrides(
+      target.id,
+      { grants: ['feature-flags.read'], revokes: ['sessions.read.any'] },
+      'actor-1',
+      ['super_admin'],
+    );
+
+    expect(authorization.replaceUserPermissionOverrides).toHaveBeenCalledWith(
+      expect.anything(),
+      target.id,
+      [
+        { permissionId: 'permission-1', effect: 'grant' },
+        { permissionId: 'permission-2', effect: 'revoke' },
+      ],
+    );
+    expect(repository.saveWithAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ authVersion: 2 }),
+      expect.objectContaining({
+        eventType: 'user.permissions.changed',
+        actorUserId: 'actor-1',
+      }),
+    );
+    expect(result).toEqual({
+      effective: ['feature-flags.read'],
+      grants: ['feature-flags.read'],
+      revokes: ['sessions.read.any'],
+    });
   });
 
   it('notifies the user after a status change is persisted', async () => {

@@ -4,8 +4,7 @@ import { AppBaseEntity } from '@/shared/entities/app-base.entity';
 
 import { PermissionEntity } from './permission.entity';
 
-export const USER_PERMISSION_EFFECTS = ['grant', 'revoke'] as const;
-export type UserPermissionEffect = (typeof USER_PERMISSION_EFFECTS)[number];
+export type UserPermissionEffect = 'grant' | 'revoke';
 
 @Entity({ name: 'user_permission_overrides' })
 @Unique('UQ_user_permission_overrides_user_permission', ['userId', 'permissionId'])

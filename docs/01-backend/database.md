@@ -51,8 +51,9 @@ purpose constraint but cannot reconstruct deleted raw verification credentials.
 Migration `1787443200000-AddSessionMetadata` adds nullable IP, user-agent, device metadata, and
 approximate location fields to `auth_sessions`; existing sessions remain valid with null metadata.
 
-Role assignment policy keeps `email_two_step_enabled` true for active `admin` and `super_admin`
-accounts, including accounts created through invitations or the bootstrap command.
+`email_two_step_enabled` stores voluntary enrollment only. Administrator requirements are derived
+from current role assignments and never rewrite this column, including invitations, bootstrap,
+promotion, and demotion.
 
 Migration `1787529600000-CreateUserPermissionOverrides` creates grant/revoke rows owned by users
 and catalog permissions. Immutable seed `006-user-permission-overrides-rbac` grants only

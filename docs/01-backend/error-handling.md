@@ -33,8 +33,9 @@ failures use 403; session ownership failures use 404. `REFRESH_TOKEN_REUSED` als
 affected session was revoked. Exact English fallbacks remain aligned across the registry, Swagger,
 translations, and error catalog.
 
-Administrator-role accounts cannot disable mandatory email two-step verification; this returns the
-stable `TWO_STEP_REQUIRED_FOR_ADMIN_ROLE` conflict.
+Administrator-role policy remains independent from voluntary enrollment. An enrolled administrator
+cannot disable enrollment until demotion; the stable conflict is
+`TWO_STEP_REQUIRED_FOR_ADMIN_ROLE`.
 
 Registration verification uses `INVALID_OR_EXPIRED_VERIFICATION_CODE` for wrong, expired,
 superseded, or consumed codes and `VERIFICATION_ATTEMPTS_EXCEEDED` on the terminal fifth failure.

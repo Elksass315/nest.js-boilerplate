@@ -68,7 +68,8 @@ consumes the code and returns `VERIFICATION_ATTEMPTS_EXCEEDED`; invalid, expired
 consumed codes use `INVALID_OR_EXPIRED_VERIFICATION_CODE`. Resend uses a generic response for
 unknown or ineligible registration IDs.
 
-`POST /auth/login` returns tokens plus a nested safe user profile when two-step is disabled. The
+`POST /auth/login` returns tokens plus a nested safe user profile when neither enrollment nor role
+policy requires two-step. The
 profile matches `/users/me` and adds current deduplicated permission keys. When enabled it returns an
 explicit `requiresTwoStep` challenge instead and creates no session. Completion accepts exactly one
 of two documented bodies: a six-digit email code or a recovery code. Challenges expire after five
@@ -81,8 +82,12 @@ code. Enrollment returns ten recovery codes exactly once; only Argon2id hashes a
 codes are single-use, regeneration invalidates every old code, and no trusted-device bypass exists.
 Enabling/disabling increments `authVersion` and revokes every session.
 
-Email two-step verification is mandatory for `admin` and `super_admin` roles. Those roles are
-enabled automatically at account creation or promotion, and their disable request is rejected.
+Email two-step verification is mandatory for `admin` and `super_admin` roles. The requirement is
+derived independently from the voluntary enrollment flag, so creation, promotion, and demotion do
+not alter enrollment. Login challenges are issued when enrollment or role policy requires them.
+User and login-user responses expose both `emailTwoStepEnabled` and `emailTwoStepRequired`.
+For backward-compatible hardening, an enrolled administrator must be demoted before disabling the
+voluntary factor; the role policy continues to require challenges regardless of enrollment state.
 
 ## Data and migrations
 

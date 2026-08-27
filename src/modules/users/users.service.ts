@@ -26,6 +26,7 @@ import type {
 } from './users.types';
 import type { UserStatus } from './users.constants';
 import type { Permission } from '@/modules/authorization';
+import type { RoleKey } from '@/modules/authorization';
 import type { ReplaceUserPermissionsDto } from './dto/replace-user-permissions.dto';
 import type { UserPermissionsResponseDto } from './dto/user-permissions-response.dto';
 import { UsersRepository, type SecurityAuditInput } from './users.repository';
@@ -53,6 +54,11 @@ const PUBLIC_AUDIT_DETAIL_KEYS: Partial<
   'team.invitation.revoked': ['invitationId'],
   'team.invitation.accepted': ['invitationId'],
 };
+
+const PROTECTED_OVERRIDE_GRANTS = new Set<Permission>([
+  'users.permissions.manage',
+  'users.roles.manage',
+]);
 
 @Injectable()
 export class UsersService {
@@ -108,11 +114,16 @@ export class UsersService {
     userId: string,
     input: ReplaceUserPermissionsDto,
     actorUserId: string,
+    actorRoleKeys: readonly RoleKey[],
   ): Promise<UserPermissionsResponseDto> {
+    if (!actorRoleKeys.includes('super_admin')) throw new AppException('FORBIDDEN');
     const grants = [...new Set(input.grants)] as Permission[];
     const revokes = [...new Set(input.revokes)] as Permission[];
     if (grants.some((permission) => revokes.includes(permission))) {
       throw new AppException('RESOURCE_CONFLICT');
+    }
+    if (grants.some((permission) => PROTECTED_OVERRIDE_GRANTS.has(permission))) {
+      throw new AppException('FORBIDDEN');
     }
     const user = await this.requireUser(userId);
     const roles = await this.rolesForUser(userId);
@@ -294,10 +305,7 @@ export class UsersService {
       const audit = this.auditContext(id, actorUserId, 'user.roles.changed', {
         nextRoleKeys: requestedRoles.map(({ key }) => key),
       });
-      const privileged = requestedRoles.some(({ key }) => key === 'admin' || key === 'super_admin');
-      return privileged
-        ? this.repository.replaceRoles(manager, id, roleIds, audit, true)
-        : this.repository.replaceRoles(manager, id, roleIds, audit);
+      return this.repository.replaceRoles(manager, id, roleIds, audit);
     });
     if (!user) throw new AppException('USER_NOT_FOUND');
     await this.mail.sendRoleChanged({
@@ -352,12 +360,8 @@ export class UsersService {
     invitationId: string,
   ): Promise<InvitedUserResult> {
     try {
-      const [role] = await this.authorization.resolveRoles([roleId]);
       const audit = this.auditContext(null, null, 'team.invitation.accepted', { invitationId });
-      const privileged = role?.key === 'admin' || role?.key === 'super_admin';
-      const user = privileged
-        ? await this.repository.createActiveWithRole(manager, input, roleId, audit, true)
-        : await this.repository.createActiveWithRole(manager, input, roleId, audit);
+      const user = await this.repository.createActiveWithRole(manager, input, roleId, audit);
       return { id: user.id, fullName: user.fullName, email: user.email };
     } catch (error) {
       if (this.isUniqueViolation(error)) throw new AppException('MEMBER_ALREADY_EXISTS');
@@ -598,14 +602,7 @@ export class UsersService {
         }),
       ]),
     );
-    for (const userId of userIds) {
-      const effectiveRoles = await this.authorization.applyUserOverrides(
-        userId,
-        result.get(userId) ?? [],
-      );
-      result.set(userId, effectiveRoles);
-    }
-    return result;
+    return this.authorization.applyUserOverridesForUsers(result);
   }
 
   private async responseFor(
@@ -639,6 +636,7 @@ export class UsersService {
       status: user.status,
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       emailTwoStepEnabled: user.emailTwoStepEnabled,
+      emailTwoStepRequired: roles.some(({ key }) => key === 'admin' || key === 'super_admin'),
       roles: roles.map(({ key }) => key),
       avatar: avatar
         ? {

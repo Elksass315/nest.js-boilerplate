@@ -42,6 +42,9 @@ export class LoginUserResponseDto {
   @ApiProperty({ example: false })
   public emailTwoStepEnabled!: boolean;
 
+  @ApiProperty({ example: false })
+  public emailTwoStepRequired!: boolean;
+
   @ApiProperty({ enum: ROLE_KEYS, isArray: true, example: ['user'] })
   public roles!: RoleKey[];
 

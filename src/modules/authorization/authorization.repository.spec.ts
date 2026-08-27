@@ -22,6 +22,7 @@ describe(AuthorizationRepository.name, () => {
     findBy: jest.fn(),
   };
   const rolePermissions = { createQueryBuilder: jest.fn(() => queryBuilder) };
+  const overrides = { find: jest.fn() };
   let repository: AuthorizationRepository;
 
   beforeEach(async () => {
@@ -33,7 +34,7 @@ describe(AuthorizationRepository.name, () => {
         { provide: getRepositoryToken(RolePermissionEntity), useValue: rolePermissions },
         {
           provide: getRepositoryToken(UserPermissionOverrideEntity),
-          useValue: { find: jest.fn() },
+          useValue: overrides,
         },
       ],
     }).compile();
@@ -68,5 +69,18 @@ describe(AuthorizationRepository.name, () => {
       repository.findPermissionsByRoleIds(['10000000-0000-4000-8000-000000000002']),
     ).resolves.toEqual(new Map([['10000000-0000-4000-8000-000000000002', ['users.read']]]));
     await expect(repository.findPermissionsByRoleIds([])).resolves.toEqual(new Map());
+  });
+
+  it('loads override collections in one deterministic query', async () => {
+    overrides.find.mockResolvedValue([]);
+
+    await repository.findUserOverridesByUserIds(['user-2', 'user-1', 'user-1']);
+
+    expect(overrides.find).toHaveBeenCalledWith({
+      where: { userId: expect.anything() },
+      order: { userId: 'ASC', createdAt: 'ASC', id: 'ASC' },
+    });
+    await expect(repository.findUserOverridesByUserIds([])).resolves.toEqual([]);
+    expect(overrides.find).toHaveBeenCalledTimes(1);
   });
 });

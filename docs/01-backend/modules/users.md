@@ -45,6 +45,8 @@ hydrates the typed `request.user` principal from current user/session state befo
 | GET                    | `/users/:id/security-audits`           | `users.security-audits.read.any` | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 422 `VALIDATION_ERROR`      |
 | PATCH                  | `/users/:id/status`                    | `users.status.manage`            | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 409 `LAST_SUPER_ADMIN`, 422 |
 | PUT                    | `/users/:id/roles`                     | `users.roles.manage`             | 200     | 400, 401, 403, 404 user/role, 409 `LAST_SUPER_ADMIN`, 422        |
+| GET                    | `/users/:id/permissions`               | `users.permissions.manage`       | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`                              |
+| PUT                    | `/users/:id/permissions`               | permission + real `super_admin`  | 200     | 400, 401, 403, 404 user/catalog, 409 `RESOURCE_CONFLICT`, 422    |
 
 Collections use canonical page/limit offset pagination. Responses never contain `passwordHash`,
 normalized email, login counters, lock timestamps, or ORM entities. Swagger contains concrete
@@ -71,13 +73,10 @@ this module; foreign keys preserve referential integrity without cross-module en
 Updates run in service-owned transactions. Status/role mutations increment `authVersion` so later
 token validation can invalidate stale authorization state.
 
-Administrator accounts (`admin` and `super_admin`) always require email two-step verification. It is
-enabled automatically when such an account is created or promoted, and the disable workflow rejects
-attempts to turn it off. Standard `user` accounts keep two-step disabled by default and may opt in.
-
-Administrator accounts (`admin` and `super_admin`) always require email two-step verification. It is
-enabled automatically when such an account is created or promoted, and the disable workflow rejects
-attempts to turn it off. Standard `user` accounts keep two-step disabled by default and may opt in.
+`emailTwoStepEnabled` records voluntary enrollment only. `emailTwoStepRequired` is derived on every
+response from an `admin` or `super_admin` role. Either condition requires a login challenge. Role
+creation, promotion, and demotion never rewrite voluntary enrollment. An enrolled administrator is
+demoted before disabling enrollment; role policy independently protects unenrolled administrators.
 Migration `1787184000000-IndexSecurityAuditPagination` replaces the earlier subject/time index with
 `(user_id, created_at, id)` so the API's deterministic tie-breaker is indexed and reversible.
 
@@ -126,7 +125,9 @@ Not applicable. User administration uses bounded offset pagination; no measured 
 append traversal requirement justifies cursor pagination.
 
 Per-user permission overrides are managed with `GET`/`PUT /users/:id/permissions`. Only
-`super_admin` may manage them; super-admin targets are protected. Overrides are audited and increment
-`authVersion`.
+an actor who both holds `users.permissions.manage` and has a persisted `super_admin` role may mutate
+them; a delegated override cannot satisfy the role check. Super-admin targets are protected, and
+`users.permissions.manage` plus `users.roles.manage` cannot be delegated as grants. Overrides are
+audited, increment `authVersion`, and are resolved for collections with bounded batch queries.
 
 **Navigation:** [Previous: Mail Module](mail.md) | [Documentation Index](../../README.md) | [Next: REST and Versioning Standard](../../02-api/rest-standard.md)

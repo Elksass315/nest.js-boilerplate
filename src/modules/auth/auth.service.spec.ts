@@ -161,6 +161,7 @@ describe(AuthService.name, () => {
       status: user.status,
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       emailTwoStepEnabled: user.emailTwoStepEnabled,
+      emailTwoStepRequired: false,
       roles: [],
       avatar: null,
       createdAt: user.createdAt.toISOString(),
@@ -295,6 +296,29 @@ describe(AuthService.name, () => {
     expect(repository.createSession).not.toHaveBeenCalled();
   });
 
+  it('requires a login challenge for an admin without voluntary enrollment', async () => {
+    const protectedUser = {
+      ...user,
+      emailTwoStepEnabled: false,
+      roles: [
+        {
+          id: 'role-admin',
+          key: 'admin' as const,
+          name: 'Administrator',
+          description: 'Administrator',
+          permissions: [],
+        },
+      ],
+    };
+    users.findForAuthentication.mockResolvedValue(protectedUser);
+    users.recordSuccessfulLogin.mockResolvedValue(protectedUser);
+
+    await expect(service.login(user.email, 'correct-password')).resolves.toEqual(
+      expect.objectContaining({ requiresTwoStep: true }),
+    );
+    expect(repository.createSession).not.toHaveBeenCalled();
+  });
+
   it('consumes a valid email challenge and creates the protected session', async () => {
     const protectedUser = { ...user, emailTwoStepEnabled: true };
     users.findByIdForAuthentication.mockResolvedValue(protectedUser);
@@ -318,6 +342,59 @@ describe(AuthService.name, () => {
       expect.objectContaining({ consumedAt: expect.any(Date) }),
     );
     expect(mail.sendNewSession).toHaveBeenCalled();
+  });
+
+  it('accepts a login challenge required by role policy without enrollment', async () => {
+    const protectedUser = {
+      ...user,
+      emailTwoStepEnabled: false,
+      roles: [
+        {
+          id: 'role-admin',
+          key: 'admin' as const,
+          name: 'Administrator',
+          description: 'Administrator',
+          permissions: [],
+        },
+      ],
+    };
+    users.findByIdForAuthentication.mockResolvedValue(protectedUser);
+    repository.findTwoStepChallengeForUpdate.mockResolvedValue({
+      userId: user.id,
+      purpose: 'login',
+      codeHash: '$argon2id$secret',
+      attempts: 0,
+      consumedAt: null,
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    });
+
+    await expect(
+      service.completeLoginTwoStep('c'.repeat(43), {
+        method: 'email_code',
+        code: '482913',
+      }),
+    ).resolves.toEqual(expect.objectContaining({ accessToken: 'access-token' }));
+  });
+
+  it('keeps the stable disable conflict for an enrolled administrator', async () => {
+    users.findByIdForAuthentication.mockResolvedValue({
+      ...user,
+      emailTwoStepEnabled: true,
+      roles: [
+        {
+          id: 'role-admin',
+          key: 'admin',
+          name: 'Administrator',
+          description: 'Administrator',
+          permissions: [],
+        },
+      ],
+    });
+
+    await expectErrorCode(
+      service.requestTwoStepChange(user.id, 'correct-password', 'disable'),
+      'TWO_STEP_REQUIRED_FOR_ADMIN_ROLE',
+    );
   });
 
   it('persists failed two-step attempts before returning a stable error', async () => {
