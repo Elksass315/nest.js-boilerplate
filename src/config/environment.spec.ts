@@ -229,6 +229,27 @@ describe('environment validation', () => {
     ).toThrow('Production file writes require the S3 storage driver');
   });
 
+  it('requires an explicit trusted proxy allowlist in managed API environments', () => {
+    expect(() =>
+      validateApiEnvironment({
+        ...validEnvironment,
+        NODE_ENV: 'staging',
+        AUTH_ACCESS_TOKEN_SECRET: 'managed-access-token-secret-123456789',
+        DATABASE_PASSWORD: 'managed-database-password-123',
+        REDIS_PASSWORD: 'managed-redis-password-123',
+        DATABASE_SSL_ENABLED: true,
+        DATABASE_REJECT_UNAUTHORIZED: true,
+        MAIL_SMTP_REQUIRE_TLS: true,
+        APP_BASE_URL: 'https://api.client.org',
+        MAIL_ACTION_BASE_URL: 'https://app.client.org/actions',
+        TEAM_INVITATION_BASE_URL: 'https://app.client.org/invitations',
+        CORS_ORIGINS: 'https://app.client.org',
+        MAIL_FROM_ADDRESS: 'noreply@client.org',
+        MAIL_BRANDING_SUPPORT_EMAIL: 'support@client.org',
+      }),
+    ).toThrow('TRUSTED_PROXY_IPS must contain an explicit proxy allowlist');
+  });
+
   it('requires strong credentials for basic Swagger access', () => {
     expect(() =>
       validateApiEnvironment({

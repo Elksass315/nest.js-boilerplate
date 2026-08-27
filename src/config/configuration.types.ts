@@ -38,6 +38,15 @@ export interface SwaggerConfig {
 }
 
 export interface RateLimitConfig {
+  global: RateLimitPolicy;
+  authentication: RateLimitPolicy;
+  otp: RateLimitPolicy;
+  recovery: RateLimitPolicy;
+  emailDelivery: RateLimitPolicy;
+  trustedProxyIps: string[];
+}
+
+interface RateLimitPolicy {
   ttlMs: number;
   max: number;
 }
