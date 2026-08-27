@@ -54,4 +54,11 @@ security-audit subject/time index with `(user_id, created_at, id)`, matching new
 pagination with a unique tie-breaker. Its reversal restores the original index. Immutable seed
 `004-security-audit-rbac` grants cross-user audit lookup only to the fixed `super_admin` role.
 
+Transactional outbox migration `1787600000000-CreateTransactionalOutbox` creates durable,
+versioned `mail.send`, `file.delete`, and `file.migration-source-delete` messages with correlation
+IDs, attempts, availability windows, and expiring leases. The outbox worker claims rows with
+`FOR UPDATE SKIP LOCKED` and uses the outbox UUID as the BullMQ job ID. `pnpm outbox:status` and
+`pnpm outbox:retry <message-id>` are guarded CLI operations; retry always requires one explicit UUID
+and preserves the stored correlation context.
+
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Error Handling](error-handling.md)

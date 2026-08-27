@@ -24,6 +24,7 @@ import { RedisModule } from '@/redis/redis.module';
 import { DistributedThrottlerStorage } from '@/redis/distributed-throttler.storage';
 import { REDIS_CLIENT } from '@/redis/redis.constants';
 import type Redis from 'ioredis';
+import { OutboxModule } from '@/core/outbox/outbox.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import type Redis from 'ioredis';
     CoreModule,
     DatabaseModule,
     RedisModule,
+    OutboxModule,
     HealthModule,
     AuthorizationModule,
     UsersModule,

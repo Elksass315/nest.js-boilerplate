@@ -12,6 +12,11 @@ reversal is unsafe. CI migration validation is restricted to a database whose na
 Normal entities extend `AppBaseEntity`. Feature repositories remain concrete and private; services
 own transactions and controllers never access persistence.
 
+The transactional outbox is part of the database contract. Business transactions may insert typed
+outbox messages through the caller's `EntityManager`; the separate outbox worker later publishes
+them to BullMQ with lease-based claiming and idempotent message IDs. Outbox status and retry are
+explicit CLI operations, never HTTP administration endpoints.
+
 Reference/bootstrap data uses the explicit ordered seed registry. Applied seeds have immutable IDs
 and checksums in `app_seed_history`. The runner holds a PostgreSQL advisory lock and commits each seed
 with its history record in one transaction. A seed whose ID is already recorded is skipped, so running
