@@ -141,10 +141,92 @@ describe('environment validation', () => {
       validateApiEnvironment({
         ...validEnvironment,
         NODE_ENV: 'staging',
+        AUTH_ACCESS_TOKEN_SECRET: 'managed-access-token-secret-123456789',
+        DATABASE_PASSWORD: 'managed-database-password-123',
         REDIS_PASSWORD: 'a-secure-redis-password',
         SWAGGER_DOCS_ACCESS: 'public',
+        APP_BASE_URL: 'https://api.client.org',
+        MAIL_ACTION_BASE_URL: 'https://app.client.org/actions',
+        TEAM_INVITATION_BASE_URL: 'https://app.client.org/invitations',
+        CORS_ORIGINS: 'https://app.client.org',
+        MAIL_FROM_ADDRESS: 'noreply@client.org',
+        MAIL_BRANDING_SUPPORT_EMAIL: 'support@client.org',
       }),
     ).toThrow('SWAGGER_DOCS_ACCESS cannot be public');
+  });
+
+  it('rejects template secrets and insecure managed settings', () => {
+    expect(() =>
+      validateApiEnvironment({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        AUTH_ACCESS_TOKEN_SECRET: 'local-only-change-this-access-token-secret',
+        DATABASE_PASSWORD: 'strong-database-password',
+        REDIS_PASSWORD: 'strong-redis-password',
+        DATABASE_SSL_ENABLED: true,
+        DATABASE_REJECT_UNAUTHORIZED: true,
+        MAIL_SMTP_REQUIRE_TLS: true,
+        APP_BASE_URL: 'https://api.example.test',
+      }),
+    ).toThrow('Managed environments cannot use template or synthetic secrets');
+  });
+
+  it('requires secure managed URLs, database SSL, and SMTP TLS', () => {
+    const managed = {
+      ...validEnvironment,
+      NODE_ENV: 'staging',
+      AUTH_ACCESS_TOKEN_SECRET: 'managed-access-token-secret-123456789',
+      DATABASE_PASSWORD: 'managed-database-password-123',
+      REDIS_PASSWORD: 'managed-redis-password-123',
+      APP_BASE_URL: 'http://localhost:3000',
+      MAIL_ACTION_BASE_URL: 'http://localhost:3000/actions',
+      TEAM_INVITATION_BASE_URL: 'http://localhost:3000/invitations',
+      CORS_ORIGINS: 'http://localhost:3000',
+      MAIL_FROM_ADDRESS: 'noreply@client.org',
+      MAIL_BRANDING_SUPPORT_EMAIL: 'support@client.org',
+    };
+    expect(() => validateApiEnvironment(managed)).toThrow('Managed public URLs');
+    expect(() =>
+      validateApiEnvironment({
+        ...managed,
+        APP_BASE_URL: 'https://api.client.org',
+        MAIL_ACTION_BASE_URL: 'https://app.client.org/actions',
+        TEAM_INVITATION_BASE_URL: 'https://app.client.org/invitations',
+        CORS_ORIGINS: 'https://app.client.org',
+        MAIL_FROM_ADDRESS: 'noreply@client.org',
+        MAIL_BRANDING_SUPPORT_EMAIL: 'support@client.org',
+      }),
+    ).toThrow('Managed database connections');
+    expect(() =>
+      validateApiEnvironment({
+        ...managed,
+        APP_BASE_URL: 'https://api.client.org',
+        MAIL_ACTION_BASE_URL: 'https://app.client.org/actions',
+        TEAM_INVITATION_BASE_URL: 'https://app.client.org/invitations',
+        CORS_ORIGINS: 'https://app.client.org',
+        MAIL_FROM_ADDRESS: 'noreply@client.org',
+        MAIL_BRANDING_SUPPORT_EMAIL: 'support@client.org',
+        DATABASE_SSL_ENABLED: true,
+        DATABASE_REJECT_UNAUTHORIZED: true,
+      }),
+    ).toThrow('MAIL_SMTP_REQUIRE_TLS');
+  });
+
+  it('requires S3 writes in production', () => {
+    expect(() =>
+      validateFileWorkerEnvironment({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        AUTH_ACCESS_TOKEN_SECRET: 'managed-access-token-secret-123456789',
+        DATABASE_PASSWORD: 'managed-database-password-123',
+        DATABASE_SSL_ENABLED: true,
+        DATABASE_REJECT_UNAUTHORIZED: true,
+        REDIS_PASSWORD: 'managed-redis-password-123',
+        APP_BASE_URL: 'https://api.client.org',
+        FILES_WRITE_DRIVER: 'local',
+        FILES_READ_DRIVERS: 'local',
+      }),
+    ).toThrow('Production file writes require the S3 storage driver');
   });
 
   it('requires strong credentials for basic Swagger access', () => {

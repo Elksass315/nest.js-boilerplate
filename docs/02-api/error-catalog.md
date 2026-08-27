@@ -67,4 +67,8 @@ Enabling Sentry does not change any status, code, message, or response field in 
 Unexpected failures continue to return `INTERNAL_SERVER_ERROR`; monitoring receives a redacted copy
 of the exception context with request and correlation IDs for operational lookup.
 
+Operational logs are also redacted: they contain the route, error type, correlation identifiers, and
+only allowlisted PostgreSQL codes/constraint names. SQL statements, parameters, raw exceptions,
+request bodies, tokens, and personal data are excluded.
+
 **Navigation:** [Previous: OpenAPI and Swagger Standard](openapi-standard.md) | [Documentation Index](../README.md) | [Next: Pagination Standard](pagination-standard.md)

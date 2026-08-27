@@ -13,6 +13,7 @@ import { I18nService } from 'nestjs-i18n';
 import { QueryFailedError } from 'typeorm';
 
 import { isPlainRecord } from '@/shared/helpers/is-plain-record';
+import { projectSafeError } from '@/common/logging/safe-error';
 
 import { ERROR_DEFINITIONS, type ErrorCode, isErrorCode } from './error-definitions';
 import type { ErrorResponse } from './error-response.interface';
@@ -57,7 +58,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     response.setHeader('Content-Language', language);
     if (resolved.status >= 500) {
       this.logger.error(
-        { exception, requestId, correlationId, method: request.method, path: request.originalUrl },
+        {
+          ...projectSafeError(exception),
+          requestId,
+          correlationId,
+          method: request.method,
+          path: request.originalUrl,
+        },
         'Unhandled request failure',
       );
     }

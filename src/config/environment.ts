@@ -14,7 +14,7 @@ import type {
   FileWorkerConfiguration,
   MailWorkerConfiguration,
 } from './configuration.types';
-import { corsEnvironmentSchema, createCorsConfig } from './cors.config';
+import { corsEnvironmentSchema, createCorsConfig, parseCorsOrigins } from './cors.config';
 import { createI18nConfig, i18nEnvironmentSchema, parseSupportedLanguages } from './i18n.config';
 import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config';
 import { createInvitationsConfig, invitationsEnvironmentSchema } from './invitations.config';
@@ -62,6 +62,13 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
     'environment.filesDrivers':
       'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
     'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
+    'environment.managedSecrets': 'Managed environments cannot use template or synthetic secrets',
+    'environment.managedUrls':
+      'Managed public URLs and CORS origins must use HTTPS and cannot target localhost or example domains',
+    'environment.databaseSecurity':
+      'Managed database connections require SSL certificate verification and a password of at least 16 characters',
+    'environment.smtpTls': 'MAIL_SMTP_REQUIRE_TLS must be true in staging and production',
+    'environment.productionFiles': 'Production file writes require the S3 storage driver',
   });
 
 const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
@@ -83,6 +90,12 @@ const mailWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
     'environment.smtpCredentials':
       'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
     'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
+    'environment.managedSecrets': 'Managed environments cannot use template or synthetic secrets',
+    'environment.managedUrls':
+      'Managed public URLs must use HTTPS and cannot target localhost or example domains',
+    'environment.databaseSecurity':
+      'Managed database connections require SSL certificate verification and a password of at least 16 characters',
+    'environment.smtpTls': 'MAIL_SMTP_REQUIRE_TLS must be true in staging and production',
   });
 
 const fileWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
@@ -100,6 +113,12 @@ const fileWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
     'environment.filesDrivers':
       'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
     'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
+    'environment.managedSecrets': 'Managed environments cannot use template or synthetic secrets',
+    'environment.managedUrls':
+      'Managed public URLs and S3 endpoints must use HTTPS and cannot target localhost or example domains',
+    'environment.databaseSecurity':
+      'Managed database connections require SSL certificate verification and a password of at least 16 characters',
+    'environment.productionFiles': 'Production file writes require the S3 storage driver',
   });
 
 function validateApiContradictions(
@@ -133,6 +152,21 @@ function validateApiContradictions(
       (typeof swaggerPassword === 'string' && swaggerPassword.length > 0))
   ) {
     return helpers.error('environment.swaggerUnusedCredentials');
+  }
+  if (isManaged && managedSecretsAreUnsafe(environment)) {
+    return helpers.error('environment.managedSecrets');
+  }
+  if (isManaged && !managedUrlsAreSafe(environment)) {
+    return helpers.error('environment.managedUrls');
+  }
+  if (isManaged && !databaseSecurityAgrees(environment)) {
+    return helpers.error('environment.databaseSecurity');
+  }
+  if (isManaged && environment['MAIL_SMTP_REQUIRE_TLS'] !== true) {
+    return helpers.error('environment.smtpTls');
+  }
+  if (nodeEnvironment === 'production' && environment['FILES_WRITE_DRIVER'] !== 's3') {
+    return helpers.error('environment.productionFiles');
   }
   if (isManaged && (typeof redisPassword !== 'string' || redisPassword.length < 16)) {
     return helpers.error('environment.redisPassword');
@@ -186,6 +220,19 @@ function validateMailWorkerContradictions(
 ): Record<string, unknown> | Joi.ErrorReport {
   const nodeEnvironment = environment['NODE_ENV'];
   const redisPassword = environment['REDIS_PASSWORD'];
+  const isManaged = nodeEnvironment === 'staging' || nodeEnvironment === 'production';
+  if (isManaged && managedSecretsAreUnsafe(environment)) {
+    return helpers.error('environment.managedSecrets');
+  }
+  if (isManaged && !managedUrlsAreSafe(environment)) {
+    return helpers.error('environment.managedUrls');
+  }
+  if (isManaged && !databaseSecurityAgrees(environment)) {
+    return helpers.error('environment.databaseSecurity');
+  }
+  if (isManaged && environment['MAIL_SMTP_REQUIRE_TLS'] !== true) {
+    return helpers.error('environment.smtpTls');
+  }
   if (
     (nodeEnvironment === 'staging' || nodeEnvironment === 'production') &&
     (typeof redisPassword !== 'string' || redisPassword.length < 16)
@@ -207,6 +254,19 @@ function validateFileWorkerContradictions(
 ): Record<string, unknown> | Joi.ErrorReport {
   const nodeEnvironment = environment['NODE_ENV'];
   const redisPassword = environment['REDIS_PASSWORD'];
+  const isManaged = nodeEnvironment === 'staging' || nodeEnvironment === 'production';
+  if (isManaged && managedSecretsAreUnsafe(environment)) {
+    return helpers.error('environment.managedSecrets');
+  }
+  if (isManaged && !managedUrlsAreSafe(environment)) {
+    return helpers.error('environment.managedUrls');
+  }
+  if (isManaged && !databaseSecurityAgrees(environment)) {
+    return helpers.error('environment.databaseSecurity');
+  }
+  if (nodeEnvironment === 'production' && environment['FILES_WRITE_DRIVER'] !== 's3') {
+    return helpers.error('environment.productionFiles');
+  }
   if (
     (nodeEnvironment === 'staging' || nodeEnvironment === 'production') &&
     (typeof redisPassword !== 'string' || redisPassword.length < 16)
@@ -228,6 +288,90 @@ function smtpCredentialsAgree(environment: Record<string, unknown>): boolean {
   const hasUsername = typeof username === 'string' && username.length > 0;
   const hasPassword = typeof password === 'string' && password.length > 0;
   return hasUsername === hasPassword;
+}
+
+const TEMPLATE_VALUES = new Set([
+  'local-only-change-this-access-token-secret',
+  'local-database-password',
+  'local-redis-password',
+  'test',
+  'localstack',
+]);
+
+function managedSecretsAreUnsafe(environment: Record<string, unknown>): boolean {
+  const secretKeys = [
+    'AUTH_ACCESS_TOKEN_SECRET',
+    'DATABASE_PASSWORD',
+    'REDIS_PASSWORD',
+    'FILES_S3_ACCESS_KEY_ID',
+    'FILES_S3_SECRET_ACCESS_KEY',
+  ];
+  return secretKeys.some((key) => {
+    const value = environment[key];
+    return (
+      typeof value === 'string' &&
+      (TEMPLATE_VALUES.has(value) || value.toLowerCase().includes('change-this'))
+    );
+  });
+}
+
+function managedUrlsAreSafe(environment: Record<string, unknown>): boolean {
+  const urlKeys = [
+    'APP_BASE_URL',
+    'MAIL_ACTION_BASE_URL',
+    'TEAM_INVITATION_BASE_URL',
+    'FILES_S3_CDN_URL',
+  ];
+  for (const key of urlKeys) {
+    const value = environment[key];
+    if (typeof value !== 'string' || value.length === 0) continue;
+    if (!isManagedUrl(value)) return false;
+  }
+  const drivers = environment['FILES_READ_DRIVERS'];
+  if (
+    typeof drivers === 'string' &&
+    drivers
+      .split(',')
+      .map((item) => item.trim())
+      .includes('s3')
+  ) {
+    const endpoint = environment['FILES_S3_ENDPOINT'];
+    if (typeof endpoint !== 'string' || !isManagedUrl(endpoint)) return false;
+  }
+  const cors = environment['CORS_ORIGINS'];
+  if (typeof cors === 'string') {
+    try {
+      if (parseCorsOrigins(cors).some((origin) => !isManagedUrl(origin))) return false;
+    } catch {
+      return false;
+    }
+  }
+  const branding = [environment['MAIL_FROM_ADDRESS'], environment['MAIL_BRANDING_SUPPORT_EMAIL']];
+  return branding.every(
+    (value) => typeof value !== 'string' || !/@(?:example\.com|example\.test)$/i.test(value),
+  );
+}
+
+function isManagedUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      !['localhost', '127.0.0.1', '::1'].includes(url.hostname) &&
+      !/example\.(?:com|test)$/i.test(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function databaseSecurityAgrees(environment: Record<string, unknown>): boolean {
+  return (
+    environment['DATABASE_SSL_ENABLED'] === true &&
+    environment['DATABASE_REJECT_UNAUTHORIZED'] === true &&
+    typeof environment['DATABASE_PASSWORD'] === 'string' &&
+    environment['DATABASE_PASSWORD'].length >= 16
+  );
 }
 
 function validateWithSchema(

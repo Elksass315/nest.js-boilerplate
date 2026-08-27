@@ -169,4 +169,28 @@ describe(GlobalExceptionFilter.name, () => {
       expect.objectContaining({ statusCode: 500, code: 'INTERNAL_SERVER_ERROR' }),
     );
   });
+
+  it('logs only a safe database projection', () => {
+    const { host } = createHost();
+    const error = new QueryFailedError(
+      'SELECT password FROM users WHERE id = $1',
+      ['secret'],
+      Object.assign(new Error('password=secret'), { code: '99999', constraint: 'users_email_key' }),
+    );
+
+    new GlobalExceptionFilter(i18n).catch(error, host);
+
+    expect(Logger.prototype.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorType: 'QueryFailedError',
+        requestId: 'request-1',
+        correlationId: 'correlation-1',
+      }),
+      'Unhandled request failure',
+    );
+    expect(Logger.prototype.error).not.toHaveBeenCalledWith(
+      expect.objectContaining({ exception: expect.anything() }),
+      expect.anything(),
+    );
+  });
 });
