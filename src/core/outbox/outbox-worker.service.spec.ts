@@ -14,13 +14,18 @@ describe(OutboxWorkerService.name, () => {
       add: jest.fn(),
       close: jest.fn().mockResolvedValue(undefined),
     } as unknown as Queue;
-    const service = new OutboxWorkerService(repository, queue);
+    const mailQueue = {
+      add: jest.fn(),
+      close: jest.fn().mockResolvedValue(undefined),
+    } as unknown as Queue;
+    const service = new OutboxWorkerService(repository, queue, mailQueue);
 
     service.onModuleInit();
     await Promise.resolve();
     expect(repository.claimBatch).toHaveBeenCalledWith(50, 30_000);
     await service.onApplicationShutdown();
     expect(queue.close).toHaveBeenCalled();
+    expect(mailQueue.close).toHaveBeenCalled();
     jest.useRealTimers();
   });
 
@@ -41,13 +46,14 @@ describe(OutboxWorkerService.name, () => {
       add: jest.fn().mockResolvedValue(undefined),
       close: jest.fn(),
     } as unknown as Queue;
-    const service = new OutboxWorkerService(repository, queue);
+    const mailQueue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
+    const service = new OutboxWorkerService(repository, queue, mailQueue);
 
     await service.publish(record);
 
-    expect(queue.add).toHaveBeenCalledWith(
-      'mail.send',
-      expect.objectContaining({ messageId: record.id, correlationId: record.correlationId }),
+    expect(mailQueue.add).toHaveBeenCalledWith(
+      'send-mail',
+      record.payload,
       expect.objectContaining({ jobId: record.id }),
     );
     expect(repository.markPublished).toHaveBeenCalledWith(record.id, record.leaseToken);
@@ -66,7 +72,7 @@ describe(OutboxWorkerService.name, () => {
       add: jest.fn().mockRejectedValue(new Error('queue unavailable')),
     } as unknown as Queue;
 
-    await new OutboxWorkerService(repository, queue).publish(record);
+    await new OutboxWorkerService(repository, queue, queue).publish(record);
     expect(repository.markPublished).not.toHaveBeenCalled();
   });
 });

@@ -56,9 +56,10 @@ pagination with a unique tie-breaker. Its reversal restores the original index. 
 
 Transactional outbox migration `1787600000000-CreateTransactionalOutbox` creates durable,
 versioned `mail.send`, `file.delete`, and `file.migration-source-delete` messages with correlation
-IDs, attempts, availability windows, and expiring leases. The outbox worker claims rows with
-`FOR UPDATE SKIP LOCKED` and uses the outbox UUID as the BullMQ job ID. `pnpm outbox:status` and
-`pnpm outbox:retry <message-id>` are guarded CLI operations; retry always requires one explicit UUID
-and preserves the stored correlation context.
+IDs, attempts, availability windows, and expiring leases. Mail delivery rows and `mail.send`
+messages are committed together by the owning service transaction. The outbox worker claims rows
+with `FOR UPDATE SKIP LOCKED` and uses the outbox UUID as the BullMQ job ID. `pnpm outbox:status`
+and `pnpm outbox:retry <message-id>` are guarded CLI operations; retry always requires one explicit
+UUID and preserves the stored correlation context.
 
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Error Handling](error-handling.md)

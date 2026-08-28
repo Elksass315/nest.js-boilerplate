@@ -25,12 +25,14 @@ revocation, password changes, two-step changes, account-status changes, role cha
 invitations, and account-ready notices after invitation acceptance. Every
 template uses the common layout, has renderer tests, and never embeds environment-specific hosts.
 
-## Queue and security policy
+## Durable delivery and security policy
 
-Jobs use BullMQ queue `mail`, five exponential-backoff attempts by default, one-hour completed-job
-retention, and 24-hour failed-job retention. Each job carries `x-correlation-id`. Redis necessarily
-contains the recipient and one-time code or action URL until processing; logs must never include
-those fields, passwords, message bodies, SMTP credentials, raw tokens, or codes.
+Mail-producing service methods write the `mail_deliveries` row and a versioned `mail.send` record in
+the same PostgreSQL transaction. The API reports success only after that transaction commits; the
+outbox relay then publishes the record to BullMQ queue `mail` using the outbox UUID as the job ID.
+Repeated relay attempts therefore deduplicate at the queue boundary. The durable payload contains
+the recipient and one-time code or action URL until processing; logs must never include those
+fields, passwords, message bodies, SMTP credentials, raw tokens, or codes.
 
 `MAIL_ENABLED=false` skips job production and SMTP startup safely. The separate `mail-worker`
 process verifies SMTP before consuming jobs, uses configured concurrency, and closes BullMQ/SMTP
@@ -45,7 +47,7 @@ safe error type.
 
 ## Test strategy and change impact
 
-Tests verify queue payload policy, correlation propagation, disabled behavior, verification mail
+Tests verify transaction rollback/commit boundaries, outbox payload policy, correlation propagation, disabled behavior, verification mail
 contains a code without an action URL, remaining action URLs, every security template, shared
 header/footer rendering, escaping, worker retry/failure behavior, delivery state, and SMTP delivery
 through Mailpit.

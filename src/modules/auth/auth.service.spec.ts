@@ -177,6 +177,7 @@ describe(AuthService.name, () => {
 
     expect(users.createOrUpdatePendingUser).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'amina@example.com', normalizedEmail: 'amina@example.com' }),
+      expect.anything(),
     );
     expect(repository.issueEmailVerificationCode).toHaveBeenCalledWith(
       expect.anything(),
@@ -186,6 +187,7 @@ describe(AuthService.name, () => {
     );
     expect(mail.sendEmailVerification).toHaveBeenCalledWith(
       expect.objectContaining({ email: user.email, code: '482913', expiresInSeconds: 600 }),
+      expect.anything(),
     );
     expect(result).toEqual({
       registrationId: user.id,
@@ -206,6 +208,27 @@ describe(AuthService.name, () => {
       message: 'If the registration is eligible, a verification code will be sent',
     });
     expect(mail.sendEmailVerification).not.toHaveBeenCalled();
+  });
+
+  it('commits a replacement verification code and durable mail request on resend', async () => {
+    users.findByIdForAuthentication.mockResolvedValue({
+      ...user,
+      status: 'pending_verification',
+      emailVerifiedAt: null,
+    });
+
+    await service.resendVerification(user.id);
+
+    expect(repository.issueEmailVerificationCode).toHaveBeenCalledWith(
+      expect.anything(),
+      user.id,
+      '$argon2id$secret',
+      expect.any(Date),
+    );
+    expect(mail.sendEmailVerification).toHaveBeenCalledWith(
+      expect.objectContaining({ email: user.email, code: '482913' }),
+      expect.anything(),
+    );
   });
 
   it('consumes a valid verification code and activates the account atomically', async () => {
@@ -292,6 +315,7 @@ describe(AuthService.name, () => {
     );
     expect(mail.sendTwoStepCode).toHaveBeenCalledWith(
       expect.objectContaining({ code: '482913', purpose: 'login' }),
+      expect.anything(),
     );
     expect(repository.createSession).not.toHaveBeenCalled();
   });

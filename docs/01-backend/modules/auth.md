@@ -61,8 +61,10 @@ Stable error examples in the auth and session controllers are generated through 
 `swaggerErrorContent` helper, which reads status and fallback messages from the central error catalog.
 
 `POST /auth/register` creates a pending user or revises the name/password of an existing pending
-user with the same normalized email. It invalidates earlier codes, emails a six-digit code, and
-returns `{ registrationId, verificationExpiresIn, message }`. Active and suspended duplicates
+user with the same normalized email. It invalidates earlier codes and commits the user, six-digit
+verification code, delivery metadata, and `mail.send` outbox record in one transaction. The API
+returns `{ registrationId, verificationExpiresIn, message }` after that durable commit; delivery
+may complete asynchronously. Active and suspended duplicates
 remain `EMAIL_ALREADY_REGISTERED`; a different email creates a separate pending registration.
 Resend accepts `{ registrationId }`; confirmation accepts `{ registrationId, code }`.
 
@@ -125,8 +127,9 @@ Email verification and two-step codes contain six cryptographically generated di
 are formatted for manual entry, and are never returned after enrollment/regeneration completes.
 
 Unknown-email login performs dummy Argon2 verification. Five failed attempts lock an account for 15
-minutes by default. Audit events receive request and correlation IDs; logs and mail-job metadata
-never contain passwords, raw tokens, or full recipient addresses.
+minutes by default. Audit events receive request and correlation IDs; logs never contain passwords,
+raw tokens, or full recipient addresses. Security mail is durable once its owning transaction
+commits and is relayed asynchronously through the transactional outbox.
 
 ## Test strategy and change impact
 

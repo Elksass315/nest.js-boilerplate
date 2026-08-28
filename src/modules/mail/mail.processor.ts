@@ -27,7 +27,8 @@ export class MailProcessor {
       attempt: attempts,
       correlationId: job.data.correlationId,
     };
-    await this.repository.markProcessing(job.data.deliveryId, attempts);
+    const claimed = await this.repository.markProcessing(job.data.deliveryId, attempts);
+    if (!claimed) return;
     this.logger.info(context, 'Mail delivery started');
     try {
       const html = this.renderer.render(job.data.template, job.data.subject, job.data.context);

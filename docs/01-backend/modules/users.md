@@ -83,9 +83,11 @@ demoted before disabling enrollment; role policy independently protects unenroll
 Migration `1787184000000-IndexSecurityAuditPagination` replaces the earlier subject/time index with
 `(user_id, created_at, id)` so the API's deterministic tie-breaker is indexed and reversible.
 
-Status and role mutations enqueue correlated security emails after persistence succeeds. Payloads
-contain only the target user's public display data and the safe resulting state; audit records and
-logs never contain message bodies or full mail-job payloads.
+Status and role mutations enqueue correlated security emails after persistence succeeds. The mail
+service records delivery metadata and a durable outbox request before the API operation succeeds;
+the relay delivers asynchronously. Payloads contain only the target user's public display data and
+the safe resulting state; audit records and logs never contain message bodies or full mail-job
+payloads.
 
 The last-active-super-admin rule is serialized with PostgreSQL transaction advisory lock
 `users:last-super-admin`, preventing concurrent status or role changes from removing all active

@@ -4,7 +4,7 @@ import { Queue } from 'bullmq';
 
 import { OutboxMessageEntity } from './outbox.entity';
 import { OutboxRepository } from './outbox.repository';
-import { OUTBOX_QUEUE } from './outbox.types';
+import { OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from './outbox.types';
 
 @Injectable()
 export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown {
@@ -15,6 +15,7 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
   public constructor(
     private readonly repository: OutboxRepository,
     @InjectQueue(OUTBOX_QUEUE) private readonly queue: Queue,
+    @InjectQueue(OUTBOX_MAIL_QUEUE) private readonly mailQueue: Queue,
   ) {}
 
   public onModuleInit(): void {
@@ -26,6 +27,7 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
     this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     await this.queue.close();
+    await this.mailQueue.close();
   }
 
   private async relay(): Promise<void> {
@@ -36,17 +38,23 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
 
   public async publish(record: OutboxMessageEntity): Promise<void> {
     try {
-      await this.queue.add(
-        record.topic,
-        {
-          messageId: record.id,
-          topic: record.topic,
-          version: record.version,
-          payload: record.payload,
-          correlationId: record.correlationId,
-        },
-        { jobId: record.id, removeOnComplete: { age: 86_400 }, removeOnFail: { age: 604_800 } },
-      );
+      const destination = record.topic === 'mail.send' ? this.mailQueue : this.queue;
+      const name = record.topic === 'mail.send' ? 'send-mail' : record.topic;
+      const data =
+        record.topic === 'mail.send'
+          ? record.payload
+          : {
+              messageId: record.id,
+              topic: record.topic,
+              version: record.version,
+              payload: record.payload,
+              correlationId: record.correlationId,
+            };
+      await destination.add(name, data, {
+        jobId: record.id,
+        removeOnComplete: { age: 86_400 },
+        removeOnFail: { age: 604_800 },
+      });
       if (record.leaseToken) await this.repository.markPublished(record.id, record.leaseToken);
     } catch (error: unknown) {
       this.logger.warn(

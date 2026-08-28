@@ -1,4 +1,6 @@
-export const MAIL_QUEUE = 'mail';
+import { OUTBOX_MAIL_QUEUE } from '@/core/outbox/outbox.types';
+
+export const MAIL_QUEUE = OUTBOX_MAIL_QUEUE;
 
 export type MailTemplate =
   | 'email-verification'
