@@ -40,6 +40,7 @@ Useful commands:
 
 ```bash
 pnpm validate
+pnpm readiness:check
 pnpm test:e2e
 pnpm docker:logs
 pnpm scaffold:feature billing --http --persistence --dry-run

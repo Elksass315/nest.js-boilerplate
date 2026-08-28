@@ -44,4 +44,9 @@ Business routes use explicit URI versions such as `/api/v1`. Operational health 
 version-neutral and outside the API prefix. The system is explicitly single-tenant: do not add
 tenant context, tenant columns, or tenant abstractions without a separately approved change.
 
+Optional capabilities are selected from the machine-readable [`capabilities.manifest.json`](../../capabilities.manifest.json)
+by the project initializer. Their supported combinations and dependency rules are documented in the
+[capability matrix](../governance/capability-matrix.md) and protected by
+[ADR-001](../adr/001-optional-capability-boundaries.md).
+
 **Navigation:** [Previous: Documentation Index](../README.md) | [Documentation Index](../README.md) | [Next: Technology Stack](tech-stack.md)

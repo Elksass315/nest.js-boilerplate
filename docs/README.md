@@ -39,16 +39,21 @@ request as the behavior it describes.
 - [Branching strategy](03-dev-process/branching-strategy.md)
 - [Commit standard](03-dev-process/commit-standard.md)
 - [Pull-request review](03-dev-process/review-process.md)
+- [Upgrade and rollback guide](03-dev-process/upgrade-guide.md)
 
 ## Deployment
 
 - [Docker workflow](04-deployment/docker.md)
 - [CI/CD ownership](04-deployment/ci-cd.md)
+- [v1 readiness and recovery](04-deployment/v1-readiness.md)
 
 ## Governance and templates
 
 - [Documentation policy](governance/documentation-policy.md)
 - [Architecture rules](governance/architecture-rules.md)
+- [Supported capability matrix](governance/capability-matrix.md)
+- [Operational ownership](governance/operational-ownership.md)
+- [Template governance](governance/template-governance.md)
 - [Module documentation template](templates/module-doc-template.md)
 - [ADR template](adr/000-template.md)
 
