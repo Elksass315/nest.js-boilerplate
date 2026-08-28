@@ -13,6 +13,12 @@ CodeQL, SBOM, license, and deeper scans. File-storage integration runs against l
 digest-pinned LocalStack S3 service before deployment. CI creates a private bucket explicitly and
 uses path-style S3 access with synthetic credentials.
 
+The quality job also supplies the required `AUTH_ACCESS_TOKEN_SECRET` as a test-only fixture so
+OpenAPI generation can bootstrap the Nest application. It must never be copied into staging or
+production configuration. Coverage artifacts are uploaded as a best-effort diagnostic; a failed
+test/build step remains the primary CI failure and does not create a misleading second failure when
+no coverage directory exists.
+
 The quality job generates and lints the OpenAPI document against the executable route metadata before
 running tests. Jest uses the exact-pinned SWC transformer; `tsc` remains the authoritative typecheck.
 After coverage, `coverage:changed` compares executable changed lines with the PR base and requires at
