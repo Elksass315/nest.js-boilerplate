@@ -7,6 +7,7 @@ import { createLoggerOptions } from '@/common/logging/logger-options';
 import type { AppConfiguration } from '@/config/configuration.types';
 import { loadApiConfiguration } from '@/config/environment';
 import { DatabaseModule } from '@/database/database.module';
+import { CoreModule } from '@/core/core.module';
 import { OutboxModule } from '@/core/outbox/outbox.module';
 import { OutboxWorkerService } from '@/core/outbox/outbox-worker.service';
 import { OUTBOX_FILE_QUEUE, OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from '@/core/outbox/outbox.types';
@@ -21,6 +22,7 @@ import type { RedisConfig } from '@/redis/config/redis.config';
         createLoggerOptions(config.getOrThrow('logging.level', { infer: true })),
     }),
     DatabaseModule,
+    CoreModule,
     OutboxModule,
     BullModule.forRootAsync({
       inject: [ConfigService],

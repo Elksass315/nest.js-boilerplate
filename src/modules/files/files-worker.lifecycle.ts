@@ -5,6 +5,7 @@ import { Queue, Worker } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
 import type { FileWorkerConfiguration } from '@/config/configuration.types';
+import { WorkerHeartbeatService } from '@/core/worker/worker-heartbeat.service';
 import type { RedisConfig } from '@/redis/config/redis.config';
 
 import { FilesProcessor } from './files.processor';
@@ -19,11 +20,13 @@ export class FilesWorkerLifecycle implements OnModuleInit, OnApplicationShutdown
     private readonly processor: FilesProcessor,
     @InjectQueue(FILE_QUEUE) private readonly queue: Queue<FileJob>,
     private readonly logger: PinoLogger,
+    private readonly heartbeat: WorkerHeartbeatService,
   ) {
     this.logger.setContext(FilesWorkerLifecycle.name);
   }
 
   public async onModuleInit(): Promise<void> {
+    this.heartbeat.start('file-worker');
     const redis = this.config.getOrThrow<RedisConfig>('redis');
     this.worker = new Worker<FileJob>(FILE_QUEUE, (job) => this.processor.process(job), {
       connection: {
@@ -52,6 +55,7 @@ export class FilesWorkerLifecycle implements OnModuleInit, OnApplicationShutdown
 
   public async onApplicationShutdown(): Promise<void> {
     await this.worker?.close();
+    await this.heartbeat.stop('file-worker');
     this.logger.info('File worker stopped');
   }
 }

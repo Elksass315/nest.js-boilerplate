@@ -88,6 +88,8 @@ correlation IDs—never filenames, paths, object bodies, tokens, or personal dat
 The sweeper writes cleanup messages transactionally, allowing prepared-but-unclaimed objects and
 interrupted provider moves to recover without direct durable queue writes. Cleanup consumers are
 idempotent when a relay or worker crash causes a duplicate attempt.
+The file worker refreshes a `/tmp` heartbeat used by deployment health checks; a stale heartbeat
+causes the managed rollout to fail rather than accepting a wedged consumer.
 
 Example lifecycle rule:
 

@@ -28,6 +28,15 @@ services:
       - ALL
     restart: always
 
+  outbox-worker:
+    image: ${APP_IMAGE:?APP_IMAGE must be an immutable registry reference}
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    cap_drop:
+      - ALL
+    restart: always
+
   migrate:
     image: ${APP_IMAGE:?APP_IMAGE must be an immutable registry reference}
     env_file:
@@ -41,9 +50,6 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - backend-internal
     profiles:
@@ -62,16 +68,7 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - backend-internal
     profiles:
       - deployment
-
-  postgres:
-    restart: always
-
-  redis:
-    restart: always

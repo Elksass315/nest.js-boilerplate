@@ -1,0 +1,9 @@
+{
+  "compatibilityVersion": "expand-contract-v1",
+  "strategy": "expand-contract",
+  "rollback": {
+    "applicationImage": "allowed only when this declaration is present in both images",
+    "schema": "revert only after the previous application image is compatible with the expanded schema"
+  },
+  "requiredChecks": ["backup-reference", "migration-success", "previous-image-compatibility"]
+}

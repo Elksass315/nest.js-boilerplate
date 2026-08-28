@@ -4,6 +4,7 @@ import { Worker } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
 import type { MailWorkerConfiguration } from '@/config/configuration.types';
+import { WorkerHeartbeatService } from '@/core/worker/worker-heartbeat.service';
 import type { RedisConfig } from '@/redis/config/redis.config';
 
 import { MailProcessor } from './mail.processor';
@@ -19,11 +20,13 @@ export class MailWorkerLifecycle implements OnModuleInit, OnApplicationShutdown 
     private readonly processor: MailProcessor,
     private readonly smtp: SmtpProvider,
     private readonly logger: PinoLogger,
+    private readonly heartbeat: WorkerHeartbeatService,
   ) {
     this.logger.setContext(MailWorkerLifecycle.name);
   }
 
   public async onModuleInit(): Promise<void> {
+    this.heartbeat.start('mail-worker');
     if (!this.config.getOrThrow('mail.enabled', { infer: true })) {
       this.logger.warn('Mail worker is disabled by configuration');
       return;
@@ -49,6 +52,7 @@ export class MailWorkerLifecycle implements OnModuleInit, OnApplicationShutdown 
   public async onApplicationShutdown(): Promise<void> {
     await this.worker?.close();
     this.smtp.close();
+    await this.heartbeat.stop('mail-worker');
     this.logger.info('Mail worker stopped');
   }
 }
