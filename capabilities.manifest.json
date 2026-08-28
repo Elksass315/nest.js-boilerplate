@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
+  "mandatory": [
+    "core",
+    "authorization",
+    "users",
+    "auth",
+    "sessions",
+    "security-audits",
+    "mail",
+    "outbox",
+    "workers"
+  ],
+  "capabilities": {
+    "core": {
+      "label": "Core platform",
+      "dependencies": [],
+      "sourcePaths": ["src/core", "src/common", "src/shared"],
+      "migrationPaths": [],
+      "seedPaths": [],
+      "configurationPaths": ["src/config"],
+      "environmentKeys": [],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/shared-foundation.md"],
+      "packageDependencies": []
+    },
+    "authorization": {
+      "label": "Authorization",
+      "dependencies": [],
+      "sourcePaths": ["src/modules/authorization"],
+      "migrationPaths": [],
+      "seedPaths": ["src/database/seeds"],
+      "configurationPaths": [],
+      "environmentKeys": [],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/modules/authorization.md"],
+      "packageDependencies": []
+    },
+    "users": {
+      "label": "Users",
+      "dependencies": ["authorization"],
+      "sourcePaths": ["src/modules/users"],
+      "migrationPaths": [
+        "src/database/migrations/1786579200000-CreateIdentityCore.ts",
+        "src/database/migrations/1787184000000-IndexSecurityAuditPagination.ts"
+      ],
+      "seedPaths": ["src/database/seeds"],
+      "configurationPaths": [],
+      "environmentKeys": [],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/modules/users.md"],
+      "packageDependencies": []
+    },
+    "auth": {
+      "label": "Authentication",
+      "dependencies": ["users", "mail"],
+      "sourcePaths": ["src/modules/auth"],
+      "migrationPaths": [
+        "src/database/migrations/1786752000000-CreateIdentityEmailSecurity.ts",
+        "src/database/migrations/1787356800000-CreateEmailVerificationCodes.ts"
+      ],
+      "seedPaths": [],
+      "configurationPaths": ["src/config/auth.config.ts"],
+      "environmentKeys": [],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/modules/auth.md"],
+      "packageDependencies": []
+    },
+    "sessions": {
+      "label": "Sessions",
+      "dependencies": ["auth"],
+      "sourcePaths": ["src/modules/auth"],
+      "migrationPaths": [
+        "src/database/migrations/1786665600000-CreateAuthSessions.ts",
+        "src/database/migrations/1787443200000-AddSessionMetadata.ts"
+      ],
+      "seedPaths": [],
+      "configurationPaths": [],
+      "environmentKeys": [],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/modules/auth.md"],
+      "packageDependencies": []
+    },
+    "security-audits": {
+      "label": "Security audits",
+      "dependencies": ["users"],
+      "sourcePaths": ["src/modules/users/entities/user-security-audit.entity.ts"],
+      "migrationPaths": [],
+      "seedPaths": [],
+      "configurationPaths": [],
+      "environmentKeys": [],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/modules/users.md"],
+      "packageDependencies": []
+    },
+    "mail": {
+      "label": "Mail",
+      "dependencies": [],
+      "sourcePaths": ["src/modules/mail", "src/apps/mail-worker"],
+      "migrationPaths": [],
+      "seedPaths": [],
+      "configurationPaths": ["src/config/mail.config.ts"],
+      "environmentKeys": [],
+      "workerProcesses": ["mail-worker"],
+      "composeServices": ["mail-worker", "mailpit"],
+      "documentation": ["docs/01-backend/modules/mail.md"],
+      "packageDependencies": []
+    },
+    "outbox": {
+      "label": "Transactional outbox",
+      "dependencies": ["core"],
+      "sourcePaths": ["src/core/outbox", "src/apps/outbox-worker"],
+      "migrationPaths": ["src/database/migrations/1787600000000-CreateTransactionalOutbox.ts"],
+      "seedPaths": [],
+      "configurationPaths": ["src/config/outbox.config.ts"],
+      "environmentKeys": [],
+      "workerProcesses": ["outbox-worker"],
+      "composeServices": ["outbox-worker"],
+      "documentation": ["docs/01-backend/observability-retention.md"],
+      "packageDependencies": []
+    },
+    "workers": {
+      "label": "Required workers",
+      "dependencies": ["mail", "outbox"],
+      "sourcePaths": [],
+      "migrationPaths": [],
+      "seedPaths": [],
+      "configurationPaths": [],
+      "environmentKeys": [],
+      "workerProcesses": ["mail-worker", "outbox-worker", "maintenance-worker"],
+      "composeServices": [],
+      "documentation": ["docs/04-deployment/docker.md"],
+      "packageDependencies": []
+    },
+    "files": {
+      "label": "File storage",
+      "dependencies": [],
+      "sourcePaths": ["src/modules/files", "src/apps/file-worker", "src/apps/files-migration"],
+      "migrationPaths": ["src/database/migrations/1786838400000-CreateFileStorage.ts"],
+      "seedPaths": [],
+      "configurationPaths": ["src/config/files.config.ts"],
+      "environmentKeys": [
+        "FILES_WRITE_DRIVER",
+        "FILES_READ_DRIVERS",
+        "FILES_S3_BUCKET",
+        "FILES_S3_ENDPOINT"
+      ],
+      "workerProcesses": ["file-worker"],
+      "composeServices": ["localstack", "file-worker"],
+      "documentation": ["docs/01-backend/modules/files.md"],
+      "packageDependencies": [
+        "@aws-sdk/client-s3",
+        "@aws-sdk/s3-request-presigner",
+        "@tus/file-store",
+        "@tus/s3-store",
+        "@tus/server",
+        "sharp"
+      ]
+    },
+    "user-avatars": {
+      "label": "User avatars",
+      "dependencies": ["files"],
+      "sourcePaths": ["src/modules/user-avatars"],
+      "migrationPaths": [
+        "src/database/migrations/1786924800000-AddUserAvatar.ts",
+        "src/database/migrations/1787702400000-CreateUserAvatarAssociations.ts"
+      ],
+      "seedPaths": [],
+      "configurationPaths": ["src/config/files.config.ts"],
+      "environmentKeys": [
+        "FILES_USER_AVATAR_MAX_BYTES",
+        "FILES_USER_AVATAR_MAX_WIDTH",
+        "FILES_USER_AVATAR_MAX_HEIGHT",
+        "FILES_USER_AVATAR_MAX_PIXELS"
+      ],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/modules/users.md"],
+      "packageDependencies": []
+    },
+    "invitations": {
+      "label": "Team invitations",
+      "dependencies": [],
+      "sourcePaths": ["src/modules/invitations"],
+      "migrationPaths": [
+        "src/database/migrations/1787011200000-CreateTeamInvitations.ts",
+        "src/database/migrations/1787097600000-IndexInvitationTokenHash.ts"
+      ],
+      "seedPaths": [],
+      "configurationPaths": ["src/config/invitations.config.ts"],
+      "environmentKeys": ["TEAM_INVITATION_BASE_URL", "TEAM_INVITATION_TTL_HOURS"],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/modules/invitations.md"],
+      "packageDependencies": []
+    },
+    "feature-flags": {
+      "label": "Feature flags",
+      "dependencies": [],
+      "sourcePaths": ["src/modules/feature-flags"],
+      "migrationPaths": ["src/database/migrations/1787270400000-CreateFeatureFlags.ts"],
+      "seedPaths": ["src/database/seeds"],
+      "configurationPaths": [],
+      "environmentKeys": [],
+      "workerProcesses": [],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/modules/feature-flags.md"],
+      "packageDependencies": []
+    },
+    "sentry": {
+      "label": "Sentry error reporting",
+      "dependencies": [],
+      "sourcePaths": ["src/config/sentry.config.ts", "src/observability/sentry.ts"],
+      "migrationPaths": [],
+      "seedPaths": [],
+      "configurationPaths": ["src/config/sentry.config.ts"],
+      "environmentKeys": ["SENTRY_ENABLED", "SENTRY_DSN", "SENTRY_ENVIRONMENT", "SENTRY_RELEASE"],
+      "workerProcesses": [
+        "api",
+        "mail-worker",
+        "file-worker",
+        "outbox-worker",
+        "maintenance-worker"
+      ],
+      "composeServices": [],
+      "documentation": ["docs/01-backend/sentry.md"],
+      "packageDependencies": ["@sentry/nestjs"]
+    }
+  }
+}

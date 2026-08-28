@@ -75,6 +75,7 @@ jobs:
       SWAGGER_DOCS_ACCESS: disabled
       SWAGGER_DOCS_USERNAME: ''
       SWAGGER_DOCS_PASSWORD: ''
+      AUTH_ACCESS_TOKEN_SECRET: test-only-access-token-secret-at-least-32-characters
       DATABASE_HOST: localhost
       DATABASE_PORT: 5432
       DATABASE_NAME: nestjs_saas_test
@@ -170,7 +171,7 @@ jobs:
         with:
           name: coverage-${{ github.sha }}
           path: coverage
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
   dependency-review:

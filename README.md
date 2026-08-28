@@ -43,6 +43,7 @@ pnpm validate
 pnpm test:e2e
 pnpm docker:logs
 pnpm scaffold:feature billing --http --persistence --dry-run
+pnpm init:project --dry-run
 pnpm files:migration:status
 ```
 

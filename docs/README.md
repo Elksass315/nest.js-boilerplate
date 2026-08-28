@@ -12,6 +12,7 @@ request as the behavior it describes.
 ## Backend standards
 
 - [Feature module architecture](01-backend/module-architecture.md)
+- [Capability manifest and project initializer](01-backend/project-initializer.md)
 - [Configuration](01-backend/configuration.md)
 - [Error handling](01-backend/error-handling.md)
 - [Structured logging](01-backend/logging.md)
