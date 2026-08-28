@@ -14,6 +14,7 @@ module.exports = {
     '!src/**/index.ts',
     '!src/common/pagination/api-paginated-response.decorator.ts',
     '!src/database/migrations/*.ts',
+    '!src/database/*-cli.ts',
     '!src/database/seeds/seed-runner.ts',
     '!src/database/seeds/seed.registry.ts',
     '!src/database/data-source.ts',
