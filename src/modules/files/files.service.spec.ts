@@ -1,15 +1,16 @@
 import { Readable } from 'node:stream';
 
-import type { Queue } from 'bullmq';
 import type { ConfigService } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 
 import type { AppConfiguration, FilesConfig } from '@/config/configuration.types';
 import { AppException } from '@/core/errors/app.exception';
+import type { OutboxRepository } from '@/core/outbox/outbox.repository';
+import type { DataSource } from 'typeorm';
 
 import type { FilesRepository } from './files.repository';
 import { FilesService } from './files.service';
-import type { FileJob, StoredFile, StorageProvider } from './files.types';
+import type { StoredFile, StorageProvider } from './files.types';
 import type { StorageProviderFactory } from './providers/storage-provider.factory';
 import type { RedisTusLocker } from './redis-tus-locker';
 
@@ -34,7 +35,10 @@ describe(FilesService.name, () => {
     resolve: jest.fn(() => local),
     enabled: jest.fn(() => [local]),
   };
-  const queue = { add: jest.fn() };
+  const outbox = { insert: jest.fn() };
+  const dataSource = {
+    transaction: jest.fn(async (work: (manager: object) => Promise<unknown>) => work({})),
+  };
   const logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
   const filesConfig = {
     writeDriver: 'local',
@@ -57,7 +61,8 @@ describe(FilesService.name, () => {
       repository as unknown as FilesRepository,
       providers as unknown as StorageProviderFactory,
       {} as RedisTusLocker,
-      queue as unknown as Queue<FileJob>,
+      outbox as unknown as OutboxRepository,
+      dataSource as unknown as DataSource,
       logger as unknown as PinoLogger,
     );
     repository.findCleanupCandidates.mockResolvedValue([]);
@@ -114,10 +119,30 @@ describe(FilesService.name, () => {
 
   it('enqueues bounded correlated deletion jobs', async () => {
     await service.enqueueDeletion('file-1', 'correlation-1');
-    expect(queue.add).toHaveBeenCalledWith(
-      'files.physical-delete',
+    expect(outbox.insert).toHaveBeenCalledWith(
+      expect.anything(),
+      'file.delete',
       { fileId: 'file-1', correlationId: 'correlation-1' },
-      expect.objectContaining({ attempts: 5, backoff: { type: 'exponential', delay: 30_000 } }),
+      'correlation-1',
+    );
+  });
+
+  it('writes both avatar cleanup requests through one caller transaction', async () => {
+    await service.enqueueClaimCleanup('file-1', 'old-file', 'correlation-1', {} as never);
+
+    expect(outbox.insert).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      'file.migration-source-delete',
+      { fileId: 'file-1', correlationId: 'correlation-1' },
+      'correlation-1',
+    );
+    expect(outbox.insert).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'file.delete',
+      { fileId: 'old-file', correlationId: 'correlation-1' },
+      'correlation-1',
     );
   });
 
@@ -146,8 +171,8 @@ describe(FilesService.name, () => {
       storedFile({ pendingDeleteProvider: 's3', pendingDeleteStorageKey: 'old-key' }),
     ]);
     await expect(service.sweepExpired('sweeper-correlation')).resolves.toBe(2);
-    expect(repository.markDeleting).toHaveBeenCalledWith('file-1');
-    expect(queue.add).toHaveBeenCalledTimes(2);
+    expect(repository.markDeleting).toHaveBeenCalledWith('file-1', expect.anything());
+    expect(outbox.insert).toHaveBeenCalledTimes(2);
   });
 
   it('deletes a deferred migration source and checks all enabled providers', async () => {
@@ -244,7 +269,7 @@ describe(FilesService.name, () => {
   });
 
   it('keeps enqueue failures recoverable after database commit', async () => {
-    queue.add.mockRejectedValueOnce(new Error('redis unavailable'));
+    outbox.insert.mockRejectedValueOnce(new Error('database unavailable'));
     await expect(service.scheduleDeletion('file-1', 'correlation-1')).resolves.toBeUndefined();
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ fileId: 'file-1', correlationId: 'correlation-1' }),

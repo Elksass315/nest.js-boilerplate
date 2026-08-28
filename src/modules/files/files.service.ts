@@ -3,22 +3,19 @@ import path from 'node:path';
 import type { Readable } from 'node:stream';
 import type { Request, Response } from 'express';
 
-import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Queue } from 'bullmq';
+import { InjectDataSource } from '@nestjs/typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import { PinoLogger } from 'nestjs-pino';
 
 import type { AppConfiguration } from '@/config/configuration.types';
 import { AppException } from '@/core/errors/app.exception';
+import { OutboxRepository } from '@/core/outbox/outbox.repository';
 
 import { FilesRepository } from './files.repository';
 import {
-  FILE_DELETE_JOB,
-  FILE_MIGRATION_SOURCE_DELETE_JOB,
-  FILE_QUEUE,
   type FileClaimTransaction,
-  type FileJob,
   type PreparedFileContent,
   type PublicFileAccess,
   type PublicFileDescriptor,
@@ -36,15 +33,14 @@ export class FilesService {
   private readonly appBaseUrl: string;
   private readonly uploadExpirationMs: number;
   private readonly signedUrlTtlSeconds: number;
-  private readonly maxRetries: number;
-  private readonly retryDelayMs: number;
 
   public constructor(
     config: ConfigService<AppConfiguration, true>,
     private readonly repository: FilesRepository,
     private readonly providers: StorageProviderFactory,
     private readonly locker: RedisTusLocker,
-    @InjectQueue(FILE_QUEUE) private readonly queue: Queue<FileJob>,
+    private readonly outbox: OutboxRepository,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly logger: PinoLogger,
   ) {
     this.appBaseUrl = config.getOrThrow('app.baseUrl', { infer: true });
@@ -52,8 +48,6 @@ export class FilesService {
     this.writeDriver = files.writeDriver;
     this.uploadExpirationMs = files.uploadExpirationMs;
     this.signedUrlTtlSeconds = files.signedUrlTtlSeconds;
-    this.maxRetries = files.maxRetries;
-    this.retryDelayMs = files.retryDelayMs;
     this.logger.setContext(FilesService.name);
   }
 
@@ -314,13 +308,21 @@ export class FilesService {
     claimedFileId: string,
     replacedFileId: string | null,
     correlationId: string,
+    transactionManager?: EntityManager,
   ): Promise<void> {
-    const tasks = [this.enqueueMigrationSourceDeletion(claimedFileId, correlationId)];
-    if (replacedFileId) tasks.push(this.enqueueDeletion(replacedFileId, correlationId));
-    const results = await Promise.allSettled(tasks);
-    if (results.some(({ status }) => status === 'rejected')) {
+    const write = async (manager: EntityManager): Promise<void> => {
+      await this.enqueueMigrationSourceDeletion(claimedFileId, correlationId, manager);
+      if (replacedFileId) await this.enqueueDeletion(replacedFileId, correlationId, manager);
+    };
+    if (transactionManager) {
+      await write(transactionManager);
+      return;
+    }
+    try {
+      await this.dataSource.transaction(write);
+    } catch (error) {
       this.logger.error(
-        { fileId: claimedFileId, correlationId },
+        { fileId: claimedFileId, correlationId, errorType: errorName(error) },
         'File cleanup enqueue will be recovered by the sweeper',
       );
     }
@@ -361,24 +363,27 @@ export class FilesService {
     }
   }
 
-  public async enqueueDeletion(fileId: string, correlationId: string): Promise<void> {
-    await this.queue.add(
-      FILE_DELETE_JOB,
-      { fileId, correlationId },
-      {
-        jobId: `file-delete-${fileId}`,
-        attempts: this.maxRetries,
-        backoff: { type: 'exponential', delay: this.retryDelayMs },
-        removeOnComplete: { age: 3600 },
-        removeOnFail: { age: 86_400 },
-      },
-    );
+  public async enqueueDeletion(
+    fileId: string,
+    correlationId: string,
+    transactionManager?: EntityManager,
+  ): Promise<void> {
+    const insert = async (manager: EntityManager): Promise<void> => {
+      await this.outbox.insert(manager, 'file.delete', { fileId, correlationId }, correlationId);
+    };
+    if (transactionManager) await insert(transactionManager);
+    else await this.dataSource.transaction(insert);
   }
 
-  public async scheduleDeletion(fileId: string, correlationId: string): Promise<void> {
+  public async scheduleDeletion(
+    fileId: string,
+    correlationId: string,
+    transactionManager?: EntityManager,
+  ): Promise<void> {
     try {
-      await this.enqueueDeletion(fileId, correlationId);
+      await this.enqueueDeletion(fileId, correlationId, transactionManager);
     } catch (error) {
+      if (transactionManager) throw error;
       this.logger.error(
         { fileId, correlationId, errorType: errorName(error) },
         'File deletion enqueue will be recovered by the sweeper',
@@ -421,57 +426,42 @@ export class FilesService {
   public async enqueueMigrationSourceDeletion(
     fileId: string,
     correlationId: string,
+    transactionManager?: EntityManager,
   ): Promise<void> {
-    await this.queue.add(
-      FILE_MIGRATION_SOURCE_DELETE_JOB,
-      { fileId, correlationId },
-      {
-        jobId: `file-migration-source-delete-${fileId}`,
-        attempts: this.maxRetries,
-        backoff: { type: 'exponential', delay: this.retryDelayMs },
-        removeOnComplete: { age: 3600 },
-        removeOnFail: { age: 86_400 },
-      },
-    );
+    const insert = async (manager: EntityManager): Promise<void> => {
+      await this.outbox.insert(
+        manager,
+        'file.migration-source-delete',
+        { fileId, correlationId },
+        correlationId,
+      );
+    };
+    if (transactionManager) await insert(transactionManager);
+    else await this.dataSource.transaction(insert);
   }
 
   public sweepExpired(correlationId: string): Promise<number> {
-    return this.repository.withCleanupLock(async () => {
-      const candidates = await this.repository.findCleanupCandidates(new Date(), 100);
-      const migrationSources = await this.repository.findPendingMigrationSourceCleanup(100);
-      for (const file of candidates) {
-        if (file.status !== 'deleting') await this.repository.markDeleting(file.id);
-        try {
-          await this.enqueueDeletion(file.id, file.correlationId || correlationId);
-        } catch (error) {
-          this.logger.error(
-            {
-              fileId: file.id,
-              provider: file.provider,
-              correlationId: file.correlationId || correlationId,
-              errorType: errorName(error),
-            },
-            'File cleanup enqueue failed',
+    return this.repository.withCleanupLock(async () =>
+      this.dataSource.transaction(async (manager) => {
+        const candidates = await this.repository.findCleanupCandidates(new Date(), 100, manager);
+        const migrationSources = await this.repository.findPendingMigrationSourceCleanup(
+          100,
+          manager,
+        );
+        for (const file of candidates) {
+          if (file.status !== 'deleting') await this.repository.markDeleting(file.id, manager);
+          await this.enqueueDeletion(file.id, file.correlationId || correlationId, manager);
+        }
+        for (const file of migrationSources) {
+          await this.enqueueMigrationSourceDeletion(
+            file.id,
+            file.correlationId || correlationId,
+            manager,
           );
         }
-      }
-      for (const file of migrationSources) {
-        try {
-          await this.enqueueMigrationSourceDeletion(file.id, file.correlationId || correlationId);
-        } catch (error) {
-          this.logger.error(
-            {
-              fileId: file.id,
-              provider: file.pendingDeleteProvider,
-              correlationId: file.correlationId || correlationId,
-              errorType: errorName(error),
-            },
-            'Migrated source cleanup enqueue failed',
-          );
-        }
-      }
-      return candidates.length + migrationSources.length;
-    });
+        return candidates.length + migrationSources.length;
+      }),
+    );
   }
 
   public async checkStorageHealth(): Promise<void> {

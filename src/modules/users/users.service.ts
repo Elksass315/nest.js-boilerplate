@@ -212,16 +212,11 @@ export class UsersService {
       await this.files.discardPrepared(prepared);
       return this.responseFor(result.user, await this.rolesForUser(userId));
     }
-    await this.files.enqueueClaimCleanup(
-      fileId,
-      result.replacedFileId,
-      this.requestContext.getCorrelationId() ?? 'unavailable',
-    );
     return this.toResponse(result.user, await this.rolesForUser(userId), result.avatar);
   }
 
   public async deleteOwnAvatar(userId: string): Promise<void> {
-    const result = await this.dataSource.transaction(async (manager) => {
+    await this.dataSource.transaction(async (manager) => {
       const user = await this.repository.findByIdForUpdate(manager, userId);
       if (!user) throw new AppException('USER_NOT_FOUND');
       const fileId = user.avatarFileId;
@@ -233,14 +228,13 @@ export class UsersService {
         user,
         this.auditContext(userId, userId, 'user.avatar.changed', { action: 'removed' }),
       );
+      await this.files.scheduleDeletion(
+        fileId,
+        this.requestContext.getCorrelationId() ?? 'unavailable',
+        manager,
+      );
       return fileId;
     });
-    if (result) {
-      await this.files.scheduleDeletion(
-        result,
-        this.requestContext.getCorrelationId() ?? 'unavailable',
-      );
-    }
   }
 
   public async updateStatus(
@@ -590,6 +584,12 @@ export class UsersService {
           action: 'replaced',
           hadPreviousAvatar: replacedFileId !== null,
         }),
+      );
+      await this.files.enqueueClaimCleanup(
+        fileId,
+        replacedFileId,
+        this.requestContext.getCorrelationId() ?? 'unavailable',
+        manager,
       );
       return { user: saved, avatar, replacedFileId, idempotent: false } as const;
     });

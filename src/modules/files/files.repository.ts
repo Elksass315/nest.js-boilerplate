@@ -132,8 +132,11 @@ export class FilesRepository {
     }
   }
 
-  public async markDeleting(id: string): Promise<void> {
-    await this.files.update({ id }, { status: 'deleting', deleteRequestedAt: new Date() });
+  public async markDeleting(id: string, manager?: EntityManager): Promise<void> {
+    await (manager?.getRepository(FileEntity) ?? this.files).update(
+      { id },
+      { status: 'deleting', deleteRequestedAt: new Date() },
+    );
   }
 
   public async markFailed(id: string, failureCode: string): Promise<void> {
@@ -148,8 +151,12 @@ export class FilesRepository {
     await this.files.delete({ id });
   }
 
-  public async findCleanupCandidates(now: Date, limit: number): Promise<StoredFile[]> {
-    const entities = await this.files.find({
+  public async findCleanupCandidates(
+    now: Date,
+    limit: number,
+    manager?: EntityManager,
+  ): Promise<StoredFile[]> {
+    const entities = await (manager?.getRepository(FileEntity) ?? this.files).find({
       where: [
         {
           status: In(['uploading', 'uploaded', 'failed']),
@@ -188,8 +195,9 @@ export class FilesRepository {
     source: FileStorageDriver,
     target: FileStorageDriver,
     targetKey: string,
+    manager?: EntityManager,
   ): Promise<boolean> {
-    const result = await this.files.update(
+    const result = await (manager?.getRepository(FileEntity) ?? this.files).update(
       { id, provider: source, status: 'ready' },
       {
         provider: target,
@@ -205,9 +213,13 @@ export class FilesRepository {
     await this.files.update({ id }, { pendingDeleteProvider: null, pendingDeleteStorageKey: null });
   }
 
-  public async findPendingMigrationSourceCleanup(limit: number): Promise<StoredFile[]> {
+  public async findPendingMigrationSourceCleanup(
+    limit: number,
+    manager?: EntityManager,
+  ): Promise<StoredFile[]> {
+    const repository = manager?.getRepository(FileEntity) ?? this.files;
     return (
-      await this.files
+      await repository
         .createQueryBuilder('file')
         .where('file.pending_delete_provider IS NOT NULL')
         .andWhere('file.pending_delete_storage_key IS NOT NULL')

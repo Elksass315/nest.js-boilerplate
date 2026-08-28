@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
@@ -9,6 +10,8 @@ import { loadFileWorkerConfiguration } from '@/config/environment';
 import { CoreModule } from '@/core/core.module';
 import { DatabaseModule } from '@/database/database.module';
 import { FilesWorkerConsumerModule } from '@/modules/files/files-worker.module';
+import { FILE_QUEUE } from '@/modules/files/files.types';
+import type { RedisConfig } from '@/redis/config/redis.config';
 
 @Module({
   imports: [
@@ -26,6 +29,22 @@ import { FilesWorkerConsumerModule } from '@/modules/files/files-worker.module';
     }),
     CoreModule,
     DatabaseModule,
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<FileWorkerConfiguration, true>) => {
+        const redis = config.getOrThrow<RedisConfig>('redis');
+        return {
+          connection: {
+            host: redis.host,
+            port: redis.port,
+            password: redis.password.length > 0 ? redis.password : undefined,
+            db: redis.db,
+            connectTimeout: redis.connectTimeoutMs,
+          },
+        };
+      },
+    }),
+    BullModule.registerQueue({ name: FILE_QUEUE }),
     FilesWorkerConsumerModule,
   ],
 })

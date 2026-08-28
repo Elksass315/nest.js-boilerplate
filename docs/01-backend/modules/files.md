@@ -78,9 +78,16 @@ encryption must be configured for tus multipart uploads; direct provider writes 
 configured SSE mode. Configure an S3 lifecycle rule to abort incomplete multipart uploads after one
 day as defense in depth, while the worker terminates known abandoned tus uploads.
 
-The file worker uses bounded exponential retries, idempotent delete jobs, a 15-minute sweeper, and a
-PostgreSQL advisory lock. Logs contain file IDs, providers, safe error types, request IDs, and
+The file worker consumes `file.delete` and `file.migration-source-delete` requests from the
+transactional outbox relay. File state transitions and their cleanup messages are committed in the
+same PostgreSQL transaction; the outbox UUID becomes the BullMQ job ID, so relay retries are
+idempotent. The worker uses bounded retries, idempotent physical deletion, a 15-minute sweeper,
+and a PostgreSQL advisory lock. Logs contain file IDs, providers, safe error types, request IDs, and
 correlation IDs—never filenames, paths, object bodies, tokens, or personal data.
+
+The sweeper writes cleanup messages transactionally, allowing prepared-but-unclaimed objects and
+interrupted provider moves to recover without direct durable queue writes. Cleanup consumers are
+idempotent when a relay or worker crash causes a duplicate attempt.
 
 Example lifecycle rule:
 
