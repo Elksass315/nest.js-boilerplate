@@ -1,7 +1,9 @@
 import { Readable } from 'node:stream';
 
 import type { PinoLogger } from 'nestjs-pino';
+import type { DataSource } from 'typeorm';
 
+import type { OutboxRepository } from '@/core/outbox/outbox.repository';
 import type { FilesRepository } from './files.repository';
 import { FilesMigrationService } from './files-migration.service';
 import type { StoredFile, StorageProvider } from './files.types';
@@ -41,6 +43,10 @@ describe(FilesMigrationService.name, () => {
     switchProvider: jest.fn(),
     clearPendingMigrationSource: jest.fn(),
   };
+  const outbox = { insert: jest.fn() };
+  const dataSource = {
+    transaction: jest.fn(async (work: (manager: object) => Promise<unknown>) => work({})),
+  };
   const source = provider('local');
   const target = provider('s3');
   const providers = {
@@ -54,7 +60,9 @@ describe(FilesMigrationService.name, () => {
     service = new FilesMigrationService(
       repository as unknown as FilesRepository,
       providers as unknown as StorageProviderFactory,
+      outbox as unknown as OutboxRepository,
       logger as unknown as PinoLogger,
+      dataSource as unknown as DataSource,
     );
     repository.findMigrationBatch.mockResolvedValueOnce([file]).mockResolvedValueOnce([]);
     repository.switchProvider.mockResolvedValue(true);
@@ -96,6 +104,13 @@ describe(FilesMigrationService.name, () => {
       'local',
       's3',
       `objects/${file.id}`,
+      expect.anything(),
+    );
+    expect(outbox.insert).toHaveBeenCalledWith(
+      expect.anything(),
+      'file.migration-source-delete',
+      { fileId: file.id, correlationId: file.correlationId },
+      file.correlationId,
     );
     expect(source.delete).toHaveBeenCalledWith(file.storageKey);
   });

@@ -614,6 +614,7 @@ describe(UsersService.name, () => {
       '22222222-2222-4222-8222-222222222222',
       '11111111-1111-4111-8111-111111111111',
       'correlation-1',
+      expect.anything(),
     );
     expect(result.avatar).toEqual(expect.objectContaining({ mimeType: 'image/webp', size: 4 }));
   });
@@ -680,6 +681,7 @@ describe(UsersService.name, () => {
     expect(files.scheduleDeletion).toHaveBeenCalledWith(
       '11111111-1111-4111-8111-111111111111',
       'correlation-1',
+      expect.anything(),
     );
   });
 });

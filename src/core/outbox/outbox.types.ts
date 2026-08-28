@@ -6,3 +6,5 @@ export type OutboxPayload = object;
 export const OUTBOX_QUEUE = 'outbox-relay';
 /** Queue used by the outbox relay for durable mail delivery requests. */
 export const OUTBOX_MAIL_QUEUE = 'mail';
+/** Queue used by the outbox relay for durable file cleanup requests. */
+export const OUTBOX_FILE_QUEUE = 'files';

@@ -96,7 +96,8 @@ super administrators.
 `users.avatar_file_id` is nullable and unique. Avatar attachment locks the user then file row in one
 transaction, claims only a completed unexpired `user_avatar` upload owned by that user, and records
 `user.avatar.changed`. Repeating the same attachment or removal is idempotent. Replaced files enter
-durable `deleting` state inside the transaction; cleanup jobs are sent only after commit.
+durable `deleting` state and file-cleanup outbox messages inside the transaction. Prepared-but-
+unclaimed objects remain covered by the expiry sweeper.
 
 ## Security and observability
 

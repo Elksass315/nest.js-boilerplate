@@ -9,7 +9,7 @@ import { loadApiConfiguration } from '@/config/environment';
 import { DatabaseModule } from '@/database/database.module';
 import { OutboxModule } from '@/core/outbox/outbox.module';
 import { OutboxWorkerService } from '@/core/outbox/outbox-worker.service';
-import { OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from '@/core/outbox/outbox.types';
+import { OUTBOX_FILE_QUEUE, OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from '@/core/outbox/outbox.types';
 import type { RedisConfig } from '@/redis/config/redis.config';
 
 @Module({
@@ -39,6 +39,7 @@ import type { RedisConfig } from '@/redis/config/redis.config';
     }),
     BullModule.registerQueue({ name: OUTBOX_QUEUE }),
     BullModule.registerQueue({ name: OUTBOX_MAIL_QUEUE }),
+    BullModule.registerQueue({ name: OUTBOX_FILE_QUEUE }),
   ],
   providers: [OutboxWorkerService],
 })

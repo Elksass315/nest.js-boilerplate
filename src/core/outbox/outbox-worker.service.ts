@@ -4,7 +4,7 @@ import { Queue } from 'bullmq';
 
 import { OutboxMessageEntity } from './outbox.entity';
 import { OutboxRepository } from './outbox.repository';
-import { OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from './outbox.types';
+import { OUTBOX_FILE_QUEUE, OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from './outbox.types';
 
 @Injectable()
 export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown {
@@ -16,6 +16,7 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
     private readonly repository: OutboxRepository,
     @InjectQueue(OUTBOX_QUEUE) private readonly queue: Queue,
     @InjectQueue(OUTBOX_MAIL_QUEUE) private readonly mailQueue: Queue,
+    @InjectQueue(OUTBOX_FILE_QUEUE) private readonly fileQueue: Queue,
   ) {}
 
   public onModuleInit(): void {
@@ -28,6 +29,7 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
     if (this.timer) clearInterval(this.timer);
     await this.queue.close();
     await this.mailQueue.close();
+    await this.fileQueue.close();
   }
 
   private async relay(): Promise<void> {
@@ -38,18 +40,32 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
 
   public async publish(record: OutboxMessageEntity): Promise<void> {
     try {
-      const destination = record.topic === 'mail.send' ? this.mailQueue : this.queue;
-      const name = record.topic === 'mail.send' ? 'send-mail' : record.topic;
-      const data =
-        record.topic === 'mail.send'
-          ? record.payload
-          : {
-              messageId: record.id,
-              topic: record.topic,
-              version: record.version,
-              payload: record.payload,
-              correlationId: record.correlationId,
-            };
+      let destination = this.queue;
+      let name: string = record.topic;
+      let data: object = {
+        messageId: record.id,
+        topic: record.topic,
+        version: record.version,
+        payload: record.payload,
+        correlationId: record.correlationId,
+      };
+      switch (record.topic) {
+        case 'mail.send':
+          destination = this.mailQueue;
+          name = 'send-mail';
+          data = record.payload;
+          break;
+        case 'file.delete':
+          destination = this.fileQueue;
+          name = 'files.physical-delete';
+          data = record.payload;
+          break;
+        case 'file.migration-source-delete':
+          destination = this.fileQueue;
+          name = 'files.migration-source-delete';
+          data = record.payload;
+          break;
+      }
       await destination.add(name, data, {
         jobId: record.id,
         removeOnComplete: { age: 86_400 },

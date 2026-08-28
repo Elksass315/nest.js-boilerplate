@@ -18,7 +18,8 @@ describe(OutboxWorkerService.name, () => {
       add: jest.fn(),
       close: jest.fn().mockResolvedValue(undefined),
     } as unknown as Queue;
-    const service = new OutboxWorkerService(repository, queue, mailQueue);
+    const fileQueue = { close: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
+    const service = new OutboxWorkerService(repository, queue, mailQueue, fileQueue);
 
     service.onModuleInit();
     await Promise.resolve();
@@ -26,6 +27,7 @@ describe(OutboxWorkerService.name, () => {
     await service.onApplicationShutdown();
     expect(queue.close).toHaveBeenCalled();
     expect(mailQueue.close).toHaveBeenCalled();
+    expect(fileQueue.close).toHaveBeenCalled();
     jest.useRealTimers();
   });
 
@@ -47,7 +49,8 @@ describe(OutboxWorkerService.name, () => {
       close: jest.fn(),
     } as unknown as Queue;
     const mailQueue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
-    const service = new OutboxWorkerService(repository, queue, mailQueue);
+    const fileQueue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
+    const service = new OutboxWorkerService(repository, queue, mailQueue, fileQueue);
 
     await service.publish(record);
 
@@ -72,7 +75,37 @@ describe(OutboxWorkerService.name, () => {
       add: jest.fn().mockRejectedValue(new Error('queue unavailable')),
     } as unknown as Queue;
 
-    await new OutboxWorkerService(repository, queue, queue).publish(record);
+    const mailQueue = { add: jest.fn() } as unknown as Queue;
+    const fileQueue = {
+      add: jest.fn().mockRejectedValue(new Error('queue unavailable')),
+    } as unknown as Queue;
+    await new OutboxWorkerService(repository, queue, mailQueue, fileQueue).publish(record);
     expect(repository.markPublished).not.toHaveBeenCalled();
+  });
+
+  it('routes file cleanup payloads to the file queue with the stable job name', async () => {
+    const record = Object.assign(new OutboxMessageEntity(), {
+      id: '33333333-3333-4333-8333-333333333333',
+      topic: 'file.delete' as const,
+      version: 1,
+      payload: { fileId: 'file-1', correlationId: 'corr-1' },
+      correlationId: 'corr-1',
+      leaseToken: '44444444-4444-4444-8444-444444444444',
+    });
+    const repository = {
+      markPublished: jest.fn().mockResolvedValue(undefined),
+    } as unknown as OutboxRepository;
+    const queue = { add: jest.fn() } as unknown as Queue;
+    const mailQueue = { add: jest.fn() } as unknown as Queue;
+    const fileQueue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
+
+    await new OutboxWorkerService(repository, queue, mailQueue, fileQueue).publish(record);
+
+    expect(fileQueue.add).toHaveBeenCalledWith(
+      'files.physical-delete',
+      record.payload,
+      expect.objectContaining({ jobId: record.id }),
+    );
+    expect(repository.markPublished).toHaveBeenCalledWith(record.id, record.leaseToken);
   });
 });
