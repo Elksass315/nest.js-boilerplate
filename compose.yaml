@@ -110,6 +110,32 @@ services:
       - backend-internal
       - backend-external
 
+  maintenance-worker:
+    image: ${APP_IMAGE:-nestjs-saas:local}
+    env_file:
+      - ${APP_ENV_FILE:-.env}
+    command: ['node', '--enable-source-maps', 'dist/apps/maintenance-worker/main.js']
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          const fs=require('node:fs');
+          const file='/tmp/nestjs-saas-maintenance-worker.heartbeat';
+          process.exit(fs.existsSync(file)&&Date.now()-fs.statSync(file).mtimeMs<45000?0:1);
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend-internal
+      - backend-external
+
 networks:
   backend-internal:
     internal: true

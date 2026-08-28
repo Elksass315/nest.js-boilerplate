@@ -17,6 +17,16 @@ const validEnvironment = {
 };
 
 describe('environment validation', () => {
+  it('requires an OTLP endpoint when telemetry is enabled', () => {
+    expect(() =>
+      validateApiEnvironment({
+        ...validEnvironment,
+        OTEL_ENABLED: true,
+        OTEL_EXPORTER_OTLP_ENDPOINT: '',
+      }),
+    ).toThrow('OTEL_EXPORTER_OTLP_ENDPOINT');
+  });
+
   it('loads namespaced development defaults', () => {
     const original = process.env;
     process.env = { ...original, ...validEnvironment };

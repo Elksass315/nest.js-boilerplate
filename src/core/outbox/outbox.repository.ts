@@ -10,6 +10,25 @@ import type { OutboxPayload, OutboxTopic } from './outbox.types';
 export class OutboxRepository {
   public constructor(private readonly dataSource: DataSource) {}
 
+  public async cleanupProcessed(
+    processedBefore: Date,
+    failedBefore: Date,
+    limit: number,
+  ): Promise<number> {
+    return this.dataSource.transaction(async (manager) => {
+      const result: unknown = await manager.query(
+        `DELETE FROM outbox_messages WHERE id IN (
+           SELECT id FROM outbox_messages
+           WHERE (status = 'published' AND updated_at < $1)
+              OR (status = 'failed' AND updated_at < $2)
+           ORDER BY updated_at, id LIMIT $3
+         )`,
+        [processedBefore, failedBefore, limit],
+      );
+      return rowCount(result);
+    });
+  }
+
   public async insert(
     manager: EntityManager,
     topic: OutboxTopic,
@@ -77,6 +96,15 @@ export class OutboxRepository {
       [id, leaseToken, errorCode],
     );
   }
+}
+
+function rowCount(value: unknown): number {
+  return typeof value === 'object' &&
+    value !== null &&
+    'rowCount' in value &&
+    typeof value.rowCount === 'number'
+    ? value.rowCount
+    : 0;
 }
 
 function stringValue(value: unknown): string | null {

@@ -121,3 +121,6 @@ must be handled operationally before reversing the migration.
 Not applicable. The module exposes no business collection endpoint.
 
 **Navigation:** [Previous: Authorization Module](authorization.md) | [Documentation Index](../../README.md) | [Next: Mail Module](mail.md)
+
+Retention cleanup removes only unclaimed expired failed metadata. Ready files and
+physical object cleanup remain owned by the files worker and its outbox jobs.

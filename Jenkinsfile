@@ -91,7 +91,7 @@ pipeline {
                                     docker compose --env-file "$env_file" \
                                     -f "$deploy_path/compose.yaml" \
                                     -f "$deploy_path/compose.deploy.yaml" \
-                                    up --detach --no-build --wait api mail-worker file-worker outbox-worker
+                                    up --detach --no-build --wait api mail-worker file-worker outbox-worker maintenance-worker
                             fi
                         fi
                         exit "$exit_code"
@@ -104,7 +104,7 @@ pipeline {
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
                         -f "$deploy_path/compose.deploy.yaml" \
-                        pull api mail-worker file-worker outbox-worker migrate seed
+                        pull api mail-worker file-worker outbox-worker maintenance-worker migrate seed
 
                     migration_compatibility="$(docker image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.migration-compatibility\" }}' "$IMAGE_REF" 2>/dev/null || true)"
                     if test -z "$migration_compatibility" || test "$migration_compatibility" = '<no value>'; then
@@ -125,7 +125,7 @@ pipeline {
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
                         -f "$deploy_path/compose.deploy.yaml" \
-                        up --detach --no-build --wait api mail-worker file-worker outbox-worker
+                        up --detach --no-build --wait api mail-worker file-worker outbox-worker maintenance-worker
 
                     api_port="$(grep -E '^API_HOST_PORT=' "$env_file" | tail -n 1 | cut -d= -f2 || true)"
                     api_port="${api_port:-3000}"

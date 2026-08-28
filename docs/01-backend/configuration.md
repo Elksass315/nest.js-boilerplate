@@ -2,7 +2,7 @@
 
 Copy `.env.example` for development. Managed environments inject secrets outside Git.
 
-Configuration is namespaced and typed by domain: app, CORS, logging, Swagger, rate limits, i18n,
+Configuration is namespaced and typed by domain: app, CORS, logging, observability, retention, Swagger, rate limits, i18n,
 database, Redis, auth, mail, invitations, and files. Each domain owns its schema fragment, loader, contract, tests, and
 environment documentation. One composed validator creates the API configuration.
 
@@ -68,6 +68,11 @@ by Redis. `TRUSTED_PROXY_IPS` is disabled by default and must be an explicit IP 
 and production; the API uses it when determining the client address, so forwarded headers from
 untrusted proxies cannot bypass limits. Managed deployments should tune the named `RATE_LIMIT_*`
 values for their traffic profile.
+
+OpenTelemetry is optional and exports traces/metrics only when `OTEL_ENABLED=true` and an OTLP
+endpoint is configured. OpenTelemetry logs remain disabled; Pino is the logging source. Retention
+is enabled by default with bounded batches and a 15-minute cadence. `RETENTION_*` values control
+operational cutoffs; security audits, feature-flag audits, and business records are never removed.
 
 Sentry is a separate typed namespace shared by API and worker profiles. `SENTRY_ENABLED` and
 `SENTRY_DSN` must agree, tracing is bounded from zero to one, and disabled monitoring performs no

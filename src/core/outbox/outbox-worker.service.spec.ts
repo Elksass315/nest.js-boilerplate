@@ -100,6 +100,7 @@ describe(OutboxWorkerService.name, () => {
       mailQueue,
       fileQueue,
       heartbeat as unknown as WorkerHeartbeatService,
+      { recordOutboxAge: jest.fn(), recordOutbox: jest.fn() } as never,
     ).publish(record);
     expect(repository.markPublished).not.toHaveBeenCalled();
   });
@@ -134,5 +135,58 @@ describe(OutboxWorkerService.name, () => {
       expect.objectContaining({ jobId: record.id }),
     );
     expect(repository.markPublished).toHaveBeenCalledWith(record.id, record.leaseToken);
+  });
+
+  it('publishes non-feature topics to the shared outbox queue', async () => {
+    const record = Object.assign(new OutboxMessageEntity(), {
+      id: '11111111-1111-4111-8111-111111111111',
+      topic: 'mail.send' as const,
+      version: 1,
+      payload: { template: 'welcome' },
+      correlationId: 'correlation-1',
+      leaseToken: null,
+      createdAt: new Date(),
+    });
+    record.topic = 'unknown.topic' as OutboxMessageEntity['topic'];
+    const repository = { markPublished: jest.fn() } as unknown as OutboxRepository;
+    const queue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
+    const service = new OutboxWorkerService(
+      repository,
+      queue,
+      { add: jest.fn() } as unknown as Queue,
+      { add: jest.fn() } as unknown as Queue,
+      heartbeat as unknown as WorkerHeartbeatService,
+      { recordOutboxAge: jest.fn(), recordOutbox: jest.fn() } as never,
+    );
+
+    await service.publish(record);
+    expect(queue.add).toHaveBeenCalledWith('unknown.topic', expect.any(Object), expect.any(Object));
+  });
+
+  it('routes migration-source cleanup to the file queue', async () => {
+    const record = Object.assign(new OutboxMessageEntity(), {
+      id: '11111111-1111-4111-8111-111111111111',
+      topic: 'file.migration-source-delete' as const,
+      version: 1,
+      payload: { fileId: 'file-1', correlationId: 'correlation-1' },
+      correlationId: 'correlation-1',
+      leaseToken: null,
+    });
+    const repository = { markPublished: jest.fn() } as unknown as OutboxRepository;
+    const fileQueue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
+    const service = new OutboxWorkerService(
+      repository,
+      { add: jest.fn() } as unknown as Queue,
+      { add: jest.fn() } as unknown as Queue,
+      fileQueue,
+      heartbeat as unknown as WorkerHeartbeatService,
+    );
+
+    await service.publish(record);
+    expect(fileQueue.add).toHaveBeenCalledWith(
+      'files.migration-source-delete',
+      record.payload,
+      expect.any(Object),
+    );
   });
 });

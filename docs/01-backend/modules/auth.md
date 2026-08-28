@@ -145,3 +145,6 @@ Not applicable. User session history is bounded and uses offset pagination; no m
 or stable append traversal requirement justifies cursor pagination.
 
 **Navigation:** [Previous: Shared Foundation Standard](../shared-foundation.md) | [Documentation Index](../../README.md) | [Next: Authorization Module](authorization.md)
+
+The maintenance worker removes only expired/consumed token rows and expired or revoked sessions
+according to configured retention windows; active credentials and security audits are retained.

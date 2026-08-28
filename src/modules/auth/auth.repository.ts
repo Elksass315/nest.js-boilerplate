@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
 import {
+  DataSource,
   EntityManager,
   IsNull,
   MoreThan,
@@ -23,7 +25,28 @@ export class AuthRepository {
   public constructor(
     @InjectRepository(AuthSessionEntity)
     private readonly sessions: Repository<AuthSessionEntity>,
+    @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
   ) {}
+
+  public async cleanupOperationalData(before: Date, limit: number): Promise<number> {
+    if (!this.dataSource) throw new Error('Database datasource is required for retention cleanup');
+    return this.dataSource.transaction(async (manager) => {
+      let deleted = 0;
+      const statements = [
+        `DELETE FROM auth_action_tokens WHERE id IN (SELECT id FROM auth_action_tokens WHERE expires_at < now() OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_email_verification_codes WHERE id IN (SELECT id FROM auth_email_verification_codes WHERE expires_at < now() OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_two_step_challenges WHERE id IN (SELECT id FROM auth_two_step_challenges WHERE expires_at < now() OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_recovery_codes WHERE id IN (SELECT id FROM auth_recovery_codes WHERE consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_refresh_tokens WHERE id IN (SELECT id FROM auth_refresh_tokens WHERE expires_at < now() OR (status <> 'active' AND updated_at < $1) ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_sessions WHERE id IN (SELECT id FROM auth_sessions WHERE expires_at < now() OR revoked_at < $1 ORDER BY id LIMIT $2)`,
+      ];
+      for (const statement of statements) {
+        const result: unknown = await manager.query(statement, [before, limit]);
+        deleted += rowCount(result);
+      }
+      return deleted;
+    });
+  }
 
   public async lockUserSessions(manager: EntityManager, userId: string): Promise<void> {
     await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`auth:sessions:${userId}`]);
@@ -347,4 +370,13 @@ export class AuthRepository {
   public async deleteRecoveryCodes(manager: EntityManager, userId: string): Promise<void> {
     await manager.getRepository(AuthRecoveryCodeEntity).delete({ userId });
   }
+}
+
+function rowCount(value: unknown): number {
+  return typeof value === 'object' &&
+    value !== null &&
+    'rowCount' in value &&
+    typeof value.rowCount === 'number'
+    ? value.rowCount
+    : 0;
 }

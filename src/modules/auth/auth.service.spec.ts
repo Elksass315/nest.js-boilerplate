@@ -74,6 +74,7 @@ describe(AuthService.name, () => {
     issueEmailVerificationCode: jest.fn(),
     findEmailVerificationCodeForUpdate: jest.fn(),
     saveEmailVerificationCode: jest.fn(),
+    cleanupOperationalData: jest.fn(),
   };
   const crypto = {
     hashPassword: jest.fn(),
@@ -168,6 +169,13 @@ describe(AuthService.name, () => {
       updatedAt: user.updatedAt.toISOString(),
     });
     repository.createSession.mockResolvedValue(session);
+  });
+
+  it('delegates operational credential cleanup to the owning repository', async () => {
+    repository.cleanupOperationalData.mockResolvedValue(4);
+    const before = new Date('2026-01-01');
+    await expect(service.cleanupOperationalData(before, 10)).resolves.toBe(4);
+    expect(repository.cleanupOperationalData).toHaveBeenCalledWith(before, 10);
   });
 
   afterEach(() => jest.clearAllMocks());

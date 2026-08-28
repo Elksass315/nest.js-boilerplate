@@ -151,6 +151,18 @@ export class FilesRepository {
     await this.files.delete({ id });
   }
 
+  public async cleanupTemporaryMetadata(before: Date, limit: number): Promise<number> {
+    const result: unknown = await this.files.query(
+      `DELETE FROM stored_files WHERE id IN (
+         SELECT id FROM stored_files
+          WHERE status = 'failed' AND claimed_at IS NULL AND expires_at < $1
+         ORDER BY expires_at, id LIMIT $2
+       )`,
+      [before, limit],
+    );
+    return rowCount(result);
+  }
+
   public async findCleanupCandidates(
     now: Date,
     limit: number,
@@ -277,4 +289,13 @@ export class FilesRepository {
       sizeBytes: Number(entity.sizeBytes),
     };
   }
+}
+
+function rowCount(value: unknown): number {
+  return typeof value === 'object' &&
+    value !== null &&
+    'rowCount' in value &&
+    typeof value.rowCount === 'number'
+    ? value.rowCount
+    : 0;
 }

@@ -76,6 +76,24 @@ services:
       redis:
         condition: service_healthy
 
+  maintenance-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: development
+    image: nestjs-saas:development
+    command: pnpm start:worker:maintenance:dev
+    volumes:
+      - .:/app
+      - api_node_modules:/app/node_modules
+    environment:
+      NODE_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   localstack:
     image: localstack/localstack:4.14.0@sha256:75ba7a4bda54a3020019fba23e99c61bbff7dbf23eea12919e5b75b15c6f03f2
     environment:

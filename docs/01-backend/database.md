@@ -65,3 +65,7 @@ and catalog permissions. Immutable seed `006-user-permission-overrides-rbac` gra
 `super_admin` the `users.permissions.manage` permission.
 
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)
+
+Operational retention uses existing timestamp/status indexes and bounded CTE deletes. It does not
+delete security audits, feature-flag audits, or business records, and takes the
+`maintenance:retention` PostgreSQL advisory transaction lock before a sweep.

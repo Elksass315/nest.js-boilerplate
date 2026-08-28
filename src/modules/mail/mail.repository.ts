@@ -14,6 +14,18 @@ export class MailRepository {
     private readonly deliveries: Repository<MailDeliveryEntity>,
   ) {}
 
+  public async cleanupDeliveries(before: Date, limit: number): Promise<number> {
+    const result: unknown = await this.deliveries.query(
+      `DELETE FROM mail_deliveries WHERE id IN (
+         SELECT id FROM mail_deliveries
+         WHERE status IN ('sent', 'failed') AND COALESCE(sent_at, updated_at, created_at) < $1
+         ORDER BY id LIMIT $2
+       )`,
+      [before, limit],
+    );
+    return rowCount(result);
+  }
+
   public createDelivery(
     recipient: string,
     template: MailTemplate,
@@ -59,6 +71,15 @@ export class MailRepository {
   public async markFailed(id: string, attempts: number, errorCode: string): Promise<void> {
     await this.deliveries.update(id, { status: 'failed', attempts, errorCode });
   }
+}
+
+function rowCount(value: unknown): number {
+  return typeof value === 'object' &&
+    value !== null &&
+    'rowCount' in value &&
+    typeof value.rowCount === 'number'
+    ? value.rowCount
+    : 0;
 }
 
 function maskEmail(email: string): string {

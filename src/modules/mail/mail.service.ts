@@ -32,6 +32,10 @@ export class MailService {
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
+  public cleanupDeliveries(before: Date, limit: number): Promise<number> {
+    return this.repository.cleanupDeliveries(before, limit);
+  }
+
   public sendEmailVerification(
     input: VerificationMailInput,
     manager?: EntityManager,

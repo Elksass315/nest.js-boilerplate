@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import type { EntityManager } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 
 import { AuthRepository } from './auth.repository';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
@@ -106,6 +106,35 @@ describe(AuthRepository.name, () => {
     expect(refreshStore.save).toHaveBeenCalledWith(
       expect.objectContaining({ tokenHash: 'h'.repeat(64), status: 'active' }),
     );
+  });
+
+  it('cleans expired authentication state in bounded batches', async () => {
+    const cleanupManager = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1 }),
+    } as unknown as EntityManager;
+    const dataSource = {
+      transaction: jest.fn(async (callback: (value: EntityManager) => Promise<number>) =>
+        callback(cleanupManager),
+      ),
+    } as unknown as DataSource;
+    await expect(
+      new AuthRepository(sessions, dataSource).cleanupOperationalData(new Date('2026-01-01'), 10),
+    ).resolves.toBe(6);
+    expect(cleanupManager.query).toHaveBeenCalledTimes(6);
+  });
+
+  it('treats an adapter response without rowCount as an empty batch', async () => {
+    const cleanupManager = {
+      query: jest.fn().mockResolvedValue(undefined),
+    } as unknown as EntityManager;
+    const dataSource = {
+      transaction: jest.fn(async (callback: (value: EntityManager) => Promise<number>) =>
+        callback(cleanupManager),
+      ),
+    } as unknown as DataSource;
+    await expect(
+      new AuthRepository(sessions, dataSource).cleanupOperationalData(new Date(), 1),
+    ).resolves.toBe(0);
   });
 
   it('locks tokens and sessions and reads live or paginated sessions', async () => {

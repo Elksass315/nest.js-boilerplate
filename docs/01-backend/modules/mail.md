@@ -55,3 +55,6 @@ header/footer rendering, escaping, worker retry/failure behavior, delivery state
 through Mailpit.
 
 **Navigation:** [Previous: Files Module](files.md) | [Documentation Index](../../README.md) | [Next: Users Module](users.md)
+
+The maintenance worker deletes only old sent or terminal-failed delivery metadata in bounded
+batches; queued and processing deliveries remain available to the mail worker.

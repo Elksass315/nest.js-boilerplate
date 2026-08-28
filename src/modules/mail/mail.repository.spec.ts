@@ -11,6 +11,7 @@ describe(MailRepository.name, () => {
     ),
     update: jest.fn(),
     createQueryBuilder: jest.fn(),
+    query: jest.fn(),
   };
   const queryBuilder = {
     update: jest.fn().mockReturnThis(),
@@ -34,6 +35,13 @@ describe(MailRepository.name, () => {
       }),
     );
     expect(JSON.stringify(deliveries.create.mock.calls)).not.toContain('Amina.Private@example.com');
+  });
+
+  it('cleans only bounded terminal deliveries', async () => {
+    deliveries.query.mockResolvedValue({ rowCount: 2 });
+    await expect(repository.cleanupDeliveries(new Date('2026-01-01'), 5)).resolves.toBe(2);
+    deliveries.query.mockResolvedValue(undefined);
+    await expect(repository.cleanupDeliveries(new Date('2026-01-01'), 5)).resolves.toBe(0);
   });
 
   it('records only safe terminal delivery metadata', async () => {

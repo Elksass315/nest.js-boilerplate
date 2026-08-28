@@ -1,6 +1,6 @@
 # Docker Workflow
 
-The base Compose file defines the API, mail worker, file worker, outbox worker, private networks,
+The base Compose file defines the API, mail worker, file worker, outbox worker, maintenance worker, private networks,
 application volumes, and health checks. PostgreSQL and Redis are deliberately absent from the base
 and deployment layers because managed environments provide them as external services.
 `compose.dev.yaml` adds source mounts, hot reload, digest-pinned PostgreSQL, Redis, Mailpit, and
@@ -30,8 +30,8 @@ S3 is recommended for managed environments.
 The production image contains compiled code and production dependencies only, runs as non-root,
 and does not run migrations or seeds in its entrypoint. Runtime entrypoints are grouped under
 `dist/apps`: `api/main.js`, `mail-worker/main.js`, `file-worker/main.js`, and
-`outbox-worker/main.js`. Deployment runs the hardened `migrate` and `seed` one-shot services before
-rolling out the API and all three workers from the same image. Every worker writes a short-lived
+`outbox-worker/main.js`, and `maintenance-worker/main.js`. Deployment runs the hardened `migrate` and `seed` one-shot services before
+rolling out the API and all four workers from the same image. Every worker writes a short-lived
 heartbeat in `/tmp`; Compose health checks fail when a process stops refreshing it.
 The file worker consumes bounded idempotent cleanup jobs and runs the advisory-locked expiry
 sweeper; it exposes no port and shuts down gracefully. The mail worker uses

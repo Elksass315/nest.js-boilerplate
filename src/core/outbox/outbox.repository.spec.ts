@@ -79,4 +79,38 @@ describe(OutboxRepository.name, () => {
       ['id', 'lease', 'SMTP_EXHAUSTED'],
     );
   });
+
+  it('deletes only old published and terminal failed rows in a bounded transaction', async () => {
+    const manager = {
+      query: jest.fn().mockResolvedValue({ rowCount: 3 }),
+    } as unknown as EntityManager;
+    const dataSource = {
+      transaction: jest.fn(async (callback: (value: EntityManager) => Promise<number>) =>
+        callback(manager),
+      ),
+    } as unknown as DataSource;
+    const repository = new OutboxRepository(dataSource);
+
+    await expect(
+      repository.cleanupProcessed(new Date('2026-01-01'), new Date('2025-01-01'), 25),
+    ).resolves.toBe(3);
+    expect(manager.query).toHaveBeenCalledWith(expect.stringContaining("status = 'published'"), [
+      new Date('2026-01-01'),
+      new Date('2025-01-01'),
+      25,
+    ]);
+  });
+
+  it('treats an adapter response without a row count as an empty cleanup', async () => {
+    const manager = { query: jest.fn().mockResolvedValue(undefined) } as unknown as EntityManager;
+    const dataSource = {
+      transaction: jest.fn(async (callback: (value: EntityManager) => Promise<number>) =>
+        callback(manager),
+      ),
+    } as unknown as DataSource;
+
+    await expect(
+      new OutboxRepository(dataSource).cleanupProcessed(new Date(), new Date(), 1),
+    ).resolves.toBe(0);
+  });
 });

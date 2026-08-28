@@ -55,3 +55,6 @@ until all previous images are retired. Neither the API nor worker entrypoint per
 mutation.
 
 **Navigation:** [Previous: Docker Workflow](docker.md) | [Documentation Index](../README.md) | [Next: Documentation Policy](../governance/documentation-policy.md)
+
+The deployment contract includes the maintenance worker heartbeat and waits for it with the other
+runtime processes before smoke checks complete.

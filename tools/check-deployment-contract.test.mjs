@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { validateDeploymentContract } from './check-deployment-contract.mjs';
 
-const baseCompose = `services:\n  api:\n  mail-worker:\n  file-worker:\n  outbox-worker:\n`;
+const baseCompose = `services:\n  api:\n  mail-worker:\n  file-worker:\n  outbox-worker:\n  maintenance-worker:\n`;
 const developmentCompose = `${baseCompose}  postgres:\n  redis:\n  mailpit:\n  localstack:\n`;
 const deploymentCompose = `${baseCompose}  migrate:\n  seed:\n`;
 const dockerfile =
@@ -11,7 +11,7 @@ const dockerfile =
   'migration-compatibility.json';
 const manifest = JSON.stringify({ compatibilityVersion: 'expand-contract-v1' });
 const jenkinsfile =
-  'BACKUP_REFERENCE migration-compatibility outbox-worker health/ready ioredis MAIL_SMTP_HOST HeadBucketCommand';
+  'BACKUP_REFERENCE migration-compatibility outbox-worker maintenance-worker health/ready ioredis MAIL_SMTP_HOST HeadBucketCommand';
 
 test('accepts managed deployment layering and rollback gates', () => {
   assert.deepEqual(

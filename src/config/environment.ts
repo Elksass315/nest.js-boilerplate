@@ -17,6 +17,8 @@ import type {
 import { corsEnvironmentSchema, createCorsConfig, parseCorsOrigins } from './cors.config';
 import { createI18nConfig, i18nEnvironmentSchema, parseSupportedLanguages } from './i18n.config';
 import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config';
+import { createObservabilityConfig, observabilityEnvironmentSchema } from './observability.config';
+import { createRetentionConfig, retentionEnvironmentSchema } from './retention.config';
 import { createInvitationsConfig, invitationsEnvironmentSchema } from './invitations.config';
 import { createMailConfig, mailEnvironmentSchema } from './mail.config';
 import { createFilesConfig, filesEnvironmentSchema, parseFileStorageDrivers } from './files.config';
@@ -37,6 +39,8 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...authEnvironmentSchema,
   ...corsEnvironmentSchema,
   ...loggingEnvironmentSchema,
+  ...observabilityEnvironmentSchema,
+  ...retentionEnvironmentSchema,
   ...sentryEnvironmentSchema,
   ...swaggerEnvironmentSchema,
   ...rateLimitEnvironmentSchema,
@@ -75,6 +79,8 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
     'environment.productionFiles': 'Production file writes require the S3 storage driver',
     'environment.trustedProxy':
       'TRUSTED_PROXY_IPS must contain an explicit proxy allowlist in staging and production',
+    'environment.otelEndpoint':
+      'OTEL_EXPORTER_OTLP_ENDPOINT must be configured when OTEL_ENABLED is true',
   });
 
 const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
@@ -179,6 +185,13 @@ function validateApiContradictions(
   }
   if (isManaged && (typeof redisPassword !== 'string' || redisPassword.length < 16)) {
     return helpers.error('environment.redisPassword');
+  }
+  if (
+    environment['OTEL_ENABLED'] === true &&
+    (typeof environment['OTEL_EXPORTER_OTLP_ENDPOINT'] !== 'string' ||
+      environment['OTEL_EXPORTER_OTLP_ENDPOINT'].length === 0)
+  ) {
+    return helpers.error('environment.otelEndpoint');
   }
   if (!smtpCredentialsAgree(environment)) {
     return helpers.error('environment.smtpCredentials');
@@ -426,6 +439,8 @@ export function loadApiConfiguration(): AppConfiguration {
     auth: createAuthConfig(environment),
     cors: createCorsConfig(environment),
     logging: createLoggingConfig(environment),
+    observability: createObservabilityConfig(environment),
+    retention: createRetentionConfig(environment),
     sentry: createSentryConfig(environment),
     swagger: createSwaggerConfig(environment),
     rateLimit: createRateLimitConfig(environment),

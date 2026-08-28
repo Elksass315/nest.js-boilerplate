@@ -25,7 +25,13 @@ export function validateDeploymentContract({
       violations.push(`${service} must not be created by the deployment Compose layer`);
     }
   }
-  for (const service of ['api', 'mail-worker', 'file-worker', 'outbox-worker']) {
+  for (const service of [
+    'api',
+    'mail-worker',
+    'file-worker',
+    'outbox-worker',
+    'maintenance-worker',
+  ]) {
     if (!hasService(baseCompose, service) || !hasService(deploymentCompose, service)) {
       violations.push(`${service} must use the shared immutable image in every runtime layer`);
     }
@@ -56,6 +62,7 @@ export function validateDeploymentContract({
     'BACKUP_REFERENCE',
     'migration-compatibility',
     'outbox-worker',
+    'maintenance-worker',
     'health/ready',
     'ioredis',
     'MAIL_SMTP_HOST',

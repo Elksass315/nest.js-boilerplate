@@ -29,6 +29,7 @@ describe(FilesService.name, () => {
     findReadyPublicByIds: jest.fn(),
     claimPrepared: jest.fn(),
     markDeletingInTransaction: jest.fn(),
+    cleanupTemporaryMetadata: jest.fn(),
   };
   const local = provider();
   const providers = {
@@ -76,6 +77,13 @@ describe(FilesService.name, () => {
       kind: 'redirect',
       url: 'https://objects.example/file',
     });
+  });
+
+  it('delegates temporary metadata retention to the files repository', async () => {
+    repository.cleanupTemporaryMetadata.mockResolvedValue(3);
+    const before = new Date('2026-01-01');
+    await expect(service.cleanupTemporaryMetadata(before, 10)).resolves.toBe(3);
+    expect(repository.cleanupTemporaryMetadata).toHaveBeenCalledWith(before, 10);
   });
 
   it('streams a public local object with safe metadata', async () => {

@@ -1,6 +1,8 @@
 import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+
+import { OperationalMetricsService } from '@/observability/operational-metrics';
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 
@@ -9,6 +11,8 @@ export class WorkerHeartbeatService {
   private readonly logger = new Logger(WorkerHeartbeatService.name);
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private readonly paths = new Map<string, string>();
+
+  public constructor(@Optional() private readonly metrics?: OperationalMetricsService) {}
 
   public start(workerName: string): void {
     if (this.timers.has(workerName)) return;
@@ -26,6 +30,7 @@ export class WorkerHeartbeatService {
       }
     };
     beat();
+    this.metrics?.recordWorkerHeartbeat(workerName, true);
     const timer = setInterval(beat, HEARTBEAT_INTERVAL_MS);
     timer.unref();
     this.timers.set(workerName, timer);
@@ -35,6 +40,7 @@ export class WorkerHeartbeatService {
     const timer = this.timers.get(workerName);
     if (timer) clearInterval(timer);
     this.timers.delete(workerName);
+    this.metrics?.recordWorkerHeartbeat(workerName, false);
     const path = this.paths.get(workerName);
     this.paths.delete(workerName);
     if (!path) return Promise.resolve();

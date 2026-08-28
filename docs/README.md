@@ -16,6 +16,7 @@ request as the behavior it describes.
 - [Error handling](01-backend/error-handling.md)
 - [Structured logging](01-backend/logging.md)
 - [Sentry](01-backend/sentry.md)
+- [Observability and retention](01-backend/observability-retention.md)
 - [Database and migrations](01-backend/database.md)
 - [Migrations and seeds](01-backend/migrations.md)
 - [Shared foundation](01-backend/shared-foundation.md)

@@ -464,6 +464,10 @@ export class FilesService {
     );
   }
 
+  public cleanupTemporaryMetadata(before: Date, limit: number): Promise<number> {
+    return this.repository.cleanupTemporaryMetadata(before, limit);
+  }
+
   public async checkStorageHealth(): Promise<void> {
     await Promise.all(this.providers.enabled().map((provider) => provider.checkHealth()));
   }

@@ -78,6 +78,10 @@ export class AuthService {
     this.recoveryCodeCount = config.getOrThrow('auth.recoveryCodeCount', { infer: true });
   }
 
+  public cleanupOperationalData(before: Date, limit: number): Promise<number> {
+    return this.repository.cleanupOperationalData(before, limit);
+  }
+
   public async register(
     fullName: string,
     email: string,

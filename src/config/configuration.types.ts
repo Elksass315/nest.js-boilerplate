@@ -22,6 +22,26 @@ export interface LoggingConfig {
   level: LogLevel;
 }
 
+export interface ObservabilityConfig {
+  enabled: boolean;
+  serviceName: string;
+  endpoint: string;
+  metricExportIntervalMs: number;
+  exportTimeoutMs: number;
+}
+
+export interface RetentionConfig {
+  enabled: boolean;
+  intervalMs: number;
+  batchSize: number;
+  authTokenDays: number;
+  sessionDays: number;
+  mailDays: number;
+  outboxDays: number;
+  outboxFailureDays: number;
+  fileMetadataDays: number;
+}
+
 export interface SentryConfig {
   enabled: boolean;
   dsn: string;
@@ -138,6 +158,8 @@ export interface AppConfiguration {
   app: AppConfig;
   cors: CorsConfig;
   logging: LoggingConfig;
+  observability: ObservabilityConfig;
+  retention: RetentionConfig;
   sentry: SentryConfig;
   swagger: SwaggerConfig;
   rateLimit: RateLimitConfig;

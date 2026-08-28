@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
 import { MailRepository } from './mail.repository';
+import { OperationalMetricsService } from '@/observability/operational-metrics';
 import type { MailJob } from './mail.types';
 import { SmtpProvider } from './smtp.provider';
 import { TemplateRendererService } from './template-renderer.service';
@@ -14,6 +15,7 @@ export class MailProcessor {
     private readonly smtp: SmtpProvider,
     private readonly repository: MailRepository,
     private readonly logger: PinoLogger,
+    @Optional() private readonly metrics?: OperationalMetricsService,
   ) {
     this.logger.setContext(MailProcessor.name);
   }
@@ -42,6 +44,7 @@ export class MailProcessor {
       await this.repository.markSent(job.data.deliveryId, attempts);
       this.logger.info(context, 'Mail delivery completed');
     } catch (error) {
+      this.metrics?.recordMailFailure('smtp');
       const maximumAttempts = job.opts.attempts ?? 1;
       if (attempts >= maximumAttempts) {
         await this.repository.markFailed(job.data.deliveryId, attempts, 'SMTP_DELIVERY_FAILED');

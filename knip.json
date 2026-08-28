@@ -5,6 +5,7 @@
     "src/apps/mail-worker/main.ts",
     "src/apps/file-worker/main.ts",
     "src/apps/outbox-worker/main.ts",
+    "src/apps/maintenance-worker/main.ts",
     "src/modules/files/tus-loader.cjs",
     "src/database/data-source.ts",
     "src/database/migrations/*.ts",

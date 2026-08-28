@@ -17,3 +17,4 @@ allowBuilds:
   msgpackr-extract: false
   unrs-resolver: true
   '@swc/core': true
+  protobufjs: false
