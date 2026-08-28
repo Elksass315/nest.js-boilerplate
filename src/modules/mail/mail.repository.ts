@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { Repository } from 'typeorm';
+import type { EntityManager, Repository } from 'typeorm';
 
 import { MailDeliveryEntity } from './entities/mail-delivery.entity';
 import type { MailTemplate } from './mail.types';
@@ -18,9 +18,11 @@ export class MailRepository {
     recipient: string,
     template: MailTemplate,
     correlationId: string | null,
+    manager?: EntityManager,
   ): Promise<MailDeliveryEntity> {
-    return this.deliveries.save(
-      this.deliveries.create({
+    const repository = manager?.getRepository(MailDeliveryEntity) ?? this.deliveries;
+    return repository.save(
+      repository.create({
         recipientHash: createHash('sha256').update(recipient.toLowerCase(), 'utf8').digest('hex'),
         maskedRecipient: maskEmail(recipient),
         template,
@@ -34,8 +36,14 @@ export class MailRepository {
     );
   }
 
-  public async markProcessing(id: string, attempts: number): Promise<void> {
-    await this.deliveries.update(id, { status: 'processing', attempts });
+  public async markProcessing(id: string, attempts: number): Promise<boolean> {
+    const result = await this.deliveries
+      .createQueryBuilder()
+      .update(MailDeliveryEntity)
+      .set({ status: 'processing', attempts })
+      .where('id = :id AND status <> :sent', { id, sent: 'sent' })
+      .execute();
+    return (result.affected ?? 0) > 0;
   }
 
   public async markSent(id: string, attempts: number): Promise<void> {

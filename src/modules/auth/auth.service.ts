@@ -85,21 +85,31 @@ export class AuthService {
   ): Promise<RegistrationResponseDto> {
     const normalizedEmail = this.normalizeEmail(email);
     const passwordHash = await this.crypto.hashPassword(password);
-    const user = await this.users.createOrUpdatePendingUser({
-      fullName: fullName.trim(),
-      email: normalizedEmail,
-      normalizedEmail,
-      passwordHash,
-    });
-    const code = await this.issueEmailVerificationCode(user.id);
-    await this.mail.sendEmailVerification({
-      email: user.email,
-      fullName: user.fullName,
-      code,
-      expiresInSeconds: this.verificationTtl,
+    let registrationId = '';
+    await this.dataSource.transaction(async (manager) => {
+      const user = await this.users.createOrUpdatePendingUser(
+        {
+          fullName: fullName.trim(),
+          email: normalizedEmail,
+          normalizedEmail,
+          passwordHash,
+        },
+        manager,
+      );
+      registrationId = user.id;
+      const code = await this.issueEmailVerificationCode(user.id, manager);
+      await this.mail.sendEmailVerification(
+        {
+          email: user.email,
+          fullName: user.fullName,
+          code,
+          expiresInSeconds: this.verificationTtl,
+        },
+        manager,
+      );
     });
     return {
-      registrationId: user.id,
+      registrationId,
       verificationExpiresIn: this.verificationTtl,
       message: 'Registration accepted; enter the code sent to your email',
     };
@@ -112,12 +122,17 @@ export class AuthService {
   public async resendVerification(registrationId: string): Promise<VerificationResendResponseDto> {
     const user = await this.users.findByIdForAuthentication(registrationId);
     if (user?.status === 'pending_verification' && !user.emailVerifiedAt) {
-      const code = await this.issueEmailVerificationCode(user.id);
-      await this.mail.sendEmailVerification({
-        email: user.email,
-        fullName: user.fullName,
-        code,
-        expiresInSeconds: this.verificationTtl,
+      await this.dataSource.transaction(async (manager) => {
+        const code = await this.issueEmailVerificationCode(user.id, manager);
+        await this.mail.sendEmailVerification(
+          {
+            email: user.email,
+            fullName: user.fullName,
+            code,
+            expiresInSeconds: this.verificationTtl,
+          },
+          manager,
+        );
       });
     }
     return {
@@ -162,17 +177,20 @@ export class AuthService {
     return { message: 'Email address verified' };
   }
 
-  private async issueEmailVerificationCode(userId: string): Promise<string> {
+  private async issueEmailVerificationCode(
+    userId: string,
+    transactionManager: EntityManager,
+  ): Promise<string> {
     const code = this.crypto.numericCode();
     const codeHash = await this.crypto.hashSecret(code);
-    await this.dataSource.transaction((manager) =>
+    const issue = (manager: EntityManager): Promise<void> =>
       this.repository.issueEmailVerificationCode(
         manager,
         userId,
         codeHash,
         new Date(Date.now() + this.verificationTtl * 1000),
-      ),
-    );
+      );
+    await issue(transactionManager);
     return code;
   }
 
@@ -351,12 +369,18 @@ export class AuthService {
   public async forgotPassword(email: string): Promise<ActionDelivery | null> {
     const user = await this.users.findForAuthentication(this.normalizeEmail(email));
     if (user?.status !== 'active') return null;
-    const delivery = await this.issueAction(user, 'password_reset', this.resetTtl);
-    await this.mail.sendPasswordReset({
-      email: delivery.email,
-      fullName: user.fullName,
-      token: delivery.token,
-      expiresInSeconds: this.resetTtl,
+    const delivery = await this.dataSource.transaction(async (manager) => {
+      const action = await this.issueAction(user, 'password_reset', this.resetTtl, manager);
+      await this.mail.sendPasswordReset(
+        {
+          email: action.email,
+          fullName: user.fullName,
+          token: action.token,
+          expiresInSeconds: this.resetTtl,
+        },
+        manager,
+      );
+      return action;
     });
     return delivery;
   }
@@ -461,7 +485,7 @@ export class AuthService {
     const session = await this.dataSource.transaction(async (manager) => {
       await this.repository.lockUserSessions(manager, user.id);
       await this.repository.enforceSessionLimit(manager, user.id, this.maxSessions);
-      return this.repository.createSession(
+      const created = await this.repository.createSession(
         manager,
         user.id,
         user.authVersion,
@@ -469,11 +493,11 @@ export class AuthService {
         refresh.hash,
         metadata,
       );
-    });
-    await this.mail.sendNewSession({
-      email: user.email,
-      fullName: user.fullName,
-      occurredAt: new Date(),
+      await this.mail.sendNewSession(
+        { email: user.email, fullName: user.fullName, occurredAt: new Date() },
+        manager,
+      );
+      return created;
     });
     const tokens = await this.tokenPair(user, session.id, refresh.raw);
     const profile = await this.users.getSelf(user.id);
@@ -513,22 +537,25 @@ export class AuthService {
     const challenge = this.crypto.opaqueToken();
     const code = this.crypto.numericCode();
     const codeHash = await this.crypto.hashSecret(code);
-    await this.dataSource.transaction((manager) =>
-      this.repository.issueTwoStepChallenge(
+    await this.dataSource.transaction(async (manager) => {
+      await this.repository.issueTwoStepChallenge(
         manager,
         user.id,
         purpose,
         challenge.hash,
         codeHash,
         new Date(Date.now() + this.twoStepTtl * 1000),
-      ),
-    );
-    await this.mail.sendTwoStepCode({
-      email: user.email,
-      fullName: user.fullName,
-      code,
-      expiresInSeconds: this.twoStepTtl,
-      purpose,
+      );
+      await this.mail.sendTwoStepCode(
+        {
+          email: user.email,
+          fullName: user.fullName,
+          code,
+          expiresInSeconds: this.twoStepTtl,
+          purpose,
+        },
+        manager,
+      );
     });
     return { requiresTwoStep: true, challengeToken: challenge.raw, expiresIn: this.twoStepTtl };
   }
@@ -643,17 +670,18 @@ export class AuthService {
     user: UserWithRoles,
     purpose: 'password_reset',
     ttl: number,
+    transactionManager: EntityManager,
   ): Promise<ActionDelivery> {
     const token = this.crypto.opaqueToken();
-    await this.dataSource.transaction((manager) =>
+    const issue = (manager: EntityManager): Promise<void> =>
       this.repository.issueActionToken(
         manager,
         user.id,
         purpose,
         token.hash,
         new Date(Date.now() + ttl * 1000),
-      ),
-    );
+      );
+    await issue(transactionManager);
     return { userId: user.id, email: user.email, token: token.raw };
   }
 

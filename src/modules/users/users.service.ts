@@ -261,7 +261,7 @@ export class UsersService {
       ) {
         throw new AppException('LAST_SUPER_ADMIN');
       }
-      return this.repository.updateStatus(
+      const updated = await this.repository.updateStatus(
         manager,
         id,
         status,
@@ -270,14 +270,15 @@ export class UsersService {
           nextStatus: status,
         }),
       );
+      if (updated) {
+        await this.mail.sendAccountStatusChanged(
+          { email: updated.email, fullName: updated.fullName, status, occurredAt: new Date() },
+          manager,
+        );
+      }
+      return updated;
     });
     if (!user) throw new AppException('USER_NOT_FOUND');
-    await this.mail.sendAccountStatusChanged({
-      email: user.email,
-      fullName: user.fullName,
-      status,
-      occurredAt: new Date(),
-    });
     return this.responseFor(user, await this.rolesForUser(user.id));
   }
 
@@ -305,47 +306,56 @@ export class UsersService {
       const audit = this.auditContext(id, actorUserId, 'user.roles.changed', {
         nextRoleKeys: requestedRoles.map(({ key }) => key),
       });
-      return this.repository.replaceRoles(manager, id, roleIds, audit);
+      const updated = await this.repository.replaceRoles(manager, id, roleIds, audit);
+      if (updated) {
+        await this.mail.sendRoleChanged(
+          {
+            email: updated.email,
+            fullName: updated.fullName,
+            roles: requestedRoles.map(({ key }) => key),
+            occurredAt: new Date(),
+          },
+          manager,
+        );
+      }
+      return updated;
     });
     if (!user) throw new AppException('USER_NOT_FOUND');
-    await this.mail.sendRoleChanged({
-      email: user.email,
-      fullName: user.fullName,
-      roles: requestedRoles.map(({ key }) => key),
-      occurredAt: new Date(),
-    });
     return this.responseFor(user, requestedRoles);
   }
 
-  public async createOrUpdatePendingUser(input: CreatePendingUserInput): Promise<UserWithRoles> {
+  public async createOrUpdatePendingUser(
+    input: CreatePendingUserInput,
+    transactionManager?: EntityManager,
+  ): Promise<UserWithRoles> {
     const defaultRole = await this.authorization.getRequiredRole('user');
-    try {
-      const user = await this.dataSource.transaction(async (manager) => {
-        await this.repository.lockRegistrationEmail(manager, input.normalizedEmail);
-        const existing = await this.repository.findByNormalizedEmail(
-          input.normalizedEmail,
-          manager,
-        );
-        if (existing) {
-          if (existing.status !== 'pending_verification') {
-            throw new AppException('EMAIL_ALREADY_REGISTERED');
-          }
-          existing.fullName = input.fullName;
-          existing.email = input.email;
-          existing.passwordHash = input.passwordHash;
-          return this.repository.saveWithAudit(
-            manager,
-            existing,
-            this.auditContext(existing.id, null, 'auth.registration.updated'),
-          );
+    const write = async (manager: EntityManager): Promise<UserEntity> => {
+      await this.repository.lockRegistrationEmail(manager, input.normalizedEmail);
+      const existing = await this.repository.findByNormalizedEmail(input.normalizedEmail, manager);
+      if (existing) {
+        if (existing.status !== 'pending_verification') {
+          throw new AppException('EMAIL_ALREADY_REGISTERED');
         }
-        return this.repository.createWithRole(
+        existing.fullName = input.fullName;
+        existing.email = input.email;
+        existing.passwordHash = input.passwordHash;
+        return this.repository.saveWithAudit(
           manager,
-          input,
-          defaultRole.id,
-          this.auditContext(null, null, 'user.created'),
+          existing,
+          this.auditContext(existing.id, null, 'auth.registration.updated'),
         );
-      });
+      }
+      return this.repository.createWithRole(
+        manager,
+        input,
+        defaultRole.id,
+        this.auditContext(null, null, 'user.created'),
+      );
+    };
+    try {
+      const user = transactionManager
+        ? await write(transactionManager)
+        : await this.dataSource.transaction(write);
       return this.toUserWithRoles(user, [defaultRole]);
     } catch (error) {
       if (this.isUniqueViolation(error)) throw new AppException('EMAIL_ALREADY_REGISTERED');
@@ -383,13 +393,14 @@ export class UsersService {
     actorUserId: string,
     eventType: SecurityAuditInput['eventType'],
     metadata?: Record<string, unknown>,
+    transactionManager?: EntityManager,
   ): Promise<void> {
-    return this.dataSource.transaction((manager) =>
+    const append = (manager: EntityManager): Promise<void> =>
       this.repository.appendAudit(
         manager,
         this.auditContext(actorUserId, actorUserId, eventType, metadata),
-      ),
-    );
+      );
+    return transactionManager ? append(transactionManager) : this.dataSource.transaction(append);
   }
 
   public async findByIdForAuthentication(id: string): Promise<UserWithRoles | null> {

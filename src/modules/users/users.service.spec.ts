@@ -345,6 +345,7 @@ describe(UsersService.name, () => {
     );
     expect(mail.sendRoleChanged).toHaveBeenCalledWith(
       expect.objectContaining({ email: user.email, roles: ['user'] }),
+      expect.anything(),
     );
   });
 
@@ -484,6 +485,7 @@ describe(UsersService.name, () => {
 
     expect(mail.sendAccountStatusChanged).toHaveBeenCalledWith(
       expect.objectContaining({ email: user.email, status: 'suspended' }),
+      expect.anything(),
     );
   });
 

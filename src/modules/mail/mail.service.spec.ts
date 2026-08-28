@@ -1,19 +1,21 @@
 import { ConfigService } from '@nestjs/config';
-import { getQueueToken } from '@nestjs/bullmq';
+import { getDataSourceToken } from '@nestjs/typeorm';
 import { Test } from '@nestjs/testing';
 
 import { RequestContextService } from '@/core/request-context/request-context.service';
+import { OutboxRepository } from '@/core/outbox/outbox.repository';
 
 import { MailService } from './mail.service';
 import { MailRepository } from './mail.repository';
-import { MAIL_QUEUE } from './mail.types';
 
 describe(MailService.name, () => {
-  const queue = { add: jest.fn() };
   const context = { getCorrelationId: jest.fn(() => 'corr-mail-1') };
   const repository = {
     createDelivery: jest.fn(),
-    markFailed: jest.fn(),
+  };
+  const outbox = { insert: jest.fn() };
+  const dataSource = {
+    transaction: jest.fn(async (callback: (manager: object) => Promise<void>) => callback({})),
   };
   const values: Record<string, string | number | boolean> = {
     'mail.enabled': true,
@@ -29,9 +31,10 @@ describe(MailService.name, () => {
     const module = await Test.createTestingModule({
       providers: [
         MailService,
-        { provide: getQueueToken(MAIL_QUEUE), useValue: queue },
         { provide: RequestContextService, useValue: context },
         { provide: MailRepository, useValue: repository },
+        { provide: OutboxRepository, useValue: outbox },
+        { provide: getDataSourceToken(), useValue: dataSource },
         {
           provide: ConfigService,
           useValue: {
@@ -54,8 +57,9 @@ describe(MailService.name, () => {
       expiresInSeconds: 600,
     });
 
-    expect(queue.add).toHaveBeenCalledWith(
-      'send-mail',
+    expect(outbox.insert).toHaveBeenCalledWith(
+      expect.anything(),
+      'mail.send',
       expect.objectContaining({
         deliveryId: 'delivery-1',
         to: 'amina@example.com',
@@ -66,7 +70,7 @@ describe(MailService.name, () => {
           expiresInMinutes: 10,
         }),
       }),
-      expect.objectContaining({ attempts: 5, removeOnComplete: { age: 3600 } }),
+      'corr-mail-1',
     );
   });
 
@@ -77,10 +81,11 @@ describe(MailService.name, () => {
       token: 'reset-token',
       expiresInSeconds: 1800,
     });
-    expect(queue.add).toHaveBeenCalledWith(
-      'send-mail',
-      expect.objectContaining({ template: 'reset-password' }),
+    expect(outbox.insert).toHaveBeenCalledWith(
       expect.anything(),
+      'mail.send',
+      expect.objectContaining({ template: 'reset-password' }),
+      'corr-mail-1',
     );
 
     values['mail.enabled'] = false;
@@ -90,7 +95,7 @@ describe(MailService.name, () => {
       code: '482913',
       expiresInSeconds: 60,
     });
-    expect(queue.add).toHaveBeenCalledTimes(1);
+    expect(outbox.insert).toHaveBeenCalledTimes(1);
     values['mail.enabled'] = true;
   });
 
@@ -102,26 +107,26 @@ describe(MailService.name, () => {
       expiresInSeconds: 300,
       purpose: 'login',
     });
-    expect(queue.add).toHaveBeenCalledWith(
-      'send-mail',
+    expect(outbox.insert).toHaveBeenCalledWith(
+      expect.anything(),
+      'mail.send',
       expect.objectContaining({
         deliveryId: 'delivery-1',
         template: 'two-step-code',
         correlationId: 'corr-mail-1',
         context: expect.objectContaining({ code: '482913', expiresInMinutes: 5 }),
       }),
-      expect.anything(),
+      'corr-mail-1',
     );
 
-    queue.add.mockRejectedValueOnce(new Error('Redis unavailable'));
+    outbox.insert.mockRejectedValueOnce(new Error('Database unavailable'));
     await expect(
       service.sendNewSession({
         email: 'amina@example.com',
         fullName: 'Amina Hassan',
         occurredAt: new Date('2026-08-12T12:00:00.000Z'),
       }),
-    ).rejects.toThrow('Redis unavailable');
-    expect(repository.markFailed).toHaveBeenCalledWith('delivery-1', 0, 'QUEUE_ENQUEUE_FAILED');
+    ).rejects.toThrow('Database unavailable');
   });
 
   it('queues a correlated invitation-acceptance security notice', async () => {
@@ -131,13 +136,29 @@ describe(MailService.name, () => {
       occurredAt: new Date('2026-08-18T12:00:00.000Z'),
     });
 
-    expect(queue.add).toHaveBeenCalledWith(
-      'send-mail',
+    expect(outbox.insert).toHaveBeenCalledWith(
+      expect.anything(),
+      'mail.send',
       expect.objectContaining({
         template: 'team-invitation-accepted',
         correlationId: 'corr-mail-1',
       }),
+      'corr-mail-1',
+    );
+  });
+
+  it('writes nonessential security notices through the same durable outbox path', async () => {
+    await service.sendForcedSessionRevocation({
+      email: 'amina@example.com',
+      fullName: 'Amina Hassan',
+      occurredAt: new Date('2026-08-18T12:00:00.000Z'),
+    });
+
+    expect(outbox.insert).toHaveBeenCalledWith(
       expect.anything(),
+      'mail.send',
+      expect.objectContaining({ template: 'session-revoked' }),
+      'corr-mail-1',
     );
   });
 });

@@ -26,9 +26,11 @@ Other modules may import only public feature indexes.
 | POST   | `/team/invitations/:id/resend` | `team.invitations.resend` | 200     | 400, 401, 403, 404, 409, 410, 503 |
 | DELETE | `/team/invitations/:id`        | `team.invitations.revoke` | 204     | 400, 401, 403, 404, 409           |
 
-Creation lets admins assign `user` while super administrators may assign any fixed role. Acceptance
-publicly consumes a token, full name, and password, creates an active verified account with the
-invited role, and never creates a login session. Resend rotates the token and enforces cooldown and
+Creation lets admins assign `user` while super administrators may assign any fixed role. Invitation
+creation and resend commit token rotation, audit metadata, and the durable `mail.send` outbox row in
+one transaction. Acceptance publicly consumes a token, full name, and password, creates an active
+verified account with the invited role, records its audit, and commits the acceptance notice in the
+same transaction; it never creates a login session. Resend rotates the token and enforces cooldown and
 maximum-send policy.
 
 Swagger is authoritative for concrete success payloads and exact errors. Stable feature errors cover

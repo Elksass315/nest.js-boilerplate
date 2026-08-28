@@ -10,7 +10,15 @@ describe(MailRepository.name, () => {
       Promise.resolve({ id: 'delivery-1', ...value }),
     ),
     update: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
+  const queryBuilder = {
+    update: jest.fn().mockReturnThis(),
+    set: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    execute: jest.fn().mockResolvedValue({ affected: 1 }),
+  };
+  deliveries.createQueryBuilder.mockReturnValue(queryBuilder);
   const repository = new MailRepository(deliveries as unknown as Repository<MailDeliveryEntity>);
 
   afterEach(() => jest.clearAllMocks());
@@ -40,6 +48,14 @@ describe(MailRepository.name, () => {
       status: 'failed',
       attempts: 5,
       errorCode: 'SMTP_DELIVERY_FAILED',
+    });
+  });
+
+  it('claims processing only when the delivery is not already sent', async () => {
+    await expect(repository.markProcessing('delivery-1', 1)).resolves.toBe(true);
+    expect(queryBuilder.where).toHaveBeenCalledWith('id = :id AND status <> :sent', {
+      id: 'delivery-1',
+      sent: 'sent',
     });
   });
 });
