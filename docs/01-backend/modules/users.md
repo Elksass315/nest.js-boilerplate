@@ -7,7 +7,9 @@ records. It does not authenticate credentials, issue tokens, manage sessions, se
 role/permission policy. Those capabilities belong to the `auth`, `mail`, and `authorization`
 modules.
 It owns avatar authorization, upload routes, image policy, profile attachment, and avatar security
-audits while consuming byte storage only through the public `FilesService`.
+audits while consuming byte storage only through the public `FilesService`. Avatar image processing
+and association persistence now live in the optional `user-avatars` capability; compatibility
+exports preserve the existing routes and response shape.
 
 ## Structure and public surface
 
@@ -98,6 +100,12 @@ transaction, claims only a completed unexpired `user_avatar` upload owned by tha
 `user.avatar.changed`. Repeating the same attachment or removal is idempotent. Replaced files enter
 durable `deleting` state and file-cleanup outbox messages inside the transaction. Prepared-but-
 unclaimed objects remain covered by the expiry sweeper.
+
+Migration `1787702400000-CreateUserAvatarAssociations` adds the optional
+`user_avatar_associations` table with unique user and file references, backfills existing
+`users.avatar_file_id` values, and keeps the legacy column during the v1 compatibility window.
+Generated projects consume `UserAvatarsService` through its public module index; consumers never
+import the association entity or repository.
 
 ## Security and observability
 

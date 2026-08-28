@@ -64,6 +64,12 @@ Migration `1787529600000-CreateUserPermissionOverrides` creates grant/revoke row
 and catalog permissions. Immutable seed `006-user-permission-overrides-rbac` grants only
 `super_admin` the `users.permissions.manage` permission.
 
+Migration `1787702400000-CreateUserAvatarAssociations` creates the optional
+`user_avatar_associations` table, enforces one association per user and file, backfills existing
+avatar references, and preserves a reversible down migration. It is additive: the legacy
+`users.avatar_file_id` column remains for v1 response compatibility while the public
+`UserAvatarsService` becomes the generator boundary.
+
 **Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)
 
 Operational retention uses existing timestamp/status indexes and bounded CTE deletes. It does not

@@ -20,6 +20,7 @@ import { FeatureFlagsModule } from '@/modules/feature-flags';
 import { FilesModule } from '@/modules/files';
 import { InvitationsModule } from '@/modules/invitations';
 import { UsersModule } from '@/modules/users';
+import { UserAvatarsModule } from '@/modules/user-avatars';
 import { RedisModule } from '@/redis/redis.module';
 import { DistributedThrottlerStorage } from '@/redis/distributed-throttler.storage';
 import { REDIS_CLIENT } from '@/redis/redis.constants';
@@ -91,6 +92,7 @@ import { OutboxModule } from '@/core/outbox/outbox.module';
     HealthModule,
     AuthorizationModule,
     UsersModule,
+    UserAvatarsModule,
     AuthModule,
     FilesModule,
     FeatureFlagsModule,
