@@ -6,11 +6,6 @@ services:
     env_file:
       - ${APP_ENV_FILE:-.env}
     init: true
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     restart: unless-stopped
     volumes:
       - files_data:/app/storage/files
@@ -41,12 +36,20 @@ services:
       - ${APP_ENV_FILE:-.env}
     command: ['node', '--enable-source-maps', 'dist/apps/mail-worker/main.js']
     init: true
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          const fs=require('node:fs');
+          const file='/tmp/nestjs-saas-mail-worker.heartbeat';
+          process.exit(fs.existsSync(file)&&Date.now()-fs.statSync(file).mtimeMs<45000?0:1);
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     security_opt:
       - no-new-privileges:true
     networks:
@@ -59,68 +62,53 @@ services:
       - ${APP_ENV_FILE:-.env}
     command: ['node', '--enable-source-maps', 'dist/apps/file-worker/main.js']
     init: true
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     restart: unless-stopped
     volumes:
       - files_data:/app/storage/files
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          const fs=require('node:fs');
+          const file='/tmp/nestjs-saas-file-worker.heartbeat';
+          process.exit(fs.existsSync(file)&&Date.now()-fs.statSync(file).mtimeMs<45000?0:1);
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     security_opt:
       - no-new-privileges:true
     networks:
       - backend-internal
       - backend-external
 
-  postgres:
-    image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
-    environment:
-      POSTGRES_DB: ${DATABASE_NAME:?DATABASE_NAME is required}
-      POSTGRES_USER: ${DATABASE_USERNAME:?DATABASE_USERNAME is required}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
-    volumes:
-      - postgres_data:/var/lib/postgresql
-    restart: unless-stopped
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - backend-internal
-
-  redis:
-    image: redis:8.4.6-trixie@sha256:02ec5d8629b6313c9d02739576b6b1f102d152b7231497aff6502da412a93651
+  outbox-worker:
+    image: ${APP_IMAGE:-nestjs-saas:local}
     env_file:
       - ${APP_ENV_FILE:-.env}
-    command:
-      - sh
-      - -ec
-      - >-
-        exec redis-server
-        --requirepass "$${REDIS_PASSWORD}"
-        --appendonly yes
-        --maxmemory 256mb
-        --maxmemory-policy noeviction
-    volumes:
-      - redis_data:/data
+    command: ['node', '--enable-source-maps', 'dist/apps/outbox-worker/main.js']
+    init: true
     restart: unless-stopped
     healthcheck:
       test:
-        - CMD-SHELL
-        - redis-cli --no-auth-warning -a "$${REDIS_PASSWORD}" ping | grep -q PONG
-      interval: 10s
+        - CMD
+        - node
+        - -e
+        - >-
+          const fs=require('node:fs');
+          const file='/tmp/nestjs-saas-outbox-worker.heartbeat';
+          process.exit(fs.existsSync(file)&&Date.now()-fs.statSync(file).mtimeMs<45000?0:1);
+      interval: 15s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 30s
     security_opt:
       - no-new-privileges:true
     networks:
       - backend-internal
+      - backend-external
 
 networks:
   backend-internal:
@@ -128,6 +116,4 @@ networks:
   backend-external:
 
 volumes:
-  postgres_data:
-  redis_data:
   files_data:

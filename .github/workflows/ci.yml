@@ -142,6 +142,7 @@ jobs:
           pnpm i18n:check
           pnpm docs:check
           pnpm runtime-images:check
+          pnpm deployment:check
           pnpm deps:check
           pnpm deps:duplicates:check
 

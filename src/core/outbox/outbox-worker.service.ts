@@ -5,6 +5,7 @@ import { Queue } from 'bullmq';
 import { OutboxMessageEntity } from './outbox.entity';
 import { OutboxRepository } from './outbox.repository';
 import { OUTBOX_FILE_QUEUE, OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from './outbox.types';
+import { WorkerHeartbeatService } from '../worker/worker-heartbeat.service';
 
 @Injectable()
 export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown {
@@ -17,9 +18,11 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
     @InjectQueue(OUTBOX_QUEUE) private readonly queue: Queue,
     @InjectQueue(OUTBOX_MAIL_QUEUE) private readonly mailQueue: Queue,
     @InjectQueue(OUTBOX_FILE_QUEUE) private readonly fileQueue: Queue,
+    private readonly heartbeat: WorkerHeartbeatService,
   ) {}
 
   public onModuleInit(): void {
+    this.heartbeat.start('outbox-worker');
     void this.relay();
     this.timer = setInterval(() => void this.relay(), 1000);
   }
@@ -30,6 +33,7 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
     await this.queue.close();
     await this.mailQueue.close();
     await this.fileQueue.close();
+    await this.heartbeat.stop('outbox-worker');
   }
 
   private async relay(): Promise<void> {

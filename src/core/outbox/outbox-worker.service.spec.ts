@@ -3,8 +3,11 @@ import type { Queue } from 'bullmq';
 import { OutboxMessageEntity } from './outbox.entity';
 import type { OutboxRepository } from './outbox.repository';
 import { OutboxWorkerService } from './outbox-worker.service';
+import type { WorkerHeartbeatService } from '../worker/worker-heartbeat.service';
 
 describe(OutboxWorkerService.name, () => {
+  const heartbeat = { start: jest.fn(), stop: jest.fn().mockResolvedValue(undefined) };
+
   it('starts a polling relay and closes cleanly on shutdown', async () => {
     jest.useFakeTimers();
     const repository = {
@@ -19,7 +22,13 @@ describe(OutboxWorkerService.name, () => {
       close: jest.fn().mockResolvedValue(undefined),
     } as unknown as Queue;
     const fileQueue = { close: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
-    const service = new OutboxWorkerService(repository, queue, mailQueue, fileQueue);
+    const service = new OutboxWorkerService(
+      repository,
+      queue,
+      mailQueue,
+      fileQueue,
+      heartbeat as unknown as WorkerHeartbeatService,
+    );
 
     service.onModuleInit();
     await Promise.resolve();
@@ -50,7 +59,13 @@ describe(OutboxWorkerService.name, () => {
     } as unknown as Queue;
     const mailQueue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
     const fileQueue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
-    const service = new OutboxWorkerService(repository, queue, mailQueue, fileQueue);
+    const service = new OutboxWorkerService(
+      repository,
+      queue,
+      mailQueue,
+      fileQueue,
+      heartbeat as unknown as WorkerHeartbeatService,
+    );
 
     await service.publish(record);
 
@@ -79,7 +94,13 @@ describe(OutboxWorkerService.name, () => {
     const fileQueue = {
       add: jest.fn().mockRejectedValue(new Error('queue unavailable')),
     } as unknown as Queue;
-    await new OutboxWorkerService(repository, queue, mailQueue, fileQueue).publish(record);
+    await new OutboxWorkerService(
+      repository,
+      queue,
+      mailQueue,
+      fileQueue,
+      heartbeat as unknown as WorkerHeartbeatService,
+    ).publish(record);
     expect(repository.markPublished).not.toHaveBeenCalled();
   });
 
@@ -99,7 +120,13 @@ describe(OutboxWorkerService.name, () => {
     const mailQueue = { add: jest.fn() } as unknown as Queue;
     const fileQueue = { add: jest.fn().mockResolvedValue(undefined) } as unknown as Queue;
 
-    await new OutboxWorkerService(repository, queue, mailQueue, fileQueue).publish(record);
+    await new OutboxWorkerService(
+      repository,
+      queue,
+      mailQueue,
+      fileQueue,
+      heartbeat as unknown as WorkerHeartbeatService,
+    ).publish(record);
 
     expect(fileQueue.add).toHaveBeenCalledWith(
       'files.physical-delete',

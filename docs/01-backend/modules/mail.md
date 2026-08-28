@@ -36,7 +36,9 @@ fields, passwords, message bodies, SMTP credentials, raw tokens, or codes.
 
 `MAIL_ENABLED=false` skips job production and SMTP startup safely. The separate `mail-worker`
 process verifies SMTP before consuming jobs, uses configured concurrency, and closes BullMQ/SMTP
-connections gracefully on SIGINT/SIGTERM. BullMQ retries errors five times with exponential backoff;
+connections gracefully on SIGINT/SIGTERM. It refreshes a `/tmp` heartbeat for deployment health
+checks; a stale heartbeat is treated as unhealthy even when the process still exists. BullMQ retries
+errors five times with exponential backoff;
 completed jobs expire after one hour and failed jobs after 24 hours.
 
 `mail_deliveries` tracks queued, processing, sent, and terminal failure states. It stores a hashed

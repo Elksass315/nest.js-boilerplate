@@ -44,9 +44,14 @@ Redis 8.4 image contains fixed OpenSSL packages. The runtime-image contract reje
 exceptions and fails after the expiry date.
 
 `develop` deploys to development, `release/*` to staging, and `main`/SemVer tags to production after
-approval. Jenkins runs one-shot migration and seed jobs from the immutable image, rolls out the API,
-mail worker, and file worker, waits for readiness, runs API and SMTP smoke tests, and restores all
-processes to the previous digest when rollout validation fails. Neither the API nor worker entrypoint performs
-schema or seed mutation.
+approval. Jenkins requires a production `BACKUP_REFERENCE` before running migrations, records it in
+the deployment output, and runs one-shot migration and seed jobs from the immutable image. It then
+rolls out the API, mail worker, file worker, and outbox worker, waits for every heartbeat health
+check, and runs API, Redis, SMTP, and S3 smoke tests. A failed rollout restores all processes to the
+previous digest only when that image declares migration compatibility; undeclared rollback targets
+fail closed. The image includes `deployment/migration-compatibility.json`, whose expand/contract
+policy requires additive schema changes before application rollout and delayed destructive changes
+until all previous images are retired. Neither the API nor worker entrypoint performs schema or seed
+mutation.
 
 **Navigation:** [Previous: Docker Workflow](docker.md) | [Documentation Index](../README.md) | [Next: Documentation Policy](../governance/documentation-policy.md)

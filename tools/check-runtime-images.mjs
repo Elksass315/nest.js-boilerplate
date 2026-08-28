@@ -58,7 +58,7 @@ export function validateRuntimeImages({
 
     if (composeReferences.length !== policy.composeCount) {
       violations.push(
-        `${image} must appear ${String(policy.composeCount)} time in compose.yaml with an exact version and digest`,
+        `${image} must appear ${String(policy.composeCount)} time in compose.dev.yaml with an exact version and digest`,
       );
       continue;
     }
@@ -123,7 +123,7 @@ export function validateRuntimeImages({
 
 if (pathToFileURL(resolve(process.argv[1] ?? '')).href === import.meta.url) {
   const violations = validateRuntimeImages({
-    compose: readFileSync('compose.yaml', 'utf8'),
+    compose: readFileSync('compose.dev.yaml', 'utf8'),
     ci: readFileSync('.github/workflows/ci.yml', 'utf8'),
     dependabot: readFileSync('.github/dependabot.yml', 'utf8'),
     redisTrivyIgnore: readFileSync('.trivyignore.redis', 'utf8'),

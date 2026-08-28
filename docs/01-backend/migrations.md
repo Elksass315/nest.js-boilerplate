@@ -62,4 +62,12 @@ with `FOR UPDATE SKIP LOCKED` and uses the outbox UUID as the BullMQ job ID. `pn
 and `pnpm outbox:retry <message-id>` are guarded CLI operations; retry always requires one explicit
 UUID and preserves the stored correlation context.
 
+Deployment migrations follow an expand/contract policy. Add nullable columns, tables, indexes, and
+dual-read/write behavior first so the currently running image remains compatible; deploy the new
+image only after the expand migration succeeds; remove legacy columns or constraints in a later
+contract migration after the previous image is no longer eligible for rollback. The immutable image
+declares this policy in `deployment/migration-compatibility.json` and carries the same declaration as
+an OCI label. Jenkins refuses image rollback when the declaration is absent and requires a managed
+production backup reference before any migration runs.
+
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Error Handling](error-handling.md)

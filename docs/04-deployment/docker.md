@@ -1,13 +1,14 @@
 # Docker Workflow
 
-The base Compose file defines API, mail worker, file worker, PostgreSQL, Redis, private networks,
-volumes, and
-health checks. `compose.dev.yaml` adds source mounts, hot reload, digest-pinned Mailpit, and
+The base Compose file defines the API, mail worker, file worker, outbox worker, private networks,
+application volumes, and health checks. PostgreSQL and Redis are deliberately absent from the base
+and deployment layers because managed environments provide them as external services.
+`compose.dev.yaml` adds source mounts, hot reload, digest-pinned PostgreSQL, Redis, Mailpit, and
 loopback-only local dependency/UI ports. Development also includes digest-pinned LocalStack S3 on
 `127.0.0.1:4566`; its ready hook creates the configured private test bucket. Local dependency image
 updates are accepted only after their container health checks and integration workflow pass.
 `compose.deploy.yaml` adds the immutable runtime image, read-only filesystems, dropped capabilities,
-and one-shot migration and seed jobs.
+and one-shot migration and seed jobs. It does not create PostgreSQL, Redis, Mailpit, or LocalStack.
 
 The local and CI service baseline is PostgreSQL `18.6-bookworm` and Redis `8.4.6-trixie`, each
 pinned to its multi-platform image digest. Redis 8.4 no longer publishes a Bookworm variant, so the
@@ -28,15 +29,25 @@ S3 is recommended for managed environments.
 
 The production image contains compiled code and production dependencies only, runs as non-root,
 and does not run migrations or seeds in its entrypoint. Runtime entrypoints are grouped under
-`dist/apps`: `api/main.js`, `mail-worker/main.js`, and `file-worker/main.js`. Deployment runs the
-hardened `migrate` and `seed` one-shot services before rolling out the API, mail worker, and file
-worker from the same image.
+`dist/apps`: `api/main.js`, `mail-worker/main.js`, `file-worker/main.js`, and
+`outbox-worker/main.js`. Deployment runs the hardened `migrate` and `seed` one-shot services before
+rolling out the API and all three workers from the same image. Every worker writes a short-lived
+heartbeat in `/tmp`; Compose health checks fail when a process stops refreshing it.
 The file worker consumes bounded idempotent cleanup jobs and runs the advisory-locked expiry
 sweeper; it exposes no port and shuts down gracefully. The mail worker uses
 `dist/apps/mail-worker/main.js`, exposes no port, verifies SMTP before consuming jobs, and shuts down
 gracefully. Local PostgreSQL, Redis, and Mailpit UI ports bind only to `127.0.0.1`; deployment
 definitions expose none of those dependencies. `pnpm docker:reset -- --confirm` is the only supported
 destructive local volume reset.
+
+Managed deployment uses `Jenkinsfile`. It requires an immutable image digest and, for production,
+the `BACKUP_REFERENCE` recorded by the managed PostgreSQL provider before migrations run. The
+deployment record at `.deployment-record` stores the image, source commit, migration compatibility
+declaration, backup reference, and UTC completion time. Rollback is attempted only when the previous
+image contains the `org.opencontainers.image.migration-compatibility` label; otherwise deployment
+fails closed and requires operator review. Jenkins waits for API, mail, file, and outbox worker
+health checks, then verifies API readiness, Redis, SMTP, and the configured S3 bucket from inside
+the deployment network.
 Production dependency installation ignores arbitrary lifecycle scripts and explicitly rebuilds only
 the approved native `argon2` and `sharp` packages. CI must build and scan the runtime image so the
 Sharp/libvips binary matches the pinned Node 24 Debian runtime.
@@ -48,7 +59,7 @@ policy while queues are enabled.
 
 `pnpm runtime-images:check` enforces the approved major and patch floors, complete digests,
 Compose/CI parity, CI scan coverage, and root Docker monitoring by Dependabot. Dependabot proposes
-future Docker digest and patch updates from `compose.yaml`; update the matching CI service and scan
-references in the same pull request.
+future Docker digest and patch updates from `compose.dev.yaml`; update the matching CI service and
+scan references in the same pull request.
 
 **Navigation:** [Previous: Pull-Request Review](../03-dev-process/review-process.md) | [Documentation Index](../README.md) | [Next: CI/CD Ownership](ci-cd.md)
