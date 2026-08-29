@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
-import type { FileWorkerConfiguration } from '@/config/configuration.types';
+import type { FileWorkerConfiguration } from '@/config/file-worker.environment';
 import { WorkerHeartbeatService } from '@/core/worker/worker-heartbeat.service';
 import type { RedisConfig } from '@/redis/config/redis.config';
 

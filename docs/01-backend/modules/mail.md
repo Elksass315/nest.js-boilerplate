@@ -56,5 +56,8 @@ through Mailpit.
 
 **Navigation:** [Previous: Files Module](files.md) | [Documentation Index](../../README.md) | [Next: Users Module](users.md)
 
+Invitation links are supplied by the owning invitations feature, keeping mail transport reusable
+across profiles without importing optional configuration into the mandatory mail module.
+
 The maintenance worker deletes only old sent or terminal-failed delivery metadata in bounded
 batches; queued and processing deliveries remain available to the mail worker.

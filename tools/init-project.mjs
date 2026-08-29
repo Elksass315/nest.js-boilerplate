@@ -2,12 +2,15 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import { pathToFileURL } from 'node:url';
 
 import { loadCapabilityManifest, resolveCapabilities } from './project-capabilities.mjs';
+import { renderCapabilityContributions } from './render-capabilities.mjs';
 
 const SOURCE_MARKER = '.company-template-source.json';
 const OUTPUT_MARKER = '.company-template.json';
 const PROTECTED_BRANCHES = new Set(['main', 'develop']);
+const COREPACK_COMMAND = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
 const TEXT_EXTENSIONS = new Set([
   '.json',
   '.md',
@@ -86,15 +89,6 @@ export function normalizeProjectConfig(input, manifest = loadCapabilityManifest(
           .filter(Boolean)
       : [];
   const resolved = resolveCapabilities(selected, manifest);
-  const optional = Object.keys(manifest.capabilities).filter(
-    (name) => !manifest.mandatory.includes(name),
-  );
-  const missing = optional.filter((name) => !resolved.selected.includes(name));
-  if (missing.length > 0) {
-    throw new Error(
-      `Selective capability generation is not supported yet. Select the full profile; missing: ${missing.join(', ')}`,
-    );
-  }
   const fileDriver = input.fileDriver ?? null;
   if (
     resolved.selected.includes('files') &&
@@ -138,10 +132,21 @@ async function collectConfig(manifest) {
     const optional = Object.keys(manifest.capabilities).filter(
       (name) => !manifest.mandatory.includes(name),
     );
-    input.capabilities = optional;
-    input.fileDriver = await rl.question(
-      'File storage driver (s3/local-development-plus-s3-production/both-provider-migration): ',
+    const selected = await rl.question(
+      `Optional capabilities (${optional.join(', ')}; comma-separated, blank for none): `,
     );
+    input.capabilities = selected;
+    if (
+      selected
+        .split(',')
+        .map((value) => value.trim())
+        .includes('files') ||
+      selected.includes('user-avatars')
+    ) {
+      input.fileDriver = await rl.question(
+        'File storage driver (s3/local-development-plus-s3-production/both-provider-migration): ',
+      );
+    }
     return input;
   } finally {
     rl.close();
@@ -166,7 +171,7 @@ function collectFiles(root, directory = root) {
   return files;
 }
 
-function removeOptionalContent(root, config, manifest) {
+export function removeOptionalContent(root, config, manifest) {
   const selected = new Set(config.resolvedCapabilities);
   const protectedPaths = new Set(
     manifest.mandatory.flatMap((name) => {
@@ -177,6 +182,7 @@ function removeOptionalContent(root, config, manifest) {
         ...capability.seedPaths,
         ...capability.configurationPaths,
         ...capability.documentation,
+        ...(capability.testPaths ?? []),
       ];
     }),
   );
@@ -189,8 +195,9 @@ function removeOptionalContent(root, config, manifest) {
       'seedPaths',
       'configurationPaths',
       'documentation',
+      'testPaths',
     ]) {
-      for (const relative of capability[field]) {
+      for (const relative of capability[field] ?? []) {
         if (protectedPaths.has(relative)) continue;
         paths.add(relative);
       }
@@ -259,18 +266,21 @@ function ensureInitializationBranch(root, dryRun) {
   return 'chore/initialize-project';
 }
 
-function writeTemplateMetadata(root, config, sourceVersion) {
+function writeTemplateMetadata(root, config, sourceMarker) {
   writeFileSync(
     path.join(root, OUTPUT_MARKER),
     `${JSON.stringify(
       {
         schemaVersion: 1,
-        sourceVersion,
+        sourceVersion: sourceMarker.schemaVersion,
+        generatorVersion: sourceMarker.generatorVersion,
         initializedAt: new Date().toISOString(),
         selectedCapabilities: config.resolvedCapabilities,
         requestedCapabilities: config.capabilities,
+        resolvedCapabilities: config.resolvedCapabilities,
         addedDependencies: config.addedDependencies,
         fileDriver: config.fileDriver,
+        storageChoice: config.fileDriver,
         compatibility: { apiVersion: 'v1', errorSemantics: 'stable-error-catalog' },
       },
       null,
@@ -282,17 +292,32 @@ function writeTemplateMetadata(root, config, sourceVersion) {
 
 function runValidation(root) {
   const commands = [
-    ['pnpm', ['install']],
-    ['pnpm', ['format:check']],
-    ['pnpm', ['typecheck']],
-    ['pnpm', ['arch:check']],
-    ['pnpm', ['docs:check']],
-    ['pnpm', ['test:unit']],
-    ['pnpm', ['build']],
-    ['pnpm', ['docker:config']],
+    [
+      COREPACK_COMMAND,
+      [
+        'pnpm',
+        '--config.minimumReleaseAge=0',
+        '--config.minimumReleaseAgeExclude=*',
+        '--config.verifyDepsBeforeRun=install',
+        'install',
+        '--offline',
+        '--frozen-lockfile',
+      ],
+    ],
+    [COREPACK_COMMAND, ['pnpm', 'format:check']],
+    [COREPACK_COMMAND, ['pnpm', 'typecheck']],
+    [COREPACK_COMMAND, ['pnpm', 'arch:check']],
+    [COREPACK_COMMAND, ['pnpm', 'docs:check']],
+    [COREPACK_COMMAND, ['pnpm', 'test:unit']],
+    [COREPACK_COMMAND, ['pnpm', 'build']],
+    [COREPACK_COMMAND, ['pnpm', 'docker:config']],
   ];
   for (const [command, args] of commands) {
-    const result = spawnSync(command, args, { cwd: root, stdio: 'inherit' });
+    const result = spawnSync(command, args, {
+      cwd: root,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
     if (result.status !== 0)
       throw new Error(`Initializer validation failed: ${command} ${args.join(' ')}`);
   }
@@ -307,15 +332,36 @@ export async function initializeProject(options) {
   const config = normalizeProjectConfig(raw, manifest);
   const branch = ensureInitializationBranch(options.root, options.dryRun);
   if (options.dryRun) return { branch, config };
+  await renderCapabilityContributions(options.root, config, manifest);
   removeOptionalContent(options.root, config, manifest);
+  if (!options.skipLockfile) {
+    const lockfile = spawnSync(
+      COREPACK_COMMAND,
+      [
+        'pnpm',
+        '--config.minimumReleaseAge=0',
+        '--config.minimumReleaseAgeExclude=*',
+        '--config.verifyDepsBeforeRun=install',
+        'install',
+        '--lockfile-only',
+        '--offline',
+      ],
+      {
+        cwd: options.root,
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+      },
+    );
+    if (lockfile.status !== 0) throw new Error('Failed to render the capability-specific lockfile');
+  }
   renameTemplateIdentities(options.root, config);
   const sourceMarker = JSON.parse(readFileSync(path.join(options.root, SOURCE_MARKER), 'utf8'));
-  writeTemplateMetadata(options.root, config, sourceMarker.schemaVersion);
+  writeTemplateMetadata(options.root, config, sourceMarker);
   if (!options.skipValidation) runValidation(options.root);
   return { branch, config };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   initializeProject(parseArguments(process.argv.slice(2)))
     .then(({ branch, config }) => {
       process.stdout.write(

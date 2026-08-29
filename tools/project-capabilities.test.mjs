@@ -50,3 +50,16 @@ test('all optional capabilities can be selected together without duplicates', ()
 test('unknown optional capabilities are rejected', () => {
   assert.throws(() => resolveCapabilities(['billing']), /Unknown or mandatory/);
 });
+
+test('the 32 requested subsets resolve to 24 unique dependency-valid profiles', () => {
+  const optional = ['files', 'user-avatars', 'invitations', 'feature-flags', 'sentry'];
+  const profiles = new Set();
+  for (let mask = 0; mask < 2 ** optional.length; mask += 1) {
+    const requested = optional.filter((_, index) => (mask & (1 << index)) !== 0);
+    const resolved = resolveCapabilities(requested).selected.filter((name) =>
+      optional.includes(name),
+    );
+    profiles.add(resolved.join(','));
+  }
+  assert.equal(profiles.size, 24);
+});

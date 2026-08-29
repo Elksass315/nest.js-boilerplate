@@ -225,6 +225,9 @@ importers:
       typescript-eslint:
         specifier: 8.66.0
         version: 8.66.0(eslint@10.8.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
 packages:
 

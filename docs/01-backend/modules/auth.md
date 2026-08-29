@@ -3,7 +3,7 @@
 ## Purpose and scope
 
 `auth` owns registration orchestration, email-verification codes and password-reset tokens, credential
-checks, temporary lockout, JWT access tokens, rotating refresh tokens, user-owned sessions, email
+checks, failure suppression, JWT access tokens, rotating refresh tokens, user-owned sessions, email
 two-step challenges, and recovery codes. It does not own user persistence, RBAC definitions, SMTP
 delivery, social login, or trusted devices.
 
@@ -29,27 +29,27 @@ All routes use explicit URI version `v1`. Registration returns the account UUID 
 `registrationId` plus code expiry. Resend and recovery responses never expose raw secrets or reveal
 whether an eligible account exists.
 
-| Method | Route                                              | Success | Principal errors                                                                 |
-| ------ | -------------------------------------------------- | ------- | -------------------------------------------------------------------------------- |
-| POST   | `/auth/register`                                   | 201     | 409 `EMAIL_ALREADY_REGISTERED`, 422                                              |
-| POST   | `/auth/verification/resend`                        | 200     | 422                                                                              |
-| POST   | `/auth/verification/confirm`                       | 200     | 401 invalid/expired code or attempts exceeded, 403 `ACCOUNT_SUSPENDED`, 422      |
-| POST   | `/auth/login`                                      | 200     | 401 `INVALID_CREDENTIALS`/`ACCOUNT_LOCKED`, 403 `EMAIL_NOT_VERIFIED`/`SUSPENDED` |
-| POST   | `/auth/login/two-step`                             | 200     | 401 invalid challenge/code/recovery/attempt limit, 403 suspended                 |
-| POST   | `/auth/refresh`                                    | 200     | 401 `INVALID_REFRESH_TOKEN`/`REFRESH_TOKEN_REUSED`, 422                          |
-| POST   | `/auth/forgot-password`                            | 200     | 422                                                                              |
-| POST   | `/auth/reset-password`                             | 200     | 401 `INVALID_OR_EXPIRED_TOKEN`, 422                                              |
-| POST   | `/auth/change-password`                            | 200     | 401 `UNAUTHORIZED`/`INVALID_CREDENTIALS`, 422                                    |
-| POST   | `/auth/two-step/enable/request`                    | 200     | 401 auth/password, 409 already enabled, 422                                      |
-| POST   | `/auth/two-step/enable/confirm`                    | 200     | 401 challenge/code/attempt limit, 422                                            |
-| POST   | `/auth/two-step/disable/request`                   | 200     | 401 auth/password, 409 not enabled, 422                                          |
-| POST   | `/auth/two-step/disable/confirm`                   | 200     | 401 challenge/code/attempt limit, 422                                            |
-| POST   | `/auth/two-step/recovery-codes/regenerate/request` | 200     | 401 auth/password, 409 not enabled, 422                                          |
-| POST   | `/auth/two-step/recovery-codes/regenerate/confirm` | 200     | 401 challenge/code/attempt limit, 422                                            |
-| POST   | `/auth/logout`                                     | 204     | 401 `UNAUTHORIZED`                                                               |
-| GET    | `/sessions`                                        | 200     | 401, 422                                                                         |
-| DELETE | `/sessions/:id`                                    | 204     | 400, 401, 404 `SESSION_NOT_FOUND`                                                |
-| DELETE | `/sessions`                                        | 204     | 401                                                                              |
+| Method | Route                                              | Success | Principal errors                                                            |
+| ------ | -------------------------------------------------- | ------- | --------------------------------------------------------------------------- |
+| POST   | `/auth/register`                                   | 201     | 409 `EMAIL_ALREADY_REGISTERED`, 422                                         |
+| POST   | `/auth/verification/resend`                        | 200     | 422                                                                         |
+| POST   | `/auth/verification/confirm`                       | 200     | 401 invalid/expired code or attempts exceeded, 403 `ACCOUNT_SUSPENDED`, 422 |
+| POST   | `/auth/login`                                      | 200     | 401 `INVALID_CREDENTIALS`, 403 `EMAIL_NOT_VERIFIED`/`SUSPENDED`             |
+| POST   | `/auth/login/two-step`                             | 200     | 401 invalid challenge/code/recovery/attempt limit, 403 suspended            |
+| POST   | `/auth/refresh`                                    | 200     | 401 `INVALID_REFRESH_TOKEN`/`REFRESH_TOKEN_REUSED`, 422                     |
+| POST   | `/auth/forgot-password`                            | 200     | 422                                                                         |
+| POST   | `/auth/reset-password`                             | 200     | 401 `INVALID_OR_EXPIRED_TOKEN`, 422                                         |
+| POST   | `/auth/change-password`                            | 200     | 401 `UNAUTHORIZED`/`INVALID_CREDENTIALS`, 422                               |
+| POST   | `/auth/two-step/enable/request`                    | 200     | 401 auth/password, 409 already enabled, 422                                 |
+| POST   | `/auth/two-step/enable/confirm`                    | 200     | 401 challenge/code/attempt limit, 422                                       |
+| POST   | `/auth/two-step/disable/request`                   | 200     | 401 auth/password, 409 not enabled, 422                                     |
+| POST   | `/auth/two-step/disable/confirm`                   | 200     | 401 challenge/code/attempt limit, 422                                       |
+| POST   | `/auth/two-step/recovery-codes/regenerate/request` | 200     | 401 auth/password, 409 not enabled, 422                                     |
+| POST   | `/auth/two-step/recovery-codes/regenerate/confirm` | 200     | 401 challenge/code/attempt limit, 422                                       |
+| POST   | `/auth/logout`                                     | 204     | 401 `UNAUTHORIZED`                                                          |
+| GET    | `/sessions`                                        | 200     | 401, 422                                                                    |
+| DELETE | `/sessions/:id`                                    | 204     | 400, 401, 404 `SESSION_NOT_FOUND`                                           |
+| DELETE | `/sessions`                                        | 204     | 401                                                                         |
 
 The session collection uses canonical offset pagination and accepts an optional `revoked` boolean
 query filter (`true` or `false`). Every Swagger route contains concrete success payloads and exact
@@ -126,10 +126,12 @@ Refresh and action tokens use 32 cryptographically random bytes and are never st
 Email verification and two-step codes contain six cryptographically generated digits. Recovery codes contain 64 random bits,
 are formatted for manual entry, and are never returned after enrollment/regeneration completes.
 
-Unknown-email login performs dummy Argon2 verification. Five failed attempts lock an account for 15
-minutes by default. A locked account still performs password verification: an invalid password
-returns `INVALID_CREDENTIALS` without extending the existing lock, while a valid password returns
-`ACCOUNT_LOCKED`. Audit events receive request and correlation IDs; logs never contain passwords,
+Unknown-email login performs dummy Argon2 verification. Five failed attempts activate a 15-minute
+failure-suppression window by default. Password verification continues during suppression, and the
+suppression state is not repeatedly written for each request. Failure suppression never changes the
+authentication result: invalid credentials return the generic
+`INVALID_CREDENTIALS`, while correct credentials authenticate and clear the suppression state. Audit
+events receive request and correlation IDs; logs never contain passwords,
 raw tokens, or full recipient addresses. Security mail is durable once its owning transaction
 commits and is relayed asynchronously through the transactional outbox.
 
@@ -140,7 +142,7 @@ audits are retained.
 ## Test strategy and change impact
 
 Unit tests cover Argon2/JWT operations, pending registration revision, verification code expiry,
-attempts and consumption, generic recovery, token consumption, lockout, enriched login, session
+attempts and consumption, generic recovery, token consumption, failure suppression, enriched login, session
 limits, rotation/reuse, auth-version invalidation, ownership, guards, Swagger bearer metadata,
 delegation, and password revocation. Migration validation and E2E tests run against PostgreSQL and
 Redis. Rollback removes auth-owned tables only; users and RBAC remain intact.

@@ -10,8 +10,9 @@ import { DatabaseModule } from '@/database/database.module';
 import { CoreModule } from '@/core/core.module';
 import { OutboxModule } from '@/core/outbox/outbox.module';
 import { OutboxWorkerService } from '@/core/outbox/outbox-worker.service';
-import { OUTBOX_FILE_QUEUE, OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from '@/core/outbox/outbox.types';
+import { OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from '@/core/outbox/outbox.types';
 import type { RedisConfig } from '@/redis/config/redis.config';
+import { CAPABILITY_OUTBOX_IMPORTS, CAPABILITY_OUTBOX_PROVIDERS } from './capability-composition';
 
 @Module({
   imports: [
@@ -41,8 +42,8 @@ import type { RedisConfig } from '@/redis/config/redis.config';
     }),
     BullModule.registerQueue({ name: OUTBOX_QUEUE }),
     BullModule.registerQueue({ name: OUTBOX_MAIL_QUEUE }),
-    BullModule.registerQueue({ name: OUTBOX_FILE_QUEUE }),
+    ...CAPABILITY_OUTBOX_IMPORTS,
   ],
-  providers: [OutboxWorkerService],
+  providers: [OutboxWorkerService, ...CAPABILITY_OUTBOX_PROVIDERS],
 })
 export class OutboxWorkerModule {}

@@ -14,7 +14,6 @@ describe('retention configuration', () => {
         RETENTION_MAIL_DAYS: 3,
         RETENTION_OUTBOX_DAYS: 4,
         RETENTION_OUTBOX_FAILURE_DAYS: 5,
-        RETENTION_FILE_METADATA_DAYS: 6,
       }),
     ).toEqual({
       enabled: true,
@@ -25,7 +24,6 @@ describe('retention configuration', () => {
       mailDays: 3,
       outboxDays: 4,
       outboxFailureDays: 5,
-      fileMetadataDays: 6,
     });
   });
 });

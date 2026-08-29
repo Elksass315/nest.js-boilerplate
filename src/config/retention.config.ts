@@ -12,7 +12,6 @@ export const retentionEnvironmentSchema = {
   RETENTION_MAIL_DAYS: Joi.number().integer().min(0).max(3650).default(90),
   RETENTION_OUTBOX_DAYS: Joi.number().integer().min(0).max(3650).default(30),
   RETENTION_OUTBOX_FAILURE_DAYS: Joi.number().integer().min(0).max(3650).default(365),
-  RETENTION_FILE_METADATA_DAYS: Joi.number().integer().min(0).max(3650).default(7),
 } satisfies Record<string, Joi.Schema>;
 
 export function createRetentionConfig(environment: Record<string, unknown>): RetentionConfig {
@@ -25,6 +24,5 @@ export function createRetentionConfig(environment: Record<string, unknown>): Ret
     mailDays: readNumber(environment, 'RETENTION_MAIL_DAYS'),
     outboxDays: readNumber(environment, 'RETENTION_OUTBOX_DAYS'),
     outboxFailureDays: readNumber(environment, 'RETENTION_OUTBOX_FAILURE_DAYS'),
-    fileMetadataDays: readNumber(environment, 'RETENTION_FILE_METADATA_DAYS'),
   };
 }

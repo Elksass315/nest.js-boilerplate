@@ -36,7 +36,7 @@ export class FilesController {
     description: 'The public file bytes were returned.',
     content: {
       'application/octet-stream': {
-        schema: { type: 'string', format: 'binary' },
+        schema: { type: 'string', format: 'binary', example: 'binary file bytes' },
         example: 'binary file bytes',
       },
     },

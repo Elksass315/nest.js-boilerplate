@@ -147,3 +147,6 @@ them; a delegated override cannot satisfy the role check. Super-admin targets ar
 audited, increment `authVersion`, and are resolved for collections with bounded batch queries.
 
 **Navigation:** [Previous: Mail Module](mail.md) | [Documentation Index](../../README.md) | [Next: REST and Versioning Standard](../../02-api/rest-standard.md)
+
+User responses use an optional profile enricher. Avatar persistence and image processing stay in
+`user-avatars`, so the base users module remains usable in profiles without file storage.

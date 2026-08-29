@@ -81,3 +81,6 @@ Sentry is a separate typed namespace shared by API and worker profiles. `SENTRY_
 transmission. Migration and seed profiles remain database-only and do not load Sentry configuration.
 
 **Navigation:** [Previous: Technology Stack](../00-overview/tech-stack.md) | [Documentation Index](../README.md) | [Next: Database, Migration, and Seed Standard](database.md)
+
+Optional configuration schemas are composed from the selected capability manifest. Generated
+profiles do not retain validation, types, or environment keys for omitted capabilities.

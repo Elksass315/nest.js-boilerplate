@@ -1,32 +1,15 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Put,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Put, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
   ApiForbiddenResponse,
-  ApiGoneResponse,
-  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiPayloadTooLargeResponse,
-  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
-  ApiUnsupportedMediaTypeResponse,
 } from '@nestjs/swagger';
 
 import { API_VERSION } from '@/common/http/api-version.constants';
@@ -48,7 +31,6 @@ import { ReplaceUserRolesDto } from './dto/replace-user-roles.dto';
 import { ReplaceUserPermissionsDto } from './dto/replace-user-permissions.dto';
 import { UserPermissionsResponseDto } from './dto/user-permissions-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { UpdateAvatarDto } from './dto/update-avatar.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { UsersService } from './users.service';
@@ -135,112 +117,6 @@ export class UsersController {
     @Body() body: UpdateProfileDto,
   ): Promise<UserResponseDto> {
     return this.service.updateOwnProfile(principal.userId, body.fullName);
-  }
-
-  @Patch('me/avatar')
-  @RequireAuthenticated()
-  @ApiOperation({
-    summary: 'Set the current user avatar',
-    description:
-      'Validates and sanitizes a completed owned upload, atomically attaches it, and schedules replaced bytes for correlated cleanup.',
-  })
-  @ApiOkResponse({ description: 'The sanitized avatar was attached.', content: userContent })
-  @ApiUnauthorizedResponse({
-    description: 'No authenticated principal was provided.',
-    content: errorContent('UNAUTHORIZED', `${path}/me/avatar`),
-  })
-  @ApiForbiddenResponse({
-    description: 'The upload belongs to another user.',
-    content: errorContent('FILE_OWNERSHIP_MISMATCH', `${path}/me/avatar`),
-  })
-  @ApiNotFoundResponse({
-    description: 'The user or upload no longer exists.',
-    content: {
-      'application/json': {
-        examples: {
-          fileNotFound: {
-            summary: 'The upload does not exist',
-            value: errorContent('FILE_NOT_FOUND', `${path}/me/avatar`)['application/json']?.example,
-          },
-          userNotFound: {
-            summary: 'The authenticated user no longer exists',
-            value: errorContent('USER_NOT_FOUND', `${path}/me/avatar`)['application/json']?.example,
-          },
-        },
-      },
-    },
-  })
-  @ApiConflictResponse({
-    description: 'The upload has not completed or cannot be claimed.',
-    content: errorContent('FILE_NOT_READY', `${path}/me/avatar`),
-  })
-  @ApiGoneResponse({
-    description: 'The completed upload expired before it was claimed.',
-    content: errorContent('FILE_UPLOAD_EXPIRED', `${path}/me/avatar`),
-  })
-  @ApiPayloadTooLargeResponse({
-    description: 'The source exceeds the configured avatar byte limit.',
-    content: errorContent('FILE_TOO_LARGE', `${path}/me/avatar`),
-  })
-  @ApiUnsupportedMediaTypeResponse({
-    description:
-      'The declaration, extension, or detected format is not an allowed matching JPEG, PNG, or WebP image.',
-    content: errorContent('FILE_TYPE_NOT_ALLOWED', `${path}/me/avatar`),
-  })
-  @ApiUnprocessableEntityResponse({
-    description:
-      'The file ID is invalid or the image is animated, malformed, oversized in dimensions, or unsafe to decode.',
-    content: {
-      'application/json': {
-        examples: {
-          invalidFileId: {
-            summary: 'The file identifier is not a UUID',
-            value: errorContent('VALIDATION_ERROR', `${path}/me/avatar`, {
-              fields: { fileId: ['fileId must be a UUID'] },
-            })['application/json']?.example,
-          },
-          invalidImage: {
-            summary: 'The image cannot be safely processed',
-            value: errorContent('FILE_INVALID_IMAGE', `${path}/me/avatar`)['application/json']
-              ?.example,
-          },
-        },
-      },
-    },
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'Storage could not read the upload or persist the sanitized result.',
-    content: errorContent('FILE_STORAGE_UNAVAILABLE', `${path}/me/avatar`),
-  })
-  public replaceAvatar(
-    @CurrentPrincipal() principal: AuthenticatedPrincipal,
-    @Body() body: UpdateAvatarDto,
-  ): Promise<UserResponseDto> {
-    return this.service.replaceOwnAvatar(principal.userId, body.fileId);
-  }
-
-  @Delete('me/avatar')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @RequireAuthenticated()
-  @ApiOperation({
-    summary: 'Remove the current user avatar',
-    description:
-      'Atomically detaches the avatar and schedules its bytes for idempotent correlated cleanup.',
-  })
-  @ApiNoContentResponse({
-    description: 'The avatar was detached, or the user already had no avatar.',
-    content: { 'application/json': { example: null } },
-  })
-  @ApiUnauthorizedResponse({
-    description: 'No authenticated principal was provided.',
-    content: errorContent('UNAUTHORIZED', `${path}/me/avatar`),
-  })
-  @ApiNotFoundResponse({
-    description: 'The authenticated user no longer exists.',
-    content: errorContent('USER_NOT_FOUND', `${path}/me/avatar`),
-  })
-  public deleteAvatar(@CurrentPrincipal() principal: AuthenticatedPrincipal): Promise<void> {
-    return this.service.deleteOwnAvatar(principal.userId);
   }
 
   @Get()

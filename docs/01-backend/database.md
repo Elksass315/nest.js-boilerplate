@@ -75,3 +75,6 @@ avatar references, and preserves a reversible down migration. It is additive: th
 Operational retention uses existing timestamp/status indexes and bounded CTE deletes. It does not
 delete security audits, feature-flag audits, or business records, and takes the
 `maintenance:retention` PostgreSQL advisory transaction lock before a sweep.
+
+Capability migrations and seeds are emitted only for selected features. The avatar compatibility
+migration backfills associations before removing the legacy user column.

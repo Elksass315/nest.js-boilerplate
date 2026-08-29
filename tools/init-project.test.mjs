@@ -37,11 +37,14 @@ test('normalizes the fully wired reference profile', () => {
   assert.deepEqual(result.addedDependencies, []);
 });
 
-test('fails closed instead of generating a partially wired profile', () => {
-  assert.throws(
-    () => normalizeProjectConfig({ ...validConfig(), capabilities: ['user-avatars'] }),
-    /Selective capability generation is not supported yet.*invitations, feature-flags, sentry/,
-  );
+test('resolves dependency shorthand while preserving the requested capabilities', () => {
+  const result = normalizeProjectConfig({
+    ...validConfig(),
+    capabilities: ['user-avatars'],
+  });
+  assert.deepEqual(result.capabilities, ['user-avatars']);
+  assert.deepEqual(result.resolvedCapabilities.slice(-2), ['files', 'user-avatars']);
+  assert.deepEqual(result.addedDependencies, ['files']);
 });
 
 test('requires the source marker, a clean worktree, and refuses a second initialization', () => {

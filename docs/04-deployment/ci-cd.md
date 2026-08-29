@@ -61,3 +61,7 @@ until all previous images are retired. Neither the API nor worker entrypoint per
 mutation.
 
 **Navigation:** [Previous: Docker Workflow](docker.md) | [Documentation Index](../README.md) | [Next: Documentation Policy](../governance/documentation-policy.md)
+
+Scheduled CI shards the 24 resolved capability profiles. Pull requests run structural generation
+checks, while service-backed validation remains focused on minimal, files-plus-avatars, and full
+profiles to keep feedback fast and representative.

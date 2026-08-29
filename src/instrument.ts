@@ -6,7 +6,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 
-import { initializeSentry } from './observability/sentry';
+import './instrument-capabilities';
 
 const enabled = process.env['OTEL_ENABLED'] === 'true';
 const endpoint = process.env['OTEL_EXPORTER_OTLP_ENDPOINT'];
@@ -44,5 +44,3 @@ if (enabled && endpoint) {
   process.once('SIGTERM', () => void sdk.shutdown());
   process.once('SIGINT', () => void sdk.shutdown());
 }
-
-initializeSentry();

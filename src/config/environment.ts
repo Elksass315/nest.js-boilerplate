@@ -9,30 +9,25 @@ import { createRedisConfig, redisEnvironmentSchema } from '@/redis/config/redis.
 
 import { appEnvironmentSchema, createAppConfig } from './app.config';
 import { authEnvironmentSchema, createAuthConfig } from './auth.config';
-import type {
-  AppConfiguration,
-  FileWorkerConfiguration,
-  MailWorkerConfiguration,
-} from './configuration.types';
+import {
+  capabilityApiEnvironmentSchema,
+  capabilityEnvironmentMessages,
+  createApiCapabilityConfiguration,
+  validateApiCapabilityContradictions,
+} from './capability-configuration';
+import type { AppConfiguration, MailWorkerConfiguration } from './configuration.types';
 import { corsEnvironmentSchema, createCorsConfig, parseCorsOrigins } from './cors.config';
 import { createI18nConfig, i18nEnvironmentSchema, parseSupportedLanguages } from './i18n.config';
 import { createLoggingConfig, loggingEnvironmentSchema } from './logging.config';
 import { createObservabilityConfig, observabilityEnvironmentSchema } from './observability.config';
 import { createRetentionConfig, retentionEnvironmentSchema } from './retention.config';
-import { createInvitationsConfig, invitationsEnvironmentSchema } from './invitations.config';
 import { createMailConfig, mailEnvironmentSchema } from './mail.config';
-import { createFilesConfig, filesEnvironmentSchema, parseFileStorageDrivers } from './files.config';
 import {
   createRateLimitConfig,
   parseTrustedProxyIps,
   rateLimitEnvironmentSchema,
 } from './rate-limit.config';
 import { createSwaggerConfig, swaggerEnvironmentSchema } from './swagger.config';
-import {
-  createSentryConfig,
-  sentryConfigurationAgrees,
-  sentryEnvironmentSchema,
-} from './sentry.config';
 
 const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...appEnvironmentSchema,
@@ -41,13 +36,11 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...loggingEnvironmentSchema,
   ...observabilityEnvironmentSchema,
   ...retentionEnvironmentSchema,
-  ...sentryEnvironmentSchema,
   ...swaggerEnvironmentSchema,
   ...rateLimitEnvironmentSchema,
   ...i18nEnvironmentSchema,
   ...mailEnvironmentSchema,
-  ...invitationsEnvironmentSchema,
-  ...filesEnvironmentSchema,
+  ...capabilityApiEnvironmentSchema,
   ...databaseEnvironmentSchema,
   ...redisEnvironmentSchema,
 })
@@ -67,16 +60,13 @@ const apiEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'SWAGGER_DOCS_USERNAME and SWAGGER_DOCS_PASSWORD must be empty unless SWAGGER_DOCS_ACCESS is basic',
     'environment.smtpCredentials':
       'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
-    'environment.filesDrivers':
-      'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
-    'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
+    ...capabilityEnvironmentMessages,
     'environment.managedSecrets': 'Managed environments cannot use template or synthetic secrets',
     'environment.managedUrls':
       'Managed public URLs and CORS origins must use HTTPS and cannot target localhost or example domains',
     'environment.databaseSecurity':
       'Managed database connections require SSL certificate verification and a password of at least 16 characters',
     'environment.smtpTls': 'MAIL_SMTP_REQUIRE_TLS must be true in staging and production',
-    'environment.productionFiles': 'Production file writes require the S3 storage driver',
     'environment.trustedProxy':
       'TRUSTED_PROXY_IPS must contain an explicit proxy allowlist in staging and production',
     'environment.otelEndpoint':
@@ -90,7 +80,6 @@ const databaseOnlyEnvironmentSchema = Joi.object<Record<string, unknown>>({
 const mailWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
   ...appEnvironmentSchema,
   ...loggingEnvironmentSchema,
-  ...sentryEnvironmentSchema,
   ...mailEnvironmentSchema,
   ...databaseEnvironmentSchema,
   ...redisEnvironmentSchema,
@@ -101,36 +90,12 @@ const mailWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
       'REDIS_PASSWORD must contain at least 16 characters in staging and production',
     'environment.smtpCredentials':
       'MAIL_SMTP_USERNAME and MAIL_SMTP_PASSWORD must either both be set or both be empty',
-    'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
     'environment.managedSecrets': 'Managed environments cannot use template or synthetic secrets',
     'environment.managedUrls':
       'Managed public URLs must use HTTPS and cannot target localhost or example domains',
     'environment.databaseSecurity':
       'Managed database connections require SSL certificate verification and a password of at least 16 characters',
     'environment.smtpTls': 'MAIL_SMTP_REQUIRE_TLS must be true in staging and production',
-  });
-
-const fileWorkerEnvironmentSchema = Joi.object<Record<string, unknown>>({
-  ...appEnvironmentSchema,
-  ...loggingEnvironmentSchema,
-  ...sentryEnvironmentSchema,
-  ...filesEnvironmentSchema,
-  ...databaseEnvironmentSchema,
-  ...redisEnvironmentSchema,
-})
-  .custom(validateFileWorkerContradictions)
-  .messages({
-    'environment.redisPassword':
-      'REDIS_PASSWORD must contain at least 16 characters in staging and production',
-    'environment.filesDrivers':
-      'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
-    'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
-    'environment.managedSecrets': 'Managed environments cannot use template or synthetic secrets',
-    'environment.managedUrls':
-      'Managed public URLs and S3 endpoints must use HTTPS and cannot target localhost or example domains',
-    'environment.databaseSecurity':
-      'Managed database connections require SSL certificate verification and a password of at least 16 characters',
-    'environment.productionFiles': 'Production file writes require the S3 storage driver',
   });
 
 function validateApiContradictions(
@@ -177,9 +142,8 @@ function validateApiContradictions(
   if (isManaged && environment['MAIL_SMTP_REQUIRE_TLS'] !== true) {
     return helpers.error('environment.smtpTls');
   }
-  if (nodeEnvironment === 'production' && environment['FILES_WRITE_DRIVER'] !== 's3') {
-    return helpers.error('environment.productionFiles');
-  }
+  const capabilityError = validateApiCapabilityContradictions(environment, helpers);
+  if (capabilityError) return capabilityError;
   if (isManaged && !trustedProxyConfigurationAgrees(environment)) {
     return helpers.error('environment.trustedProxy');
   }
@@ -196,12 +160,6 @@ function validateApiContradictions(
   if (!smtpCredentialsAgree(environment)) {
     return helpers.error('environment.smtpCredentials');
   }
-  if (!filesConfigurationAgrees(environment)) {
-    return helpers.error('environment.filesDrivers');
-  }
-  if (!sentryConfigurationAgrees(environment)) {
-    return helpers.error('environment.sentryDsn');
-  }
   if (
     typeof fallbackLanguage !== 'string' ||
     typeof supportedLanguages !== 'string' ||
@@ -210,30 +168,6 @@ function validateApiContradictions(
     return helpers.error('environment.fallbackLanguage');
   }
   return environment;
-}
-
-function filesConfigurationAgrees(environment: Record<string, unknown>): boolean {
-  const writeDriver = environment['FILES_WRITE_DRIVER'];
-  const readValue = environment['FILES_READ_DRIVERS'];
-  if (typeof writeDriver !== 'string' || typeof readValue !== 'string') return false;
-  let readDrivers: string[];
-  try {
-    readDrivers = parseFileStorageDrivers(readValue);
-  } catch {
-    return false;
-  }
-  if (!readDrivers.includes(writeDriver)) return false;
-  if (!readDrivers.includes('s3')) return true;
-  const bucket = environment['FILES_S3_BUCKET'];
-  const accessKey = environment['FILES_S3_ACCESS_KEY_ID'];
-  const secretKey = environment['FILES_S3_SECRET_ACCESS_KEY'];
-  const encryption = environment['FILES_S3_SERVER_SIDE_ENCRYPTION'];
-  const kmsKey = environment['FILES_S3_KMS_KEY_ID'];
-  const credentialsAgree =
-    (typeof accessKey === 'string' && accessKey.length > 0) ===
-    (typeof secretKey === 'string' && secretKey.length > 0);
-  const kmsAgrees = encryption !== 'aws:kms' || (typeof kmsKey === 'string' && kmsKey.length > 0);
-  return typeof bucket === 'string' && bucket.length > 0 && credentialsAgree && kmsAgrees;
 }
 
 function validateMailWorkerContradictions(
@@ -264,43 +198,6 @@ function validateMailWorkerContradictions(
   if (!smtpCredentialsAgree(environment)) {
     return helpers.error('environment.smtpCredentials');
   }
-  if (!sentryConfigurationAgrees(environment)) {
-    return helpers.error('environment.sentryDsn');
-  }
-  return environment;
-}
-
-function validateFileWorkerContradictions(
-  environment: Record<string, unknown>,
-  helpers: Joi.CustomHelpers,
-): Record<string, unknown> | Joi.ErrorReport {
-  const nodeEnvironment = environment['NODE_ENV'];
-  const redisPassword = environment['REDIS_PASSWORD'];
-  const isManaged = nodeEnvironment === 'staging' || nodeEnvironment === 'production';
-  if (isManaged && managedSecretsAreUnsafe(environment)) {
-    return helpers.error('environment.managedSecrets');
-  }
-  if (isManaged && !managedUrlsAreSafe(environment)) {
-    return helpers.error('environment.managedUrls');
-  }
-  if (isManaged && !databaseSecurityAgrees(environment)) {
-    return helpers.error('environment.databaseSecurity');
-  }
-  if (nodeEnvironment === 'production' && environment['FILES_WRITE_DRIVER'] !== 's3') {
-    return helpers.error('environment.productionFiles');
-  }
-  if (
-    (nodeEnvironment === 'staging' || nodeEnvironment === 'production') &&
-    (typeof redisPassword !== 'string' || redisPassword.length < 16)
-  ) {
-    return helpers.error('environment.redisPassword');
-  }
-  if (!filesConfigurationAgrees(environment)) {
-    return helpers.error('environment.filesDrivers');
-  }
-  if (!sentryConfigurationAgrees(environment)) {
-    return helpers.error('environment.sentryDsn');
-  }
   return environment;
 }
 
@@ -321,13 +218,7 @@ const TEMPLATE_VALUES = new Set([
 ]);
 
 function managedSecretsAreUnsafe(environment: Record<string, unknown>): boolean {
-  const secretKeys = [
-    'AUTH_ACCESS_TOKEN_SECRET',
-    'DATABASE_PASSWORD',
-    'REDIS_PASSWORD',
-    'FILES_S3_ACCESS_KEY_ID',
-    'FILES_S3_SECRET_ACCESS_KEY',
-  ];
+  const secretKeys = ['AUTH_ACCESS_TOKEN_SECRET', 'DATABASE_PASSWORD', 'REDIS_PASSWORD'];
   return secretKeys.some((key) => {
     const value = environment[key];
     return (
@@ -338,27 +229,11 @@ function managedSecretsAreUnsafe(environment: Record<string, unknown>): boolean 
 }
 
 function managedUrlsAreSafe(environment: Record<string, unknown>): boolean {
-  const urlKeys = [
-    'APP_BASE_URL',
-    'MAIL_ACTION_BASE_URL',
-    'TEAM_INVITATION_BASE_URL',
-    'FILES_S3_CDN_URL',
-  ];
+  const urlKeys = ['APP_BASE_URL', 'MAIL_ACTION_BASE_URL'];
   for (const key of urlKeys) {
     const value = environment[key];
     if (typeof value !== 'string' || value.length === 0) continue;
     if (!isManagedUrl(value)) return false;
-  }
-  const drivers = environment['FILES_READ_DRIVERS'];
-  if (
-    typeof drivers === 'string' &&
-    drivers
-      .split(',')
-      .map((item) => item.trim())
-      .includes('s3')
-  ) {
-    const endpoint = environment['FILES_S3_ENDPOINT'];
-    if (typeof endpoint !== 'string' || !isManagedUrl(endpoint)) return false;
   }
   const cors = environment['CORS_ORIGINS'];
   if (typeof cors === 'string') {
@@ -441,13 +316,11 @@ export function loadApiConfiguration(): AppConfiguration {
     logging: createLoggingConfig(environment),
     observability: createObservabilityConfig(environment),
     retention: createRetentionConfig(environment),
-    sentry: createSentryConfig(environment),
     swagger: createSwaggerConfig(environment),
     rateLimit: createRateLimitConfig(environment),
     i18n: createI18nConfig(environment),
     mail: createMailConfig(environment),
-    invitations: createInvitationsConfig(environment),
-    files: createFilesConfig(environment),
+    ...createApiCapabilityConfiguration(environment),
     database: createDatabaseConfig(environment),
     redis: createRedisConfig(environment),
   };
@@ -470,26 +343,7 @@ export function loadMailWorkerConfiguration(): MailWorkerConfiguration {
   return {
     app: createAppConfig(environment),
     logging: createLoggingConfig(environment),
-    sentry: createSentryConfig(environment),
     mail: createMailConfig(environment),
-    database: createDatabaseConfig(environment),
-    redis: createRedisConfig(environment),
-  };
-}
-
-export function validateFileWorkerEnvironment(
-  input: Record<string, unknown>,
-): Record<string, unknown> {
-  return validateWithSchema(fileWorkerEnvironmentSchema, input);
-}
-
-export function loadFileWorkerConfiguration(): FileWorkerConfiguration {
-  const environment = validateFileWorkerEnvironment(process.env);
-  return {
-    app: createAppConfig(environment),
-    logging: createLoggingConfig(environment),
-    sentry: createSentryConfig(environment),
-    files: createFilesConfig(environment),
     database: createDatabaseConfig(environment),
     redis: createRedisConfig(environment),
   };

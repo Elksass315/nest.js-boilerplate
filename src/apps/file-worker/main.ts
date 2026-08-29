@@ -2,7 +2,7 @@ import '../../instrument';
 
 import { NestFactory } from '@nestjs/core';
 
-import { captureStartupFailure } from '@/observability/sentry';
+import { captureStartupFailure } from '@/core/error-reporting/error-reporter';
 
 import { FileWorkerModule } from './file-worker.module';
 

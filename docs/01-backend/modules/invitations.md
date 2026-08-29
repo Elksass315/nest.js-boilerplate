@@ -76,3 +76,6 @@ Rollback drops invitation history, so operators must confirm retention requireme
 Not applicable. Invitation administration uses the default bounded offset pagination contract.
 
 **Navigation:** [Previous: Files Module](files.md) | [Documentation Index](../../README.md) | [Next: Mail Module](mail.md)
+
+Invitation routes, configuration, RBAC seed, migrations, and documentation are omitted when the
+capability is not selected; generated profiles retain the mandatory mail and outbox platform.

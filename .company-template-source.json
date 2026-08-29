@@ -1,5 +1,6 @@
 {
   "template": "company-nestjs-boilerplate",
   "schemaVersion": 1,
+  "generatorVersion": "2.0.0",
   "initialized": false
 }

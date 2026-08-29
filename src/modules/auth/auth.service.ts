@@ -217,7 +217,6 @@ export class AuthService {
       if (!locked) await this.users.recordFailedLogin(user.id, this.maxAttempts, this.lockSeconds);
       throw new AppException('INVALID_CREDENTIALS');
     }
-    if (locked) throw new AppException('ACCOUNT_LOCKED');
     this.assertLoginAllowed(user);
     const current = await this.users.recordSuccessfulLogin(user.id);
     if (this.requiresEmailTwoStep(current)) return this.issueTwoStepChallenge(current, 'login');
@@ -525,7 +524,7 @@ export class AuthService {
         emailTwoStepRequired: profile.emailTwoStepRequired,
         roles: profile.roles,
         permissions: [...new Set(user.roles.flatMap(({ permissions }) => permissions))],
-        avatar: profile.avatar,
+        ...(profile.avatar === undefined ? {} : { avatar: profile.avatar }),
         createdAt: profile.createdAt,
         updatedAt: profile.updatedAt,
       },

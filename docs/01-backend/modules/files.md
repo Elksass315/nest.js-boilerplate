@@ -124,5 +124,8 @@ Not applicable. The module exposes no business collection endpoint.
 
 **Navigation:** [Previous: Authorization Module](authorization.md) | [Documentation Index](../../README.md) | [Next: Mail Module](mail.md)
 
+The files module is optional in generated profiles. Its readiness contributor, worker, cleanup
+queue, migrations, environment keys, and Compose storage are emitted only when `files` is selected.
+
 Retention cleanup removes only unclaimed expired failed metadata. Ready files and
 physical object cleanup remain owned by the files worker and its outbox jobs.

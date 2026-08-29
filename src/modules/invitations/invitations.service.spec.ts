@@ -46,6 +46,7 @@ describe(InvitationsService.name, () => {
   const config = {
     getOrThrow: jest.fn((key: string) => {
       if (key === 'invitations.ttlHours') return 72;
+      if (key === 'invitations.baseUrl') return 'https://app.example.test/invitations/accept';
       if (key === 'invitations') {
         return { ttlHours: 72, maxSends: 5, resendCooldownSeconds: 60 };
       }
@@ -174,7 +175,12 @@ describe(InvitationsService.name, () => {
       }),
     );
     expect(mail.sendTeamInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'New.Member@Example.com', token: expect.any(String) }),
+      expect.objectContaining({
+        email: 'New.Member@Example.com',
+        actionUrl: expect.stringMatching(
+          /^https:\/\/app\.example\.test\/invitations\/accept\?token=.+/u,
+        ),
+      }),
       expect.anything(),
     );
     expect(result).not.toHaveProperty('tokenHash');
@@ -260,7 +266,10 @@ describe(InvitationsService.name, () => {
 
     expect(repository.save).toHaveBeenCalledWith(manager, pending);
     expect(mail.sendTeamInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({ email: pending.email, token: expect.any(String) }),
+      expect.objectContaining({
+        email: pending.email,
+        actionUrl: expect.stringContaining('token='),
+      }),
       manager,
     );
     expect(users.recordSecurityAudit).toHaveBeenCalledWith(

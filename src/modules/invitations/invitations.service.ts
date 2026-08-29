@@ -219,13 +219,15 @@ export class InvitationsService {
     manager?: EntityManager,
   ): Promise<void> {
     const inviter = await this.users.getSelf(actorUserId);
+    const actionUrl = new URL(this.config.getOrThrow('invitations.baseUrl', { infer: true }));
+    actionUrl.searchParams.set('token', token);
     try {
       await this.mail.sendTeamInvitation(
         {
           email: invitation.email,
           inviterName: inviter.fullName,
           role: invitation.roleKey,
-          token,
+          actionUrl: actionUrl.toString(),
           expiresAt: invitation.expiresAt,
         },
         manager,

@@ -503,16 +503,18 @@ describe(AuthService.name, () => {
     expect(users.recordFailedLogin).not.toHaveBeenCalled();
   });
 
-  it('reveals a temporary lock only after the password is verified', async () => {
+  it('allows valid credentials to clear failure suppression', async () => {
     users.findForAuthentication.mockResolvedValue({
       ...user,
       lockedUntil: new Date(Date.now() + 60_000),
     });
     crypto.verifyPassword.mockResolvedValue(true);
 
-    await expectErrorCode(service.login(user.email, 'correct'), 'ACCOUNT_LOCKED');
+    await expect(service.login(user.email, 'correct')).resolves.toEqual(
+      expect.objectContaining({ accessToken: 'access-token' }),
+    );
 
-    expect(users.recordSuccessfulLogin).not.toHaveBeenCalled();
+    expect(users.recordSuccessfulLogin).toHaveBeenCalledWith(user.id);
   });
 
   it('revokes a session when a rotated refresh token is reused', async () => {

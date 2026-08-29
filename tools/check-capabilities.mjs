@@ -15,8 +15,9 @@ export function checkCapabilityBoundaries(root = process.cwd()) {
       'seedPaths',
       'configurationPaths',
       'documentation',
+      'testPaths',
     ]) {
-      for (const relative of capability[field]) {
+      for (const relative of capability[field] ?? []) {
         if (!existsSync(path.join(root, relative))) {
           failures.push(`Capability ${name} references missing ${field} path: ${relative}`);
         }

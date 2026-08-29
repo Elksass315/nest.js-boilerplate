@@ -52,7 +52,7 @@ export class LoginUserResponseDto {
   public permissions!: Permission[];
 
   @ApiPropertyOptional({ type: LoginUserAvatarResponseDto, nullable: true })
-  public avatar!: LoginUserAvatarResponseDto | null;
+  public avatar?: LoginUserAvatarResponseDto | null;
 
   @ApiProperty({ example: '2026-08-12T09:45:00.000Z' })
   public createdAt!: string;

@@ -69,6 +69,8 @@
     "outbox:retry": "ts-node -r tsconfig-paths/register src/database/outbox-cli.ts retry",
     "maintenance:run": "ts-node -r tsconfig-paths/register src/database/maintenance-cli.ts",
     "init:project": "node tools/init-project.mjs",
+    "profiles:check": "node tools/validate-capability-profiles.mjs",
+    "profiles:validate": "node tools/validate-capability-profiles.mjs --commands",
     "scaffold:feature": "node tools/scaffold-feature.mjs",
     "docker:up": "node tools/docker.mjs up",
     "docker:down": "node tools/docker.mjs down",
@@ -153,6 +155,7 @@
     "ts-node": "10.9.2",
     "tsconfig-paths": "4.2.0",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.66.0"
+    "typescript-eslint": "8.66.0",
+    "yaml": "2.9.0"
   }
 }

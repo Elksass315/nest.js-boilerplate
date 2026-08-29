@@ -5,7 +5,7 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { projectSafeError } from '@/common/logging/safe-error';
 import type { AppConfiguration } from '@/config/configuration.types';
-import { captureStartupFailure } from '@/observability/sentry';
+import { captureStartupFailure } from '@/core/error-reporting/error-reporter';
 
 import { createApplication } from './bootstrap';
 

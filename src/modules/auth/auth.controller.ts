@@ -284,21 +284,8 @@ export class AuthController {
     },
   })
   @ApiUnauthorizedResponse({
-    description: 'Credentials are invalid or the account is temporarily locked.',
-    content: {
-      'application/json': {
-        examples: {
-          invalidCredentials: {
-            summary: 'Invalid credentials',
-            value: errorExample('INVALID_CREDENTIALS', `${AUTH_PATH}/login`),
-          },
-          accountLocked: {
-            summary: 'Temporary lockout',
-            value: errorExample('ACCOUNT_LOCKED', `${AUTH_PATH}/login`),
-          },
-        },
-      },
-    },
+    description: 'Credentials are invalid.',
+    content: errorContent('INVALID_CREDENTIALS', `${AUTH_PATH}/login`),
   })
   @ApiForbiddenResponse({
     description: 'The credentials are valid but the account cannot sign in.',

@@ -1,4 +1,10 @@
-import { Injectable, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Optional,
+  type OnApplicationShutdown,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { PinoLogger } from 'nestjs-pino';
@@ -7,10 +13,13 @@ import { DataSource } from 'typeorm';
 import type { AppConfiguration } from '@/config/configuration.types';
 import { OperationalMetricsService } from '@/observability/operational-metrics';
 import { AuthService } from '@/modules/auth';
-import { FilesService } from '@/modules/files';
 import { MailService } from '@/modules/mail';
 import { OutboxRepository } from '@/core/outbox/outbox.repository';
 import { WorkerHeartbeatService } from '@/core/worker/worker-heartbeat.service';
+import {
+  MAINTENANCE_CAPABILITY_CLEANER,
+  type MaintenanceCapabilityCleaner,
+} from './maintenance-capability-cleaner';
 
 export interface MaintenanceRunResult {
   dryRun: boolean;
@@ -18,7 +27,7 @@ export interface MaintenanceRunResult {
   auth: number;
   mail: number;
   outbox: number;
-  files: number;
+  capabilities: Record<string, number>;
   total: number;
 }
 
@@ -31,12 +40,14 @@ export class MaintenanceWorkerService implements OnModuleInit, OnApplicationShut
     private readonly config: ConfigService<AppConfiguration, true>,
     private readonly auth: AuthService,
     private readonly mail: MailService,
-    private readonly files: FilesService,
     private readonly outbox: OutboxRepository,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly heartbeat: WorkerHeartbeatService,
     private readonly metrics: OperationalMetricsService,
     private readonly logger: PinoLogger,
+    @Optional()
+    @Inject(MAINTENANCE_CAPABILITY_CLEANER)
+    private readonly capabilityCleaner?: MaintenanceCapabilityCleaner,
   ) {
     this.logger.setContext(MaintenanceWorkerService.name);
   }
@@ -71,7 +82,7 @@ export class MaintenanceWorkerService implements OnModuleInit, OnApplicationShut
       auth: 0,
       mail: 0,
       outbox: 0,
-      files: 0,
+      capabilities: {},
       total: 0,
     };
     if (dryRun) {
@@ -98,12 +109,18 @@ export class MaintenanceWorkerService implements OnModuleInit, OnApplicationShut
         cutoff(retention.outboxFailureDays),
         batch,
       );
-      result.files = await this.files.cleanupTemporaryMetadata(
-        cutoff(retention.fileMetadataDays),
-        batch,
-      );
+      if (this.capabilityCleaner) {
+        result.capabilities[this.capabilityCleaner.name] = await this.capabilityCleaner.cleanup(
+          new Date(now),
+          batch,
+        );
+      }
     });
-    result.total = result.auth + result.mail + result.outbox + result.files;
+    result.total =
+      result.auth +
+      result.mail +
+      result.outbox +
+      Object.values(result.capabilities).reduce((total, count) => total + count, 0);
     this.metrics.recordFileCleanup('retention', result.total);
     this.logger.info({ correlationId, deleted: result.total }, 'Retention cleanup completed');
     return result;

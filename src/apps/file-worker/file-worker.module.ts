@@ -1,21 +1,24 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 
 import { createLoggerOptions } from '@/common/logging/logger-options';
-import type { FileWorkerConfiguration } from '@/config/configuration.types';
-import { loadFileWorkerConfiguration } from '@/config/environment';
 import { CoreModule } from '@/core/core.module';
 import { DatabaseModule } from '@/database/database.module';
 import { FilesWorkerConsumerModule } from '@/modules/files/files-worker.module';
 import { FILE_QUEUE } from '@/modules/files/files.types';
 import type { RedisConfig } from '@/redis/config/redis.config';
+import { CAPABILITY_WORKER_IMPORTS } from '@/apps/capability-worker-imports';
+
+import {
+  loadFileWorkerConfiguration,
+  type FileWorkerConfiguration,
+} from '@/config/file-worker.environment';
 
 @Module({
   imports: [
-    SentryModule.forRoot(),
+    ...CAPABILITY_WORKER_IMPORTS,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,

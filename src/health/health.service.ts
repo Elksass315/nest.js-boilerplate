@@ -4,16 +4,15 @@ import { DataSource } from 'typeorm';
 
 import { REDIS_CLIENT } from '@/redis/redis.constants';
 import { AppException } from '@/core/errors/app.exception';
-import { FilesService } from '@/modules/files';
-
 import type { LivenessResponse, ReadinessResponse } from './health.types';
+import { ReadinessRegistry } from './readiness-registry.service';
 
 @Injectable()
 export class HealthService {
   public constructor(
     private readonly dataSource: DataSource,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
-    private readonly files: FilesService,
+    private readonly readiness: ReadinessRegistry,
   ) {}
 
   public getLiveness(): LivenessResponse {
@@ -25,25 +24,30 @@ export class HealthService {
   }
 
   public async getReadiness(): Promise<ReadinessResponse> {
-    const [database, redis, storage] = await Promise.allSettled([
-      this.dataSource.query('SELECT 1'),
-      this.redis.ping(),
-      this.files.checkStorageHealth(),
+    const [database, redis, capabilities] = await Promise.all([
+      Promise.resolve(this.dataSource.query('SELECT 1')).then(
+        () => 'up' as const,
+        () => 'down' as const,
+      ),
+      Promise.resolve(this.redis.ping()).then(
+        () => 'up' as const,
+        () => 'down' as const,
+      ),
+      this.readiness.run(),
     ]);
     const checks = {
-      database: database.status === 'fulfilled' ? 'up' : 'down',
-      redis: redis.status === 'fulfilled' ? 'up' : 'down',
-      storage: storage.status === 'fulfilled' ? 'up' : 'down',
-    } as const;
-
-    if (checks.database === 'down' || checks.redis === 'down' || checks.storage === 'down') {
+      database,
+      redis,
+      ...capabilities,
+    };
+    if (Object.values(checks).some((state) => state === 'down')) {
       throw new AppException('SERVICE_NOT_READY', { checks });
     }
 
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      checks: { database: 'up', redis: 'up', storage: 'up' },
+      checks,
     };
   }
 }

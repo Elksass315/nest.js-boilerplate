@@ -1,5 +1,13 @@
+import { Test } from '@nestjs/testing';
+import { getDataSourceToken } from '@nestjs/typeorm';
 import type { EntityManager } from 'typeorm';
 
+import { RequestContextService } from '@/core/request-context/request-context.service';
+import { FilesService } from '@/modules/files';
+import { UsersService } from '@/modules/users';
+
+import { AvatarImageService } from './avatar-image.service';
+import { UserAvatarsRepository } from './user-avatars.repository';
 import { UserAvatarsService } from './user-avatars.service';
 
 describe(UserAvatarsService.name, () => {
@@ -9,9 +17,23 @@ describe(UserAvatarsService.name, () => {
     save: jest.fn(),
   };
   const manager = {} as EntityManager;
-  const service = new UserAvatarsService(repository);
+  let service: UserAvatarsService;
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module = await Test.createTestingModule({
+      providers: [
+        UserAvatarsService,
+        { provide: UserAvatarsRepository, useValue: repository },
+        { provide: FilesService, useValue: {} },
+        { provide: AvatarImageService, useValue: {} },
+        { provide: UsersService, useValue: {} },
+        { provide: RequestContextService, useValue: {} },
+        { provide: getDataSourceToken(), useValue: { manager } },
+      ],
+    }).compile();
+    service = module.get(UserAvatarsService);
+  });
 
   it('returns the associated file ID or null', async () => {
     repository.findByUserId.mockResolvedValue({ fileId: 'file-1' });

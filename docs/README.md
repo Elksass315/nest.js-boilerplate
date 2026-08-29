@@ -16,7 +16,13 @@ request as the behavior it describes.
 - [Configuration](01-backend/configuration.md)
 - [Error handling](01-backend/error-handling.md)
 - [Structured logging](01-backend/logging.md)
+
+<!-- capability:sentry:start -->
+
 - [Sentry](01-backend/sentry.md)
+
+<!-- capability:sentry:end -->
+
 - [Observability and retention](01-backend/observability-retention.md)
 - [Database and migrations](01-backend/database.md)
 - [Migrations and seeds](01-backend/migrations.md)
@@ -26,11 +32,30 @@ request as the behavior it describes.
 - [Authentication and sessions](01-backend/modules/auth.md)
 - [Authorization](01-backend/modules/authorization.md)
 - [Users](01-backend/modules/users.md)
+
+<!-- capability:user-avatars:start -->
+
 - [User avatars](01-backend/modules/user-avatars.md)
+
+<!-- capability:user-avatars:end -->
+
 - [Mail](01-backend/modules/mail.md)
+
+<!-- capability:files:start -->
+
 - [File storage](01-backend/modules/files.md)
+
+<!-- capability:files:end -->
+<!-- capability:invitations:start -->
+
 - [Team invitations](01-backend/modules/invitations.md)
+
+<!-- capability:invitations:end -->
+<!-- capability:feature-flags:start -->
+
 - [Feature flags](01-backend/modules/feature-flags.md)
+
+<!-- capability:feature-flags:end -->
 
 ## API standards
 

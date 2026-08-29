@@ -6,11 +6,11 @@ import type { AppConfiguration } from '@/config/configuration.types';
 import type { OutboxRepository } from '@/core/outbox/outbox.repository';
 import type { WorkerHeartbeatService } from '@/core/worker/worker-heartbeat.service';
 import type { AuthService } from '@/modules/auth';
-import type { FilesService } from '@/modules/files';
 import type { MailService } from '@/modules/mail';
 import type { OperationalMetricsService } from '@/observability/operational-metrics';
 
 import { MaintenanceWorkerService } from './maintenance-worker.service';
+import type { MaintenanceCapabilityCleaner } from './maintenance-capability-cleaner';
 
 describe(MaintenanceWorkerService.name, () => {
   const retention = {
@@ -22,7 +22,6 @@ describe(MaintenanceWorkerService.name, () => {
     mailDays: 90,
     outboxDays: 30,
     outboxFailureDays: 365,
-    fileMetadataDays: 7,
   };
   const config = {
     getOrThrow: jest.fn(() => retention),
@@ -58,12 +57,19 @@ describe(MaintenanceWorkerService.name, () => {
       config,
       auth as unknown as AuthService,
       mail as unknown as MailService,
-      files as unknown as FilesService,
       outbox as unknown as OutboxRepository,
       dataSource as unknown as DataSource,
       heartbeat as unknown as WorkerHeartbeatService,
       metrics as unknown as OperationalMetricsService,
       logger as unknown as PinoLogger,
+      {
+        name: 'files',
+        cleanup: (_now: Date, _limit: number): Promise<number> => {
+          void _now;
+          void _limit;
+          return Promise.resolve(4);
+        },
+      } satisfies MaintenanceCapabilityCleaner,
     );
   });
 
@@ -80,7 +86,7 @@ describe(MaintenanceWorkerService.name, () => {
       auth: 1,
       mail: 2,
       outbox: 3,
-      files: 4,
+      capabilities: { files: 4 },
       total: 10,
     });
 

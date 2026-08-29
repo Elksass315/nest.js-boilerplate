@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 
 import { createLoggerOptions } from '@/common/logging/logger-options';
@@ -9,10 +8,11 @@ import { loadMailWorkerConfiguration } from '@/config/environment';
 import { CoreModule } from '@/core/core.module';
 import { DatabaseModule } from '@/database/database.module';
 import { MailWorkerConsumerModule } from '@/modules/mail/mail-worker.module';
+import { CAPABILITY_WORKER_IMPORTS } from '@/apps/capability-worker-imports';
 
 @Module({
   imports: [
-    SentryModule.forRoot(),
+    ...CAPABILITY_WORKER_IMPORTS,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
