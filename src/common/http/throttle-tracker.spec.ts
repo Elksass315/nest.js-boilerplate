@@ -1,16 +1,24 @@
-import { createThrottleTracker } from './throttle-tracker';
+import { createIdentifierThrottleTracker, createIpThrottleTracker } from './throttle-tracker';
 
-describe('createThrottleTracker', () => {
-  it('hashes account/challenge identifiers while retaining the client IP', () => {
-    const first = createThrottleTracker({ ip: '10.0.0.1', body: { email: 'User@Example.com' } });
-    const second = createThrottleTracker({ ip: '10.0.0.1', body: { email: 'user@example.com' } });
+describe('sensitive throttle trackers', () => {
+  it('hashes account/challenge identifiers without retaining personal data', () => {
+    const first = createIdentifierThrottleTracker({
+      ip: '10.0.0.1',
+      body: { email: 'User@Example.com' },
+    });
+    const second = createIdentifierThrottleTracker({
+      ip: '10.0.0.2',
+      body: { email: 'user@example.com' },
+    });
 
     expect(first).toBe(second);
-    expect(first).toMatch(/^ip:10\.0\.0\.1:id:[a-f0-9]{64}$/);
+    expect(first).toMatch(/^id:[a-f0-9]{64}$/);
     expect(first).not.toContain('user@example.com');
   });
 
-  it('falls back to the trusted request IP when no identifier exists', () => {
-    expect(createThrottleTracker({ ip: '192.0.2.1', body: {} })).toBe('ip:192.0.2.1');
+  it('tracks the trusted request IP independently and uses it as the identifier fallback', () => {
+    const request = { ip: '192.0.2.1', body: {} };
+    expect(createIpThrottleTracker(request)).toBe('ip:192.0.2.1');
+    expect(createIdentifierThrottleTracker(request)).toBe('ip:192.0.2.1');
   });
 });

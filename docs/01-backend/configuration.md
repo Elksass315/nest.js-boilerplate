@@ -64,7 +64,9 @@ this document together. Swagger modes remain `public`, `basic`, and `disabled`; 
 reject public access.
 
 Rate limiting uses named global, authentication, OTP, recovery, and email-delivery windows backed
-by Redis. `TRUSTED_PROXY_IPS` is disabled by default and must be an explicit IP allowlist in staging
+by Redis. Sensitive windows enforce independent IP and hashed account/challenge-identifier budgets,
+so changing a submitted identifier cannot bypass the IP budget and distributing requests across IPs
+cannot bypass the identifier budget. `TRUSTED_PROXY_IPS` is disabled by default and must be an explicit IP allowlist in staging
 and production; the API uses it when determining the client address, so forwarded headers from
 untrusted proxies cannot bypass limits. Managed deployments should tune the named `RATE_LIMIT_*`
 values for their traffic profile.

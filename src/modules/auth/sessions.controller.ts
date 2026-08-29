@@ -7,7 +7,6 @@ import {
   Param,
   ParseUUIDPipe,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -23,7 +22,6 @@ import { API_VERSION } from '@/common/http/api-version.constants';
 import { ApiOffsetPaginatedResponse, type OffsetPage } from '@/common/pagination';
 import {
   CurrentPrincipal,
-  PermissionsGuard,
   RequireAuthenticated,
   type AuthenticatedPrincipal,
 } from '@/modules/authorization';
@@ -34,7 +32,6 @@ import { SessionResponseDto } from './dto/session-response.dto';
 import { SessionQueryDto } from './dto/session-query.dto';
 
 @ApiTags('sessions')
-@UseGuards(PermissionsGuard)
 @RequireAuthenticated()
 @Controller({ path: 'sessions', version: API_VERSION })
 export class SessionsController {

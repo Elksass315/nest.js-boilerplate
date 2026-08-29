@@ -19,8 +19,9 @@ entities or repositories.
 
 ## API contracts
 
-The full template preserves the existing authenticated upload routes while the controller is owned
-by this capability:
+The full template preserves the existing upload routes while the controller is owned by this
+capability. Capability discovery is explicitly public; every stateful route declares
+`RequireAuthenticated`, which installs the authorization guard:
 
 | Method  | Route                                | Policy                      | Success | Reachable errors                       |
 | ------- | ------------------------------------ | --------------------------- | ------- | -------------------------------------- |

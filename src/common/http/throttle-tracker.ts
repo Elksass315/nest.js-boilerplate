@@ -5,13 +5,17 @@ export interface ThrottleRequest {
   body?: unknown;
 }
 
-export function createThrottleTracker(request: ThrottleRequest): string {
+export function createIpThrottleTracker(request: ThrottleRequest): string {
   const ip = request.ip && request.ip.length > 0 ? request.ip : 'unknown';
+  return `ip:${ip}`;
+}
+
+export function createIdentifierThrottleTracker(request: ThrottleRequest): string {
   const body = isRecord(request.body) ? request.body : undefined;
   const identifier = firstString(body, ['email', 'registrationId', 'challengeToken', 'token']);
-  if (!identifier) return `ip:${ip}`;
+  if (!identifier) return createIpThrottleTracker(request);
   const digest = createHash('sha256').update(identifier.trim().toLowerCase()).digest('hex');
-  return `ip:${ip}:id:${digest}`;
+  return `id:${digest}`;
 }
 
 function firstString(

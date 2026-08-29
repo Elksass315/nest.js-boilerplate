@@ -26,7 +26,9 @@ the same native tus runtime is exercised rather than mocked.
 | ------ | ------------------------- | --------- | ---------- | ---------------------------------------------- |
 | GET    | `/files/public/:publicId` | anonymous | 200 or 302 | 400, 404 `FILE_NOT_FOUND`, 503 storage failure |
 
-The public-file route serves only `ready + public` records. It streams local bytes with immutable
+The controller is explicitly marked `Public`; adding a stateful or protected route to it requires
+moving that route to an authenticated owning feature or replacing the class policy. The public-file
+route serves only `ready + public` records. It streams local bytes with immutable
 safe headers or redirects to a short-lived signed S3 URL. Protected, unfinished, and unknown records
 all return `404 FILE_NOT_FOUND`; provider failures return `503 FILE_STORAGE_UNAVAILABLE`.
 

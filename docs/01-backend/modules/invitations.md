@@ -52,7 +52,8 @@ and admin roles without changing the checksum of the already-applied base RBAC s
 
 ## Security and observability
 
-Every route requires a typed permission and every role assignment is checked against inviter
+Every administrative route declares a typed permission that installs the authorization guard;
+acceptance is the sole explicitly public route. Every role assignment is checked against inviter
 authority. Tokens are generated from 32 random bytes, shown only to the mail producer, rotated on
 resend and consumption, and excluded from DTOs, logs, and audits. Mail jobs and
 `team.invitation.*` audit events carry

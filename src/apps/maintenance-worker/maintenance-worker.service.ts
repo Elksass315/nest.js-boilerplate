@@ -87,7 +87,11 @@ export class MaintenanceWorkerService implements OnModuleInit, OnApplicationShut
       const now = Date.now();
       const cutoff = (days: number): Date => new Date(now - days * 86_400_000);
       const batch = retention.batchSize;
-      result.auth = await this.auth.cleanupOperationalData(cutoff(retention.authTokenDays), batch);
+      result.auth = await this.auth.cleanupOperationalData(
+        cutoff(retention.authTokenDays),
+        cutoff(retention.sessionDays),
+        batch,
+      );
       result.mail = await this.mail.cleanupDeliveries(cutoff(retention.mailDays), batch);
       result.outbox = await this.outbox.cleanupProcessed(
         cutoff(retention.outboxDays),

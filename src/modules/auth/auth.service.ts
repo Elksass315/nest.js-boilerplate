@@ -78,8 +78,12 @@ export class AuthService {
     this.recoveryCodeCount = config.getOrThrow('auth.recoveryCodeCount', { infer: true });
   }
 
-  public cleanupOperationalData(before: Date, limit: number): Promise<number> {
-    return this.repository.cleanupOperationalData(before, limit);
+  public cleanupOperationalData(
+    tokenBefore: Date,
+    sessionBefore: Date,
+    limit: number,
+  ): Promise<number> {
+    return this.repository.cleanupOperationalData(tokenBefore, sessionBefore, limit);
   }
 
   public async register(
@@ -208,11 +212,12 @@ export class AuthService {
       await this.crypto.verifyDummyPassword(password);
       throw new AppException('INVALID_CREDENTIALS');
     }
-    if (user.lockedUntil && user.lockedUntil > new Date()) throw new AppException('ACCOUNT_LOCKED');
+    const locked = user.lockedUntil !== null && user.lockedUntil > new Date();
     if (!(await this.crypto.verifyPassword(user.passwordHash, password))) {
-      await this.users.recordFailedLogin(user.id, this.maxAttempts, this.lockSeconds);
+      if (!locked) await this.users.recordFailedLogin(user.id, this.maxAttempts, this.lockSeconds);
       throw new AppException('INVALID_CREDENTIALS');
     }
+    if (locked) throw new AppException('ACCOUNT_LOCKED');
     this.assertLoginAllowed(user);
     const current = await this.users.recordSuccessfulLogin(user.id);
     if (this.requiresEmailTwoStep(current)) return this.issueTwoStepChallenge(current, 'login');

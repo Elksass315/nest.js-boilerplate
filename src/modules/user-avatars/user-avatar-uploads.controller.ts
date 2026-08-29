@@ -9,7 +9,6 @@ import {
   Post,
   Req,
   Res,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -40,7 +39,7 @@ import type { AppConfiguration } from '@/config/configuration.types';
 import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
-  PermissionsGuard,
+  Public,
   RequireAuthenticated,
   type AuthenticatedPrincipal,
 } from '@/modules/authorization';
@@ -51,7 +50,6 @@ const errorContent = (code: ErrorCode): SwaggerErrorContent =>
   swaggerErrorContent(code, `${uploadPath}/4e951b98-9250-4414-b88c-33f184543d8c`);
 
 @ApiTags('users')
-@UseGuards(PermissionsGuard)
 @Controller({ path: 'users/me/avatar/uploads', version: API_VERSION })
 export class UserAvatarUploadsController {
   private readonly maximumBytes: number;
@@ -64,6 +62,7 @@ export class UserAvatarUploadsController {
   }
 
   @Options()
+  @Public()
   @ApiOperation({
     summary: 'Discover avatar upload capabilities',
     description:

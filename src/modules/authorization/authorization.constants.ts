@@ -17,3 +17,7 @@ export const PERMISSIONS = [
   'users.permissions.manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
+
+export const AUTHENTICATED_ROUTE_KEY = 'authorization:authenticated';
+export const REQUIRED_PERMISSIONS_KEY = 'authorization:permissions';
+export const PUBLIC_ROUTE_KEY = 'authorization:public';

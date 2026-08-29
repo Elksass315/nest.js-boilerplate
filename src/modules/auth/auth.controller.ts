@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import {
   ApiConflictResponse,
@@ -18,7 +18,7 @@ import {
 import { API_VERSION } from '@/common/http/api-version.constants';
 import {
   CurrentPrincipal,
-  PermissionsGuard,
+  Public,
   RequireAuthenticated,
   type AuthenticatedPrincipal,
 } from '@/modules/authorization';
@@ -134,12 +134,12 @@ const passwordConfirmationErrorContent = (route: string): SwaggerErrorContent =>
   LoginTwoStepEmailCodeDto,
   LoginTwoStepRecoveryCodeDto,
 )
-@UseGuards(PermissionsGuard)
 @Controller({ path: 'auth', version: API_VERSION })
 export class AuthController {
   public constructor(private readonly service: AuthService) {}
 
   @Post('register')
+  @Public()
   @ApiOperation({
     summary: 'Register an account',
     description:
@@ -170,6 +170,7 @@ export class AuthController {
   }
 
   @Post('verification/resend')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Resend email verification',
@@ -199,6 +200,7 @@ export class AuthController {
   }
 
   @Post('verification/confirm')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Confirm email verification',
@@ -247,6 +249,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Create an authenticated session',
@@ -326,6 +329,7 @@ export class AuthController {
   }
 
   @Post('login/two-step')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Complete login two-step verification',
@@ -409,6 +413,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Rotate a refresh token',
@@ -441,6 +446,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Request a password reset',
@@ -460,6 +466,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Reset a password',

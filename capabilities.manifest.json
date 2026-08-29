@@ -119,7 +119,7 @@
       "sourcePaths": ["src/core/outbox", "src/apps/outbox-worker"],
       "migrationPaths": ["src/database/migrations/1787600000000-CreateTransactionalOutbox.ts"],
       "seedPaths": [],
-      "configurationPaths": ["src/config/outbox.config.ts"],
+      "configurationPaths": [],
       "environmentKeys": [],
       "workerProcesses": ["outbox-worker"],
       "composeServices": ["outbox-worker"],

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiForbiddenResponse,
@@ -19,7 +19,6 @@ import { swaggerErrorContent } from '@/common/swagger/api-error-response';
 import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
-  PermissionsGuard,
   RequireAuthenticated,
   RequirePermissions,
   type AuthenticatedPrincipal,
@@ -56,7 +55,6 @@ const errorContent = (
 ): Record<string, { example: Record<string, unknown> }> => swaggerErrorContent(code, route);
 
 @ApiTags('users')
-@UseGuards(PermissionsGuard)
 @Controller({ path: 'users', version: API_VERSION })
 export class SecurityAuditsController {
   public constructor(private readonly service: UsersService) {}

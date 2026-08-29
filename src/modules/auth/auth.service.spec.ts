@@ -173,9 +173,10 @@ describe(AuthService.name, () => {
 
   it('delegates operational credential cleanup to the owning repository', async () => {
     repository.cleanupOperationalData.mockResolvedValue(4);
-    const before = new Date('2026-01-01');
-    await expect(service.cleanupOperationalData(before, 10)).resolves.toBe(4);
-    expect(repository.cleanupOperationalData).toHaveBeenCalledWith(before, 10);
+    const tokenBefore = new Date('2026-01-01');
+    const sessionBefore = new Date('2025-12-01');
+    await expect(service.cleanupOperationalData(tokenBefore, sessionBefore, 10)).resolves.toBe(4);
+    expect(repository.cleanupOperationalData).toHaveBeenCalledWith(tokenBefore, sessionBefore, 10);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -488,6 +489,30 @@ describe(AuthService.name, () => {
     crypto.verifyPassword.mockResolvedValue(false);
     await expect(service.login(user.email, 'wrong')).rejects.toBeInstanceOf(AppException);
     expect(users.recordFailedLogin).toHaveBeenCalledWith(user.id, 5, 900);
+  });
+
+  it('keeps locked-account responses enumeration-safe for an invalid password', async () => {
+    users.findForAuthentication.mockResolvedValue({
+      ...user,
+      lockedUntil: new Date(Date.now() + 60_000),
+    });
+    crypto.verifyPassword.mockResolvedValue(false);
+
+    await expectErrorCode(service.login(user.email, 'wrong'), 'INVALID_CREDENTIALS');
+
+    expect(users.recordFailedLogin).not.toHaveBeenCalled();
+  });
+
+  it('reveals a temporary lock only after the password is verified', async () => {
+    users.findForAuthentication.mockResolvedValue({
+      ...user,
+      lockedUntil: new Date(Date.now() + 60_000),
+    });
+    crypto.verifyPassword.mockResolvedValue(true);
+
+    await expectErrorCode(service.login(user.email, 'correct'), 'ACCOUNT_LOCKED');
+
+    expect(users.recordSuccessfulLogin).not.toHaveBeenCalled();
   });
 
   it('revokes a session when a rotated refresh token is reused', async () => {

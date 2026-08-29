@@ -6,6 +6,7 @@ import ts from 'typescript';
 
 const sourceRoot = path.resolve('src');
 const routeDecorators = new Set(['Delete', 'Get', 'Head', 'Options', 'Patch', 'Post', 'Put']);
+const accessPolicyDecorators = new Set(['Public', 'RequireAuthenticated', 'RequirePermissions']);
 const composedResponseDecorators = new Set([
   'ApiOffsetPaginatedResponse',
   'ApiCursorPaginatedResponse',
@@ -93,6 +94,9 @@ for (const filePath of walk(sourceRoot).filter((file) => file.endsWith('.control
     }
 
     const classLocation = location(filePath, statement);
+    const classHasAccessPolicy = classDecorators.some((decorator) =>
+      accessPolicyDecorators.has(decoratorName(decorator)),
+    );
     if (!classDecorators.some((decorator) => decoratorName(decorator) === 'ApiTags')) {
       violations.push(`${classLocation} controller must declare @ApiTags`);
     }
@@ -108,6 +112,14 @@ for (const filePath of walk(sourceRoot).filter((file) => file.endsWith('.control
       }
 
       const methodLocation = location(filePath, member);
+      if (
+        !classHasAccessPolicy &&
+        !methodDecorators.some((decorator) => accessPolicyDecorators.has(decoratorName(decorator)))
+      ) {
+        violations.push(
+          `${methodLocation} route must declare Public, RequireAuthenticated, or RequirePermissions`,
+        );
+      }
       if (containsArrayReturn(member.type)) {
         violations.push(
           `${methodLocation} collection routes must return an explicit paginated contract, not an array`,

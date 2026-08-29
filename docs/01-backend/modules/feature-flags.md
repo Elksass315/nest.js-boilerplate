@@ -11,7 +11,8 @@ method. Unknown keys fail explicitly instead of silently enabling or disabling b
 
 ## API contracts
 
-All routes are versioned under `/api/v1/feature-flags`, authenticated, and protected by RBAC.
+All routes are versioned under `/api/v1/feature-flags`; each route declares `RequirePermissions`,
+which installs the authorization guard and documents bearer authentication.
 Administrators and super administrators may list and read flags; only super administrators may
 create or change them. Collection responses use canonical page/limit pagination.
 

@@ -52,8 +52,8 @@ exceptions and fails after the expiry date.
 `develop` deploys to development, `release/*` to staging, and `main`/SemVer tags to production after
 approval. Jenkins requires a production `BACKUP_REFERENCE` before running migrations, records it in
 the deployment output, and runs one-shot migration and seed jobs from the immutable image. It then
-rolls out the API, mail worker, file worker, and outbox worker, waits for every heartbeat health
-check, and runs API, Redis, SMTP, and S3 smoke tests. A failed rollout restores all processes to the
+rolls out the API, mail worker, file worker, outbox worker, and maintenance worker, waits for every
+heartbeat health check, and runs API, Redis, SMTP, and S3 smoke tests. A failed rollout restores all processes to the
 previous digest only when that image declares migration compatibility; undeclared rollback targets
 fail closed. The image includes `deployment/migration-compatibility.json`, whose expand/contract
 policy requires additive schema changes before application rollout and delayed destructive changes
@@ -61,6 +61,3 @@ until all previous images are retired. Neither the API nor worker entrypoint per
 mutation.
 
 **Navigation:** [Previous: Docker Workflow](docker.md) | [Documentation Index](../README.md) | [Next: Documentation Policy](../governance/documentation-policy.md)
-
-The deployment contract includes the maintenance worker heartbeat and waits for it with the other
-runtime processes before smoke checks complete.

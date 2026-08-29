@@ -11,9 +11,11 @@ operation categories. User IDs, email addresses, SQL text, payloads, object keys
 IDs are never metric attributes. The baseline signals are request count and latency, throttling,
 queue lag, outbox status, mail failures, file cleanup volume, and worker heartbeat.
 
-The maintenance worker runs bounded, idempotent cleanup on a configurable interval. It acquires
+The maintenance worker runs bounded, idempotent cleanup on a configurable interval. Authentication
+token and session cutoffs are applied independently. It acquires
 the PostgreSQL `maintenance:retention` advisory transaction lock, so multiple replicas do not
-run the same sweep concurrently. Use `pnpm maintenance:run -- --dry-run` for a non-mutating report.
+run the same sweep concurrently. Use `pnpm maintenance:run -- --dry-run` for a non-mutating
+configuration check; dry run does not currently count deletion candidates.
 
 Retention applies only to expired or consumed authentication tokens, expired or revoked sessions,
 sent/failed mail deliveries, published/terminal-failed outbox rows, and unclaimed expired failed

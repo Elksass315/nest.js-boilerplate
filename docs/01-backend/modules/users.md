@@ -30,8 +30,10 @@ pending registration updates only its full name, canonical email, and password h
 
 ## API contracts
 
-All routes use URI version `v1` and require the `PermissionsGuard`. The global access-token guard
-hydrates the typed `request.user` principal from current user/session state before permission checks.
+All routes use URI version `v1` and declare an explicit access policy. `RequireAuthenticated` and
+`RequirePermissions` install `PermissionsGuard`; `Public` is reserved for anonymous OPTIONS
+capability discovery. The global access-token guard hydrates the typed `request.user` principal
+from current user/session state before permission checks.
 
 | Method  | Route                                | Policy                           | Success | Reachable errors                                                 |
 | ------- | ------------------------------------ | -------------------------------- | ------- | ---------------------------------------------------------------- |

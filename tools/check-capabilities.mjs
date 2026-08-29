@@ -9,7 +9,19 @@ export function checkCapabilityBoundaries(root = process.cwd()) {
   const manifest = validateCapabilityManifest(loadCapabilityManifest(root));
   const failures = [];
   for (const [name, capability] of Object.entries(manifest.capabilities)) {
-    if (!existsSync(path.join(root, capability.sourcePaths[0] ?? ''))) continue;
+    for (const field of [
+      'sourcePaths',
+      'migrationPaths',
+      'seedPaths',
+      'configurationPaths',
+      'documentation',
+    ]) {
+      for (const relative of capability[field]) {
+        if (!existsSync(path.join(root, relative))) {
+          failures.push(`Capability ${name} references missing ${field} path: ${relative}`);
+        }
+      }
+    }
     for (const relative of capability.sourcePaths) {
       const absolute = path.join(root, relative);
       if (!existsSync(absolute)) continue;

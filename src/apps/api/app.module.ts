@@ -6,7 +6,10 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
 import { createLoggerOptions } from '@/common/logging/logger-options';
-import { createThrottleTracker } from '@/common/http/throttle-tracker';
+import {
+  createIdentifierThrottleTracker,
+  createIpThrottleTracker,
+} from '@/common/http/throttle-tracker';
 import type { AppConfiguration } from '@/config/configuration.types';
 import { loadApiConfiguration } from '@/config/environment';
 import { CoreModule } from '@/core/core.module';
@@ -48,37 +51,10 @@ import { OutboxModule } from '@/core/outbox/outbox.module';
           storage: new DistributedThrottlerStorage(redis),
           throttlers: [
             { name: 'global', ttl: limits.global.ttlMs, limit: limits.global.max },
-            {
-              name: 'authentication',
-              ttl: limits.authentication.ttlMs,
-              limit: limits.authentication.max,
-              getTracker: (request): string => createThrottleTracker(request),
-              skipIf: (context: ExecutionContext): boolean =>
-                !matchesThrottleRoute(context, 'authentication'),
-            },
-            {
-              name: 'otp',
-              ttl: limits.otp.ttlMs,
-              limit: limits.otp.max,
-              getTracker: (request): string => createThrottleTracker(request),
-              skipIf: (context: ExecutionContext): boolean => !matchesThrottleRoute(context, 'otp'),
-            },
-            {
-              name: 'recovery',
-              ttl: limits.recovery.ttlMs,
-              limit: limits.recovery.max,
-              getTracker: (request): string => createThrottleTracker(request),
-              skipIf: (context: ExecutionContext): boolean =>
-                !matchesThrottleRoute(context, 'recovery'),
-            },
-            {
-              name: 'emailDelivery',
-              ttl: limits.emailDelivery.ttlMs,
-              limit: limits.emailDelivery.max,
-              getTracker: (request): string => createThrottleTracker(request),
-              skipIf: (context: ExecutionContext): boolean =>
-                !matchesThrottleRoute(context, 'emailDelivery'),
-            },
+            ...sensitiveThrottlePair('authentication', limits.authentication),
+            ...sensitiveThrottlePair('otp', limits.otp),
+            ...sensitiveThrottlePair('recovery', limits.recovery),
+            ...sensitiveThrottlePair('emailDelivery', limits.emailDelivery),
           ],
         };
       },
@@ -102,6 +78,35 @@ import { OutboxModule } from '@/core/outbox/outbox.module';
   ],
 })
 export class AppModule {}
+
+function sensitiveThrottlePair(
+  name: string,
+  policy: { ttlMs: number; max: number },
+): {
+  name: string;
+  ttl: number;
+  limit: number;
+  getTracker: (request: Parameters<typeof createIpThrottleTracker>[0]) => string;
+  skipIf: (context: ExecutionContext) => boolean;
+}[] {
+  const skipIf = (context: ExecutionContext): boolean => !matchesThrottleRoute(context, name);
+  return [
+    {
+      name: `${name}Ip`,
+      ttl: policy.ttlMs,
+      limit: policy.max,
+      getTracker: createIpThrottleTracker,
+      skipIf,
+    },
+    {
+      name: `${name}Identifier`,
+      ttl: policy.ttlMs,
+      limit: policy.max,
+      getTracker: createIdentifierThrottleTracker,
+      skipIf,
+    },
+  ];
+}
 
 function matchesThrottleRoute(
   context: { switchToHttp: () => { getRequest: () => { originalUrl?: string; url?: string } } },

@@ -15,8 +15,9 @@ document. The generated file is a build artifact and is not committed.
 - Error examples include the exact `statusCode`, stable `code`, client-visible `message`, `path`,
   `requestId`, and relevant safe details produced by the implementation.
 - Keep decorators aligned with DTO validation, service behavior, tests, and module documentation.
-- Protected routes declare bearer security through `RequireAuthenticated` or `RequirePermissions`;
-  these composed policy decorators are the source of both runtime metadata and Swagger lock icons.
+- Every route explicitly declares `Public`, `RequireAuthenticated`, or `RequirePermissions`.
+  Protected decorators install the runtime permission guard and provide Swagger bearer metadata;
+  the API contract checker rejects routes whose access policy is implicit.
 
 ## Request examples
 

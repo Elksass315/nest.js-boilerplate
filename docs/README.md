@@ -23,9 +23,14 @@ request as the behavior it describes.
 - [Shared foundation](01-backend/shared-foundation.md)
 - [Internationalization](01-backend/internationalization.md)
 - [Health endpoints](01-backend/health.md)
+- [Authentication and sessions](01-backend/modules/auth.md)
+- [Authorization](01-backend/modules/authorization.md)
+- [Users](01-backend/modules/users.md)
+- [User avatars](01-backend/modules/user-avatars.md)
+- [Mail](01-backend/modules/mail.md)
 - [File storage](01-backend/modules/files.md)
 - [Team invitations](01-backend/modules/invitations.md)
-- Feature module records live under `01-backend/modules/` when business modules are added.
+- [Feature flags](01-backend/modules/feature-flags.md)
 
 ## API standards
 
@@ -56,5 +61,8 @@ request as the behavior it describes.
 - [Template governance](governance/template-governance.md)
 - [Module documentation template](templates/module-doc-template.md)
 - [ADR template](adr/000-template.md)
+- [ADR-001: Optional capability boundaries](adr/001-optional-capability-boundaries.md)
+- [ADR-002: Managed recovery and migration compatibility](adr/002-managed-recovery-and-migration-compatibility.md)
+- [ADR-003: Template release and provenance](adr/003-template-release-and-provenance.md)
 
 **Navigation:** [Previous: Project README](../README.md) | Documentation Index | [Next: Architecture Overview](00-overview/architecture.md)

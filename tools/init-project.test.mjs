@@ -26,15 +26,22 @@ function validConfig() {
     defaultLanguage: 'en',
     emailBranding: 'Acme',
     supportAddress: 'support@acme.test',
-    capabilities: ['user-avatars'],
+    capabilities: ['files', 'user-avatars', 'invitations', 'feature-flags', 'sentry'],
     fileDriver: 'local-development-plus-s3-production',
   };
 }
 
-test('normalizes a config and reports automatic dependencies', () => {
+test('normalizes the fully wired reference profile', () => {
   const result = normalizeProjectConfig(validConfig());
-  assert.ok(result.resolvedCapabilities.includes('files'));
-  assert.deepEqual(result.addedDependencies, ['files']);
+  assert.deepEqual(result.resolvedCapabilities.slice(-5), validConfig().capabilities);
+  assert.deepEqual(result.addedDependencies, []);
+});
+
+test('fails closed instead of generating a partially wired profile', () => {
+  assert.throws(
+    () => normalizeProjectConfig({ ...validConfig(), capabilities: ['user-avatars'] }),
+    /Selective capability generation is not supported yet.*invitations, feature-flags, sentry/,
+  );
 });
 
 test('requires the source marker, a clean worktree, and refuses a second initialization', () => {
@@ -75,7 +82,7 @@ test('dry-run resolves capabilities without writing project metadata', async () 
     });
     assert.equal(result.branch, 'feature/init-fixture');
     assert.equal(existsSync(path.join(root, '.company-template.json')), false);
-    assert.deepEqual(result.config.addedDependencies, ['files']);
+    assert.deepEqual(result.config.addedDependencies, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

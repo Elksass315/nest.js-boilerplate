@@ -13,6 +13,7 @@ import type { Response } from 'express';
 import { API_VERSION } from '@/common/http/api-version.constants';
 import { swaggerErrorContent, type SwaggerErrorContent } from '@/common/swagger/api-error-response';
 import type { ErrorCode } from '@/core/errors/error-definitions';
+import { Public } from '@/modules/authorization';
 
 import { FilesService } from './files.service';
 
@@ -20,6 +21,7 @@ const routePath = '/api/v1/files/public/:publicId';
 const errorContent = (code: ErrorCode): SwaggerErrorContent => swaggerErrorContent(code, routePath);
 
 @ApiTags('files')
+@Public()
 @Controller({ path: 'files', version: API_VERSION })
 export class FilesController {
   public constructor(private readonly service: FilesService) {}

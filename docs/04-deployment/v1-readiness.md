@@ -8,8 +8,8 @@
   in CI with the documented managed-service substitutes.
 - `pnpm readiness:check` confirms the manifest, provenance marker, migration compatibility contract,
   governance documents, initializer, and deployment backup gate.
-- A clean checkout initializes representative minimal, files/avatar, invitations, feature-flags,
-  Sentry, and full profiles. The nightly matrix covers every valid dependency resolution.
+- A clean checkout initializes and validates the full reference profile. Selective profiles remain
+  disabled until clean-checkout generation and validation are added for every advertised profile.
 
 ## Managed deployment rehearsal
 

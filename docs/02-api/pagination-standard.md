@@ -23,6 +23,8 @@ Canonical pagination response decorators are the only composed Swagger responses
 contract checker; they emit the item model and complete page metadata schema without duplicating it
 in each controller. Feature controllers supply a deterministic synthetic page example through the
 decorator's optional example argument; examples must match the DTO and page metadata contract and
-must not contain real user or credential data.
+must not contain real user or credential data. The same route-contract gate requires every
+collection route, like every other route, to declare `Public`, `RequireAuthenticated`, or
+`RequirePermissions` explicitly.
 
 **Navigation:** [Previous: Platform Error Catalog](error-catalog.md) | [Documentation Index](../README.md) | [Next: Branching Strategy](../03-dev-process/branching-strategy.md)

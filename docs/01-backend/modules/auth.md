@@ -127,9 +127,15 @@ Email verification and two-step codes contain six cryptographically generated di
 are formatted for manual entry, and are never returned after enrollment/regeneration completes.
 
 Unknown-email login performs dummy Argon2 verification. Five failed attempts lock an account for 15
-minutes by default. Audit events receive request and correlation IDs; logs never contain passwords,
+minutes by default. A locked account still performs password verification: an invalid password
+returns `INVALID_CREDENTIALS` without extending the existing lock, while a valid password returns
+`ACCOUNT_LOCKED`. Audit events receive request and correlation IDs; logs never contain passwords,
 raw tokens, or full recipient addresses. Security mail is durable once its owning transaction
 commits and is relayed asynchronously through the transactional outbox.
+
+The maintenance worker removes only expired or consumed token rows and expired or revoked sessions
+according to their independent configured retention windows; active credentials and security
+audits are retained.
 
 ## Test strategy and change impact
 
@@ -145,6 +151,3 @@ Not applicable. User session history is bounded and uses offset pagination; no m
 or stable append traversal requirement justifies cursor pagination.
 
 **Navigation:** [Previous: Shared Foundation Standard](../shared-foundation.md) | [Documentation Index](../../README.md) | [Next: Authorization Module](authorization.md)
-
-The maintenance worker removes only expired/consumed token rows and expired or revoked sessions
-according to configured retention windows; active credentials and security audits are retained.

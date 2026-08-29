@@ -29,8 +29,9 @@ S3 is recommended for managed environments.
 
 The production image contains compiled code and production dependencies only, runs as non-root,
 and does not run migrations or seeds in its entrypoint. Runtime entrypoints are grouped under
-`dist/apps`: `api/main.js`, `mail-worker/main.js`, `file-worker/main.js`, and
-`outbox-worker/main.js`, and `maintenance-worker/main.js`. Deployment runs the hardened `migrate` and `seed` one-shot services before
+`dist/apps`: `api/main.js`, `mail-worker/main.js`, `file-worker/main.js`,
+`outbox-worker/main.js`, and `maintenance-worker/main.js`. Deployment runs the hardened `migrate`
+and `seed` one-shot services before
 rolling out the API and all four workers from the same image. Every worker writes a short-lived
 heartbeat in `/tmp`; Compose health checks fail when a process stops refreshing it.
 The file worker consumes bounded idempotent cleanup jobs and runs the advisory-locked expiry
@@ -45,7 +46,8 @@ the `BACKUP_REFERENCE` recorded by the managed PostgreSQL provider before migrat
 deployment record at `.deployment-record` stores the image, source commit, migration compatibility
 declaration, backup reference, and UTC completion time. Rollback is attempted only when the previous
 image contains the `org.opencontainers.image.migration-compatibility` label; otherwise deployment
-fails closed and requires operator review. Jenkins waits for API, mail, file, and outbox worker
+fails closed and requires operator review. Jenkins waits for API, mail, file, outbox, and
+maintenance worker
 health checks, then verifies API readiness, Redis, SMTP, and the configured S3 bucket from inside
 the deployment network.
 Production dependency installation ignores arbitrary lifecycle scripts and explicitly rebuilds only

@@ -86,6 +86,15 @@ export function normalizeProjectConfig(input, manifest = loadCapabilityManifest(
           .filter(Boolean)
       : [];
   const resolved = resolveCapabilities(selected, manifest);
+  const optional = Object.keys(manifest.capabilities).filter(
+    (name) => !manifest.mandatory.includes(name),
+  );
+  const missing = optional.filter((name) => !resolved.selected.includes(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `Selective capability generation is not supported yet. Select the full profile; missing: ${missing.join(', ')}`,
+    );
+  }
   const fileDriver = input.fileDriver ?? null;
   if (
     resolved.selected.includes('files') &&
@@ -129,19 +138,10 @@ async function collectConfig(manifest) {
     const optional = Object.keys(manifest.capabilities).filter(
       (name) => !manifest.mandatory.includes(name),
     );
-    input.capabilities = (
-      await rl.question(`Optional capabilities (${optional.join(', ')}; blank for none): `)
-    )
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean);
-    if (input.capabilities.includes('files'))
-      input.fileDriver = await rl.question(
-        'File storage driver (s3/local-development-plus-s3-production/both-provider-migration): ',
-      );
-    input.sentryEnvironmentPolicy = input.capabilities.includes('sentry')
-      ? await rl.question('Sentry environment policy: ')
-      : 'disabled';
+    input.capabilities = optional;
+    input.fileDriver = await rl.question(
+      'File storage driver (s3/local-development-plus-s3-production/both-provider-migration): ',
+    );
     return input;
   } finally {
     rl.close();

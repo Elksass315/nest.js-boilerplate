@@ -10,7 +10,6 @@ import {
   Patch,
   Put,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -40,7 +39,6 @@ import { swaggerErrorContent } from '@/common/swagger/api-error-response';
 import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
-  PermissionsGuard,
   RequireAuthenticated,
   RequirePermissions,
   type AuthenticatedPrincipal,
@@ -95,7 +93,6 @@ const permissionContent = {
 };
 
 @ApiTags('users')
-@UseGuards(PermissionsGuard)
 @Controller({ path: 'users', version: API_VERSION })
 export class UsersController {
   public constructor(private readonly service: UsersService) {}

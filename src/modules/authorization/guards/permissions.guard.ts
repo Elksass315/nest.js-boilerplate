@@ -4,10 +4,12 @@ import type { Request } from 'express';
 
 import { AppException } from '@/core/errors/app.exception';
 
-import type { Permission } from '../authorization.constants';
+import {
+  AUTHENTICATED_ROUTE_KEY,
+  REQUIRED_PERMISSIONS_KEY,
+  type Permission,
+} from '../authorization.constants';
 import type { AuthenticatedPrincipal } from '../authorization.types';
-import { AUTHENTICATED_ROUTE_KEY } from '../decorators/require-authenticated.decorator';
-import { REQUIRED_PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {

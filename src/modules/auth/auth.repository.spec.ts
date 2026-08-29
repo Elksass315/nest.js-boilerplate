@@ -117,10 +117,20 @@ describe(AuthRepository.name, () => {
         callback(cleanupManager),
       ),
     } as unknown as DataSource;
+    const tokenBefore = new Date('2026-01-01');
+    const sessionBefore = new Date('2025-12-01');
     await expect(
-      new AuthRepository(sessions, dataSource).cleanupOperationalData(new Date('2026-01-01'), 10),
+      new AuthRepository(sessions, dataSource).cleanupOperationalData(
+        tokenBefore,
+        sessionBefore,
+        10,
+      ),
     ).resolves.toBe(6);
     expect(cleanupManager.query).toHaveBeenCalledTimes(6);
+    expect(cleanupManager.query).toHaveBeenLastCalledWith(
+      expect.stringContaining('auth_sessions'),
+      [sessionBefore, 10],
+    );
   });
 
   it('treats an adapter response without rowCount as an empty batch', async () => {
@@ -133,7 +143,7 @@ describe(AuthRepository.name, () => {
       ),
     } as unknown as DataSource;
     await expect(
-      new AuthRepository(sessions, dataSource).cleanupOperationalData(new Date(), 1),
+      new AuthRepository(sessions, dataSource).cleanupOperationalData(new Date(), new Date(), 1),
     ).resolves.toBe(0);
   });
 

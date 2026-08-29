@@ -1,7 +1,12 @@
-import { applyDecorators, SetMetadata } from '@nestjs/common';
+import { applyDecorators, SetMetadata, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
-export const AUTHENTICATED_ROUTE_KEY = 'authorization:authenticated';
+import { AUTHENTICATED_ROUTE_KEY } from '../authorization.constants';
+import { PermissionsGuard } from '../guards/permissions.guard';
 
 export const RequireAuthenticated = (): MethodDecorator & ClassDecorator =>
-  applyDecorators(SetMetadata(AUTHENTICATED_ROUTE_KEY, true), ApiBearerAuth());
+  applyDecorators(
+    SetMetadata(AUTHENTICATED_ROUTE_KEY, true),
+    UseGuards(PermissionsGuard),
+    ApiBearerAuth(),
+  );
