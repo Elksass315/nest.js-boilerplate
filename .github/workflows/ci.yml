@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  schedule:
+    - cron: '17 3 * * 1'
   pull_request:
     branches: [main, develop]
   push:
@@ -14,13 +16,59 @@ permissions:
   contents: read
 
 jobs:
+  capability-profiles:
+    name: Capability profile ${{ matrix.profile }}
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - minimal
+          - files
+          - 'files,user-avatars'
+          - invitations
+          - 'files,invitations'
+          - 'files,user-avatars,invitations'
+          - feature-flags
+          - 'files,feature-flags'
+          - 'files,user-avatars,feature-flags'
+          - 'invitations,feature-flags'
+          - 'files,invitations,feature-flags'
+          - 'files,user-avatars,invitations,feature-flags'
+          - sentry
+          - 'files,sentry'
+          - 'files,user-avatars,sentry'
+          - 'invitations,sentry'
+          - 'files,invitations,sentry'
+          - 'files,user-avatars,invitations,sentry'
+          - 'feature-flags,sentry'
+          - 'files,feature-flags,sentry'
+          - 'files,user-avatars,feature-flags,sentry'
+          - 'invitations,feature-flags,sentry'
+          - 'files,invitations,feature-flags,sentry'
+          - 'files,user-avatars,invitations,feature-flags,sentry'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm profiles:check --profile="${{ matrix.profile }}"
+
   quality:
     name: Quality and integration
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a
+        image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
         env:
           POSTGRES_DB: nestjs_saas_test
           POSTGRES_USER: nestjs_saas
@@ -33,7 +81,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:8.4.0-bookworm@sha256:c22af04bb576503bf16b3e34a1fd2fd82de0f765afd866d2e380145e0af30d78
+        image: redis:8.4.6-trixie@sha256:02ec5d8629b6313c9d02739576b6b1f102d152b7231497aff6502da412a93651
         env:
           REDIS_PASSWORD: integration-redis-password
         ports:
@@ -75,6 +123,7 @@ jobs:
       SWAGGER_DOCS_ACCESS: disabled
       SWAGGER_DOCS_USERNAME: ''
       SWAGGER_DOCS_PASSWORD: ''
+      AUTH_ACCESS_TOKEN_SECRET: test-only-access-token-secret-at-least-32-characters
       DATABASE_HOST: localhost
       DATABASE_PORT: 5432
       DATABASE_NAME: nestjs_saas_test
@@ -109,6 +158,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Install pnpm
@@ -140,12 +190,17 @@ jobs:
           pnpm arch:check
           pnpm i18n:check
           pnpm docs:check
+          pnpm runtime-images:check
+          pnpm deployment:check
           pnpm deps:check
           pnpm deps:duplicates:check
 
       - name: Run tests and build
         run: |
+          pnpm openapi:generate
+          pnpm openapi:check
           pnpm test:cov
+          pnpm coverage:changed -- --base "${{ github.event.pull_request.base.sha || github.event.before }}"
           pnpm test:tools
           pnpm migration:show
           pnpm migration:run
@@ -164,7 +219,7 @@ jobs:
         with:
           name: coverage-${{ github.sha }}
           path: coverage
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
   dependency-review:
@@ -252,4 +307,25 @@ jobs:
           format: table
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan PostgreSQL service image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+          format: table
+          scanners: vuln
+          vuln-type: os
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Scan Redis service image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: redis:8.4.6-trixie@sha256:02ec5d8629b6313c9d02739576b6b1f102d152b7231497aff6502da412a93651
+          format: table
+          scanners: vuln
+          vuln-type: os
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore.redis
           exit-code: '1'

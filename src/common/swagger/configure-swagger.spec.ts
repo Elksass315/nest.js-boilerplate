@@ -4,7 +4,7 @@ import { SwaggerModule } from '@nestjs/swagger';
 
 import type { AppConfiguration, SwaggerDocsAccess } from '@/config/configuration.types';
 
-import { configureSwagger } from './configure-swagger';
+import { configureSwagger, createOpenApiDocument } from './configure-swagger';
 
 function createApp(): NestExpressApplication {
   return { use: jest.fn() } as unknown as NestExpressApplication;
@@ -48,5 +48,16 @@ describe(configureSwagger.name, () => {
     const app = createApp();
     configureSwagger(app, createConfigService('disabled'));
     expect(SwaggerModule.createDocument).not.toHaveBeenCalled();
+  });
+
+  it('embeds the stable error catalog in generated documents', () => {
+    const document = createOpenApiDocument(createApp(), 'Example API');
+
+    expect(document['x-stable-errors']).toMatchObject({
+      USER_NOT_FOUND: {
+        statusCode: 404,
+        message: 'The requested user was not found',
+      },
+    });
   });
 });

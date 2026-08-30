@@ -3,6 +3,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 
 import type { FileWorkerConfiguration } from '@/config/configuration.types';
+import type { WorkerHeartbeatService } from '@/core/worker/worker-heartbeat.service';
 
 import type { FilesProcessor } from './files.processor';
 import { FilesWorkerLifecycle } from './files-worker.lifecycle';
@@ -37,11 +38,18 @@ describe(FilesWorkerLifecycle.name, () => {
     info: jest.fn(),
     error: jest.fn(),
   } as unknown as PinoLogger;
+  const heartbeat = { start: jest.fn(), stop: jest.fn().mockResolvedValue(undefined) };
 
   beforeEach(() => jest.clearAllMocks());
 
   it('starts a bounded worker and installs one periodic sweeper', async () => {
-    const lifecycle = new FilesWorkerLifecycle(config, processor, queue, logger);
+    const lifecycle = new FilesWorkerLifecycle(
+      config,
+      processor,
+      queue,
+      logger,
+      heartbeat as unknown as WorkerHeartbeatService,
+    );
     await lifecycle.onModuleInit();
     expect(queue.upsertJobScheduler).toHaveBeenCalledWith(
       'files-expired-sweeper',
@@ -52,7 +60,13 @@ describe(FilesWorkerLifecycle.name, () => {
   });
 
   it('closes the worker during graceful shutdown', async () => {
-    const lifecycle = new FilesWorkerLifecycle(config, processor, queue, logger);
+    const lifecycle = new FilesWorkerLifecycle(
+      config,
+      processor,
+      queue,
+      logger,
+      heartbeat as unknown as WorkerHeartbeatService,
+    );
     await lifecycle.onModuleInit();
     await lifecycle.onApplicationShutdown();
     expect(close).toHaveBeenCalled();

@@ -1,9 +1,10 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import type { EntityManager } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 
 import { AuthRepository } from './auth.repository';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
+import { AuthEmailVerificationCodeEntity } from './entities/auth-email-verification-code.entity';
 import { AuthRecoveryCodeEntity } from './entities/auth-recovery-code.entity';
 import { AuthRefreshTokenEntity } from './entities/auth-refresh-token.entity';
 import { AuthSessionEntity } from './entities/auth-session.entity';
@@ -56,6 +57,12 @@ describe(AuthRepository.name, () => {
     findOne: jest.fn(),
     createQueryBuilder: jest.fn(() => actionQuery),
   };
+  const verificationStore = {
+    create: jest.fn((value: object) => Object.assign(new AuthEmailVerificationCodeEntity(), value)),
+    save: jest.fn((value: AuthEmailVerificationCodeEntity) => Promise.resolve(value)),
+    findOne: jest.fn(),
+    createQueryBuilder: jest.fn(() => actionQuery),
+  };
   const recoveryStore = {
     create: jest.fn((value: object) => Object.assign(new AuthRecoveryCodeEntity(), value)),
     save: jest.fn((value: AuthRecoveryCodeEntity) => Promise.resolve(value)),
@@ -67,6 +74,7 @@ describe(AuthRepository.name, () => {
       if (entity === AuthSessionEntity) return sessionStore;
       if (entity === AuthRefreshTokenEntity) return refreshStore;
       if (entity === AuthTwoStepChallengeEntity) return challengeStore;
+      if (entity === AuthEmailVerificationCodeEntity) return verificationStore;
       if (entity === AuthRecoveryCodeEntity) return recoveryStore;
       return actionStore;
     }),
@@ -98,6 +106,45 @@ describe(AuthRepository.name, () => {
     expect(refreshStore.save).toHaveBeenCalledWith(
       expect.objectContaining({ tokenHash: 'h'.repeat(64), status: 'active' }),
     );
+  });
+
+  it('cleans expired authentication state in bounded batches', async () => {
+    const cleanupManager = {
+      query: jest.fn().mockResolvedValue({ rowCount: 1 }),
+    } as unknown as EntityManager;
+    const dataSource = {
+      transaction: jest.fn(async (callback: (value: EntityManager) => Promise<number>) =>
+        callback(cleanupManager),
+      ),
+    } as unknown as DataSource;
+    const tokenBefore = new Date('2026-01-01');
+    const sessionBefore = new Date('2025-12-01');
+    await expect(
+      new AuthRepository(sessions, dataSource).cleanupOperationalData(
+        tokenBefore,
+        sessionBefore,
+        10,
+      ),
+    ).resolves.toBe(6);
+    expect(cleanupManager.query).toHaveBeenCalledTimes(6);
+    expect(cleanupManager.query).toHaveBeenLastCalledWith(
+      expect.stringContaining('auth_sessions'),
+      [sessionBefore, 10],
+    );
+  });
+
+  it('treats an adapter response without rowCount as an empty batch', async () => {
+    const cleanupManager = {
+      query: jest.fn().mockResolvedValue(undefined),
+    } as unknown as EntityManager;
+    const dataSource = {
+      transaction: jest.fn(async (callback: (value: EntityManager) => Promise<number>) =>
+        callback(cleanupManager),
+      ),
+    } as unknown as DataSource;
+    await expect(
+      new AuthRepository(sessions, dataSource).cleanupOperationalData(new Date(), new Date(), 1),
+    ).resolves.toBe(0);
   });
 
   it('locks tokens and sessions and reads live or paginated sessions', async () => {
@@ -144,7 +191,7 @@ describe(AuthRepository.name, () => {
     await repository.issueActionToken(
       manager,
       session.userId,
-      'email_verification',
+      'password_reset',
       'a'.repeat(64),
       session.expiresAt,
     );
@@ -154,6 +201,35 @@ describe(AuthRepository.name, () => {
     await repository.consumeActionToken(manager, action);
     expect(action.consumedAt).toBeInstanceOf(Date);
     expect(actionStore.save).toHaveBeenCalledWith(action);
+  });
+
+  it('replaces and locks hashed email verification codes', async () => {
+    const verification = Object.assign(new AuthEmailVerificationCodeEntity(), {
+      userId: session.userId,
+      codeHash: '$argon2id$code',
+      attempts: 0,
+      consumedAt: null,
+      expiresAt: session.expiresAt,
+    });
+    verificationStore.findOne.mockResolvedValue(verification);
+
+    await repository.issueEmailVerificationCode(
+      manager,
+      session.userId,
+      verification.codeHash,
+      session.expiresAt,
+    );
+    await repository.findEmailVerificationCodeForUpdate(manager, session.userId);
+    verification.attempts = 1;
+    await repository.saveEmailVerificationCode(manager, verification);
+
+    expect(actionQuery.execute).toHaveBeenCalled();
+    expect(verificationStore.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+    );
+    expect(verificationStore.save).toHaveBeenCalledWith(
+      expect.objectContaining({ codeHash: '$argon2id$code', attempts: 1 }),
+    );
   });
 
   it('does not mutate an already revoked session', async () => {

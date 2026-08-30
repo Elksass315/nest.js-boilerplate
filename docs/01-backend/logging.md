@@ -20,4 +20,14 @@ caller values contain only letters, numbers, `.`, `_`, `:`, or `-` and are at mo
 unsafe values are replaced. Future queue producers copy the correlation ID into job metadata and
 workers restore it before logging or calling downstream systems.
 
+Unexpected exceptions are also sent to Sentry when explicitly enabled. Sentry event processing
+removes request bodies, cookies, query strings, sensitive headers, email, username, and IP address;
+request and correlation IDs are retained as tags. Structured application logging remains the local
+source of operational detail and follows the same secret-redaction policy.
+
+API bootstrap emits an `API listening` event with the bind host, port, and local health-check URLs.
+Bootstrap failures emit `API failed to start` with the safe error type, message, error code, syscall,
+address, and port when provided. For example, an `EADDRINUSE` failure identifies the occupied port
+instead of reducing the diagnosis to a generic startup message.
+
 **Navigation:** [Previous: Internationalization Standard](internationalization.md) | [Documentation Index](../README.md) | [Next: Feature Module Architecture](module-architecture.md)

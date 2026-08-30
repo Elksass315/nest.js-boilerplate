@@ -44,6 +44,7 @@ describe(FilesRepository.name, () => {
     find: jest.fn(),
     countBy: jest.fn(),
     createQueryBuilder: jest.fn(),
+    query: jest.fn(),
   };
   const runner = { connect: jest.fn(), query: jest.fn(), release: jest.fn() };
   const dataSource = { createQueryRunner: jest.fn(() => runner) };
@@ -92,6 +93,13 @@ describe(FilesRepository.name, () => {
       }),
     ).resolves.toEqual(expect.objectContaining({ provider: 'local', status: 'uploaded' }));
     expect(files.create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'protected' }));
+  });
+
+  it('cleans bounded expired temporary metadata and tolerates empty driver results', async () => {
+    files.query.mockResolvedValue({ rowCount: 2 });
+    await expect(repository.cleanupTemporaryMetadata(new Date('2026-01-01'), 5)).resolves.toBe(2);
+    files.query.mockResolvedValue(undefined);
+    await expect(repository.cleanupTemporaryMetadata(new Date('2026-01-01'), 5)).resolves.toBe(0);
   });
 
   it('finds file, public file, and missing file metadata', async () => {

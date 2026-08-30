@@ -46,6 +46,7 @@ describe(InvitationsService.name, () => {
   const config = {
     getOrThrow: jest.fn((key: string) => {
       if (key === 'invitations.ttlHours') return 72;
+      if (key === 'invitations.baseUrl') return 'https://app.example.test/invitations/accept';
       if (key === 'invitations') {
         return { ttlHours: 72, maxSends: 5, resendCooldownSeconds: 60 };
       }
@@ -129,6 +130,7 @@ describe(InvitationsService.name, () => {
     expect(pending.tokenHash).not.toBe('a'.repeat(64));
     expect(mail.sendInvitationAccepted).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'new.member@example.com' }),
+      expect.anything(),
     );
   });
 
@@ -173,13 +175,20 @@ describe(InvitationsService.name, () => {
       }),
     );
     expect(mail.sendTeamInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'New.Member@Example.com', token: expect.any(String) }),
+      expect.objectContaining({
+        email: 'New.Member@Example.com',
+        actionUrl: expect.stringMatching(
+          /^https:\/\/app\.example\.test\/invitations\/accept\?token=.+/u,
+        ),
+      }),
+      expect.anything(),
     );
     expect(result).not.toHaveProperty('tokenHash');
     expect(users.recordSecurityAudit).toHaveBeenCalledWith(
       principal.userId,
       'team.invitation.created',
       expect.objectContaining({ invitationId: result.id }),
+      expect.anything(),
     );
   });
 
@@ -246,6 +255,29 @@ describe(InvitationsService.name, () => {
 
     await expectErrorCode(service.resend('invitation-id', principal), 'INVITATION_RESEND_TOO_SOON');
     expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('commits token rotation, audit, and durable mail request on resend', async () => {
+    const pending = invitation();
+    repository.findByIdForUpdate.mockResolvedValue(pending);
+    repository.save.mockResolvedValue(pending);
+
+    await service.resend(pending.id, principal);
+
+    expect(repository.save).toHaveBeenCalledWith(manager, pending);
+    expect(mail.sendTeamInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: pending.email,
+        actionUrl: expect.stringContaining('token='),
+      }),
+      manager,
+    );
+    expect(users.recordSecurityAudit).toHaveBeenCalledWith(
+      principal.userId,
+      'team.invitation.resent',
+      { invitationId: pending.id },
+      manager,
+    );
   });
 
   it('rejects resend after invitation expiry', async () => {

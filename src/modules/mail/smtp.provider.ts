@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import nodemailer, { type Transporter } from 'nodemailer';
 
 import type { MailWorkerConfiguration } from '@/config/configuration.types';
+import { withTelemetrySpan } from '@/observability/telemetry';
 
 interface SmtpMessage {
   fromAddress: string;
@@ -34,12 +35,16 @@ export class SmtpProvider {
   }
 
   public async send(message: SmtpMessage): Promise<void> {
-    await this.transporter.sendMail({
-      from: { address: message.fromAddress, name: message.fromName },
-      to: message.to,
-      subject: message.subject,
-      html: message.html,
-    });
+    await withTelemetrySpan('smtp.send', { 'mail.provider': 'smtp' }, () =>
+      this.transporter
+        .sendMail({
+          from: { address: message.fromAddress, name: message.fromName },
+          to: message.to,
+          subject: message.subject,
+          html: message.html,
+        })
+        .then(() => undefined),
+    );
   }
 
   public async verify(): Promise<void> {

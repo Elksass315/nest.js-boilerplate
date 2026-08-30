@@ -19,8 +19,8 @@ describe(UsersController.name, () => {
     getById: jest.fn(),
     updateStatus: jest.fn(),
     replaceRoles: jest.fn(),
-    replaceOwnAvatar: jest.fn(),
-    deleteOwnAvatar: jest.fn(),
+    getPermissionOverrides: jest.fn(),
+    replacePermissionOverrides: jest.fn(),
   };
   let controller: UsersController;
 
@@ -72,19 +72,24 @@ describe(UsersController.name, () => {
     );
   });
 
-  it('delegates avatar replacement and removal with the principal user ID', async () => {
-    service.replaceOwnAvatar.mockResolvedValue({ id: principal.userId });
-    service.deleteOwnAvatar.mockResolvedValue(undefined);
-
-    await controller.replaceAvatar(principal, {
-      fileId: '4e951b98-9250-4414-b88c-33f184543d8c',
+  it('passes the actor identity and actual roles to permission mutation policy', async () => {
+    service.replacePermissionOverrides.mockResolvedValue({
+      effective: [],
+      grants: [],
+      revokes: [],
     });
-    await controller.deleteAvatar(principal);
 
-    expect(service.replaceOwnAvatar).toHaveBeenCalledWith(
+    await controller.replacePermissions(
       principal.userId,
-      '4e951b98-9250-4414-b88c-33f184543d8c',
+      { grants: ['feature-flags.read'], revokes: [] },
+      principal,
     );
-    expect(service.deleteOwnAvatar).toHaveBeenCalledWith(principal.userId);
+
+    expect(service.replacePermissionOverrides).toHaveBeenCalledWith(
+      principal.userId,
+      { grants: ['feature-flags.read'], revokes: [] },
+      principal.userId,
+      ['super_admin'],
+    );
   });
 });

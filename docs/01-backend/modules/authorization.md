@@ -18,19 +18,25 @@ repository remain private.
 
 | Role          | Permissions                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `super_admin` | User/session administration plus all four `team.invitations.*` permissions                                         |
+| `super_admin` | User/session administration, cross-user security-audit lookup, plus all four `team.invitations.*` permissions      |
 | `admin`       | `users.read` plus all invitation permissions; service policy limits this role to inviting ordinary `user` accounts |
 | `user`        | none; authenticated self-service only                                                                              |
 
 Definitions are seeded and immutable through the API. `RequireAuthenticated` checks for a principal;
 `RequirePermissions` additionally requires every declared permission. Missing principals produce
-`401 UNAUTHORIZED`; inadequate permissions produce `403 FORBIDDEN`.
+`401 UNAUTHORIZED`; inadequate permissions produce `403 FORBIDDEN`. Both decorators install
+`PermissionsGuard` and attach the named Swagger bearer security requirement, so a controller cannot
+forget the runtime guard while still appearing protected in Swagger. Anonymous routes use the
+explicit `Public` marker.
 
 ## API contracts
 
-`GET /api/v1/authorization/roles?page=1&limit=20` requires `users.read` and returns the canonical
-offset page of role IDs, keys, names, descriptions, and effective permission keys. Reachable failures
-are `401 UNAUTHORIZED`, `403 FORBIDDEN`, and `422 VALIDATION_ERROR`; Swagger documents exact payloads.
+| Method | Route                  | Policy       | Success | Reachable errors                                    |
+| ------ | ---------------------- | ------------ | ------- | --------------------------------------------------- |
+| GET    | `/authorization/roles` | `users.read` | 200     | 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 422 validation |
+
+The route accepts `page` and `limit` and returns the canonical offset page of role IDs, keys, names,
+descriptions, and effective permission keys. Swagger documents exact payloads.
 
 ## Data, migration, and seed
 
@@ -38,7 +44,11 @@ are `401 UNAUTHORIZED`, `403 FORBIDDEN`, and `422 VALIDATION_ERROR`; Swagger doc
 base entities, unique stable keys, unique role-permission pairs, and cascading internal foreign keys.
 Seed `002-rbac` installs the base deterministic IDs. Immutable seed `003-team-invitations-rbac`
 adds invitation permissions without changing the checksum of the applied base seed. Applied seed
-content must never be edited; policy changes require a new ordered seed.
+content must never be edited; policy changes require a new ordered seed. Immutable seed
+`004-security-audit-rbac` adds `users.security-audits.read.any` only to `super_admin`; administrators
+retain read-only user lookup but cannot inspect another user's security history.
+Immutable seed `005-feature-flags-rbac` grants `feature-flags.read` to administrators and super
+administrators, while `feature-flags.manage` remains restricted to super administrators.
 
 ## Security and observability
 
@@ -51,15 +61,25 @@ session state.
 Authorization errors use the global localized error contract and retain request/correlation IDs. No
 credentials or personal data enter RBAC logs.
 
+Per-user permission overrides are resolved live as role permissions plus explicit grants minus
+explicit revokes. Collection and authentication resolution load all overrides and permission keys
+in bounded batch queries. The override management permission is seeded only for `super_admin`, and
+mutation independently verifies that the live principal has a real `super_admin` role. Explicit
+grants cannot delegate `users.permissions.manage` or `users.roles.manage`.
+
 ## Test strategy and change impact
 
-Unit tests cover pagination, effective permissions, missing roles, incomplete role sets, successful
-authorization, absent authentication, and inadequate permissions. Migration/seed validation confirms
-constraints and immutable reference data in PostgreSQL.
+Unit tests cover pagination, batched effective permissions, missing roles, incomplete role sets,
+successful authorization, absent authentication, and inadequate permissions. Service and E2E tests
+prove that a delegated management permission cannot mutate overrides. Migration/seed validation
+confirms constraints and immutable reference data in PostgreSQL.
 
 ## Cursor pagination rationale
 
 Not applicable. The fixed role set is small and uses offset pagination to preserve one collection
 contract across business APIs.
+
+Users inherit role permissions by default. Super administrators may manage per-user grant and revoke
+overrides; effective permissions are resolved live as role permissions plus grants minus revokes.
 
 **Navigation:** [Previous: Auth and Sessions Module](auth.md) | [Documentation Index](../../README.md) | [Next: Files Module](files.md)

@@ -30,6 +30,16 @@ Both single-word names such as `users` and multi-word kebab-case names are suppo
 Create optional folders and files only when the feature actually uses them. Every feature also owns
 `docs/01-backend/modules/<feature>.md` based on the module documentation template.
 
+## Optional capability boundaries
+
+The root `capabilities.manifest.json` is the machine-readable inventory used by the project
+initializer. Core identity, authorization, sessions, audits, mail, outbox, and workers are
+mandatory. Files, user avatars, invitations, feature flags, and Sentry are optional and may only
+be consumed through the owning module's public `index.ts`. The `user-avatars` capability depends
+on `files`; selecting avatars automatically selects files. Architecture tests validate that
+capability dependencies are acyclic and that optional source paths do not import another feature's
+private repository, entity, or DTO.
+
 Business collection routes follow the [pagination standard](../02-api/pagination-standard.md) and
 never return raw arrays.
 

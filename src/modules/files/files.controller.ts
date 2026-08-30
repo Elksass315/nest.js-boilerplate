@@ -11,38 +11,17 @@ import {
 import type { Response } from 'express';
 
 import { API_VERSION } from '@/common/http/api-version.constants';
+import { swaggerErrorContent, type SwaggerErrorContent } from '@/common/swagger/api-error-response';
+import type { ErrorCode } from '@/core/errors/error-definitions';
+import { Public } from '@/modules/authorization';
 
 import { FilesService } from './files.service';
 
 const routePath = '/api/v1/files/public/:publicId';
-type SwaggerErrorContent = Record<
-  string,
-  {
-    example: {
-      statusCode: number;
-      code: string;
-      message: string;
-      timestamp: string;
-      path: string;
-      requestId: string;
-    };
-  }
->;
-
-const errorContent = (statusCode: number, code: string, message: string): SwaggerErrorContent => ({
-  'application/json': {
-    example: {
-      statusCode,
-      code,
-      message,
-      timestamp: '2026-08-14T12:00:00.000Z',
-      path: routePath,
-      requestId: 'req_example',
-    },
-  },
-});
+const errorContent = (code: ErrorCode): SwaggerErrorContent => swaggerErrorContent(code, routePath);
 
 @ApiTags('files')
+@Public()
 @Controller({ path: 'files', version: API_VERSION })
 export class FilesController {
   public constructor(private readonly service: FilesService) {}
@@ -55,7 +34,12 @@ export class FilesController {
   })
   @ApiOkResponse({
     description: 'The public file bytes were returned.',
-    content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } },
+    content: {
+      'application/octet-stream': {
+        schema: { type: 'string', format: 'binary', example: 'binary file bytes' },
+        example: 'binary file bytes',
+      },
+    },
   })
   @ApiFoundResponse({
     description: 'The public file is available from a temporary object-storage URL.',
@@ -70,19 +54,15 @@ export class FilesController {
   })
   @ApiNotFoundResponse({
     description: 'The file does not exist or is not public and ready.',
-    content: errorContent(404, 'FILE_NOT_FOUND', 'The requested file was not found'),
+    content: errorContent('FILE_NOT_FOUND'),
   })
   @ApiBadRequestResponse({
     description: 'The public file identifier is not a UUID.',
-    content: errorContent(400, 'BAD_REQUEST', 'The request could not be processed'),
+    content: errorContent('BAD_REQUEST'),
   })
   @ApiServiceUnavailableResponse({
     description: 'The configured provider could not serve the file.',
-    content: errorContent(
-      503,
-      'FILE_STORAGE_UNAVAILABLE',
-      'File storage is temporarily unavailable',
-    ),
+    content: errorContent('FILE_STORAGE_UNAVAILABLE'),
   })
   public async readPublic(
     @Param('publicId', new ParseUUIDPipe()) publicId: string,

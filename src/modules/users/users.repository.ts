@@ -21,6 +21,8 @@ export class UsersRepository {
   public constructor(
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     @InjectRepository(UserRoleEntity) private readonly userRoles: Repository<UserRoleEntity>,
+    @InjectRepository(UserSecurityAuditEntity)
+    private readonly securityAudits: Repository<UserSecurityAuditEntity>,
   ) {}
 
   public findPage(page: number, limit: number): Promise<[UserEntity[], number]> {
@@ -35,8 +37,33 @@ export class UsersRepository {
     return (manager?.getRepository(UserEntity) ?? this.users).findOneBy({ id });
   }
 
-  public findByNormalizedEmail(normalizedEmail: string): Promise<UserEntity | null> {
-    return this.users.findOneBy({ normalizedEmail });
+  public findSecurityAuditPage(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<[UserSecurityAuditEntity[], number]> {
+    return this.securityAudits.findAndCount({
+      where: { userId },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+  }
+
+  public findByNormalizedEmail(
+    normalizedEmail: string,
+    manager?: EntityManager,
+  ): Promise<UserEntity | null> {
+    return (manager?.getRepository(UserEntity) ?? this.users).findOneBy({ normalizedEmail });
+  }
+
+  public async lockRegistrationEmail(
+    manager: EntityManager,
+    normalizedEmail: string,
+  ): Promise<void> {
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+      `users:registration:${normalizedEmail}`,
+    ]);
   }
 
   public findByIdForUpdate(manager: EntityManager, id: string): Promise<UserEntity | null> {
@@ -84,7 +111,6 @@ export class UsersRepository {
         authVersion: 1,
         failedLoginCount: 0,
         lockedUntil: null,
-        avatarFileId: null,
       }),
     );
     await manager
@@ -110,7 +136,6 @@ export class UsersRepository {
         authVersion: 1,
         failedLoginCount: 0,
         lockedUntil: null,
-        avatarFileId: null,
       }),
     );
     const roleRepository = manager.getRepository(UserRoleEntity);

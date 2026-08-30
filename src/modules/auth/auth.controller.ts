@@ -1,4 +1,5 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiConflictResponse,
   ApiBody,
@@ -17,7 +18,7 @@ import {
 import { API_VERSION } from '@/common/http/api-version.constants';
 import {
   CurrentPrincipal,
-  PermissionsGuard,
+  Public,
   RequireAuthenticated,
   type AuthenticatedPrincipal,
 } from '@/modules/authorization';
@@ -27,18 +28,26 @@ import {
   AUTH_PATH,
   errorContent,
   errorExample,
+  loginSuccessContent,
   messageContent,
   tokenPairContent,
 } from './auth.swagger';
-import { ActionTokenDto } from './dto/action-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { EmailDto } from './dto/email.dto';
+import {
+  ConfirmEmailVerificationDto,
+  RegistrationIdentifierDto,
+  RegistrationResponseDto,
+  VerificationResendResponseDto,
+} from './dto/email-verification.dto';
 import { LoginDto } from './dto/login.dto';
+import { LoginResponseDto } from './dto/login-response.dto';
 import { MessageResponseDto } from './dto/message-response.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { TokenPairResponseDto } from './dto/token-pair-response.dto';
+import type { SessionMetadata } from './auth.types';
 import {
   CompleteLoginTwoStepDto,
   LoginTwoStepEmailCodeDto,
@@ -50,7 +59,7 @@ import {
 } from './dto/two-step.dto';
 
 const validationContent = (route: string): Record<string, { example: Record<string, unknown> }> =>
-  errorContent(422, 'VALIDATION_ERROR', 'Input validation failed', route, {
+  errorContent('VALIDATION_ERROR', route, {
     fields: { email: ['email must be an email'] },
   });
 
@@ -84,34 +93,19 @@ const twoStepConfirmationErrorContent = (route: string): SwaggerErrorContent => 
     examples: {
       authenticationRequired: {
         summary: 'No valid access token was supplied',
-        value: errorExample(401, 'UNAUTHORIZED', 'Authentication is required', route),
+        value: errorExample('UNAUTHORIZED', route),
       },
       invalidChallenge: {
         summary: 'The challenge is invalid, expired, or belongs to another user',
-        value: errorExample(
-          401,
-          'INVALID_TWO_STEP_CHALLENGE',
-          'The two-step challenge is invalid or has expired',
-          route,
-        ),
+        value: errorExample('INVALID_TWO_STEP_CHALLENGE', route),
       },
       invalidCode: {
         summary: 'The emailed code is incorrect',
-        value: errorExample(
-          401,
-          'INVALID_TWO_STEP_CODE',
-          'The two-step verification code is incorrect',
-          route,
-        ),
+        value: errorExample('INVALID_TWO_STEP_CODE', route),
       },
       attemptsExceeded: {
         summary: 'The challenge attempt limit was reached',
-        value: errorExample(
-          401,
-          'TWO_STEP_ATTEMPTS_EXCEEDED',
-          'Too many two-step verification attempts',
-          route,
-        ),
+        value: errorExample('TWO_STEP_ATTEMPTS_EXCEEDED', route),
       },
     },
   },
@@ -122,11 +116,11 @@ const passwordConfirmationErrorContent = (route: string): SwaggerErrorContent =>
     examples: {
       authenticationRequired: {
         summary: 'No valid access token was supplied',
-        value: errorExample(401, 'UNAUTHORIZED', 'Authentication is required', route),
+        value: errorExample('UNAUTHORIZED', route),
       },
       invalidPassword: {
         summary: 'The current password is incorrect',
-        value: errorExample(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect', route),
+        value: errorExample('INVALID_CREDENTIALS', route),
       },
     },
   },
@@ -135,43 +129,48 @@ const passwordConfirmationErrorContent = (route: string): SwaggerErrorContent =>
 @ApiTags('auth')
 @ApiExtraModels(
   TokenPairResponseDto,
+  LoginResponseDto,
   TwoStepChallengeResponseDto,
   LoginTwoStepEmailCodeDto,
   LoginTwoStepRecoveryCodeDto,
 )
-@UseGuards(PermissionsGuard)
 @Controller({ path: 'auth', version: API_VERSION })
 export class AuthController {
   public constructor(private readonly service: AuthService) {}
 
   @Post('register')
+  @Public()
   @ApiOperation({
     summary: 'Register an account',
-    description: 'Creates a pending account and a single-use email-verification token.',
+    description:
+      'Creates a pending account or revises an existing pending account and emails a six-digit verification code.',
   })
   @ApiCreatedResponse({
-    description: 'The account was created and verification delivery was requested.',
-    content: messageContent('Registration accepted; check your email to verify the account'),
+    description: 'The pending registration was saved and verification delivery was requested.',
+    content: {
+      'application/json': {
+        example: {
+          registrationId: '7b3f8ed4-73ef-4afe-8703-b10dd32f3820',
+          verificationExpiresIn: 600,
+          message: 'Registration accepted; enter the code sent to your email',
+        },
+      },
+    },
   })
   @ApiConflictResponse({
     description: 'The normalized email already belongs to an account.',
-    content: errorContent(
-      409,
-      'EMAIL_ALREADY_REGISTERED',
-      'An account with this email already exists',
-      `${AUTH_PATH}/register`,
-    ),
+    content: errorContent('EMAIL_ALREADY_REGISTERED', `${AUTH_PATH}/register`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The name, email, or password failed validation.',
     content: validationContent(`${AUTH_PATH}/register`),
   })
-  public async register(@Body() body: RegisterDto): Promise<MessageResponseDto> {
-    await this.service.register(body.fullName, body.email, body.password);
-    return { message: 'Registration accepted; check your email to verify the account' };
+  public register(@Body() body: RegisterDto): Promise<RegistrationResponseDto> {
+    return this.service.register(body.fullName, body.email, body.password);
   }
 
   @Post('verification/resend')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Resend email verification',
@@ -179,54 +178,78 @@ export class AuthController {
   })
   @ApiOkResponse({
     description: 'The generic resend response was returned.',
-    content: messageContent('If the account is eligible, a verification email will be sent'),
+    content: {
+      'application/json': {
+        example: {
+          verificationExpiresIn: 600,
+          message: 'If the registration is eligible, a verification code will be sent',
+        },
+      },
+    },
   })
   @ApiUnprocessableEntityResponse({
-    description: 'The email failed validation.',
-    content: validationContent(`${AUTH_PATH}/verification/resend`),
+    description: 'The registration identifier failed validation.',
+    content: errorContent('VALIDATION_ERROR', `${AUTH_PATH}/verification/resend`, {
+      fields: { registrationId: ['registrationId must be a UUID'] },
+    }),
   })
-  public async resendVerification(@Body() body: EmailDto): Promise<MessageResponseDto> {
-    await this.service.resendVerification(body.email);
-    return { message: 'If the account is eligible, a verification email will be sent' };
+  public resendVerification(
+    @Body() body: RegistrationIdentifierDto,
+  ): Promise<VerificationResendResponseDto> {
+    return this.service.resendVerification(body.registrationId);
   }
 
   @Post('verification/confirm')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Confirm email verification',
-    description: 'Consumes one valid verification token and activates the pending account.',
+    description:
+      'Consumes one valid six-digit verification code and activates the pending account.',
   })
   @ApiOkResponse({
     description: 'The email was verified.',
     content: messageContent('Email address verified'),
   })
   @ApiUnauthorizedResponse({
-    description: 'The token is unknown, expired, superseded, or already consumed.',
-    content: errorContent(
-      401,
-      'INVALID_OR_EXPIRED_TOKEN',
-      'The token is invalid or has expired',
-      `${AUTH_PATH}/verification/confirm`,
-    ),
+    description: 'The code cannot be accepted or its failed-attempt limit was reached.',
+    content: {
+      'application/json': {
+        examples: {
+          invalidOrExpiredCode: {
+            summary: 'The code is invalid, expired, superseded, or consumed',
+            value: errorExample(
+              'INVALID_OR_EXPIRED_VERIFICATION_CODE',
+              `${AUTH_PATH}/verification/confirm`,
+            ),
+          },
+          attemptsExceeded: {
+            summary: 'The code reached its failed-attempt limit',
+            value: errorExample(
+              'VERIFICATION_ATTEMPTS_EXCEEDED',
+              `${AUTH_PATH}/verification/confirm`,
+            ),
+          },
+        },
+      },
+    },
   })
   @ApiForbiddenResponse({
     description: 'The target account is suspended.',
-    content: errorContent(
-      403,
-      'ACCOUNT_SUSPENDED',
-      'The account is suspended',
-      `${AUTH_PATH}/verification/confirm`,
-    ),
+    content: errorContent('ACCOUNT_SUSPENDED', `${AUTH_PATH}/verification/confirm`),
   })
   @ApiUnprocessableEntityResponse({
-    description: 'The token shape failed validation.',
-    content: validationContent(`${AUTH_PATH}/verification/confirm`),
+    description: 'The registration identifier or six-digit code failed validation.',
+    content: errorContent('VALIDATION_ERROR', `${AUTH_PATH}/verification/confirm`, {
+      fields: { code: ['code must match /^\\d{6}$/ regular expression'] },
+    }),
   })
-  public verifyEmail(@Body() body: ActionTokenDto): Promise<MessageResponseDto> {
-    return this.service.verifyEmail(body.token);
+  public verifyEmail(@Body() body: ConfirmEmailVerificationDto): Promise<MessageResponseDto> {
+    return this.service.verifyEmail(body.registrationId, body.code);
   }
 
   @Post('login')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Create an authenticated session',
@@ -239,14 +262,14 @@ export class AuthController {
       'application/json': {
         schema: {
           oneOf: [
-            { $ref: getSchemaPath(TokenPairResponseDto) },
+            { $ref: getSchemaPath(LoginResponseDto) },
             { $ref: getSchemaPath(TwoStepChallengeResponseDto) },
           ],
         },
         examples: {
           sessionCreated: {
             summary: 'Two-step is disabled',
-            value: tokenPairContent['application/json'].example,
+            value: loginSuccessContent['application/json'].example,
           },
           twoStepRequired: {
             summary: 'Email two-step verification is required',
@@ -261,31 +284,8 @@ export class AuthController {
     },
   })
   @ApiUnauthorizedResponse({
-    description: 'Credentials are invalid or the account is temporarily locked.',
-    content: {
-      'application/json': {
-        examples: {
-          invalidCredentials: {
-            summary: 'Invalid credentials',
-            value: errorExample(
-              401,
-              'INVALID_CREDENTIALS',
-              'Email or password is incorrect',
-              `${AUTH_PATH}/login`,
-            ),
-          },
-          accountLocked: {
-            summary: 'Temporary lockout',
-            value: errorExample(
-              401,
-              'ACCOUNT_LOCKED',
-              'The account is temporarily locked',
-              `${AUTH_PATH}/login`,
-            ),
-          },
-        },
-      },
-    },
+    description: 'Credentials are invalid.',
+    content: errorContent('INVALID_CREDENTIALS', `${AUTH_PATH}/login`),
   })
   @ApiForbiddenResponse({
     description: 'The credentials are valid but the account cannot sign in.',
@@ -294,21 +294,11 @@ export class AuthController {
         examples: {
           emailNotVerified: {
             summary: 'Email not verified',
-            value: errorExample(
-              403,
-              'EMAIL_NOT_VERIFIED',
-              'Verify the email address before signing in',
-              `${AUTH_PATH}/login`,
-            ),
+            value: errorExample('EMAIL_NOT_VERIFIED', `${AUTH_PATH}/login`),
           },
           accountSuspended: {
             summary: 'Account suspended',
-            value: errorExample(
-              403,
-              'ACCOUNT_SUSPENDED',
-              'The account is suspended',
-              `${AUTH_PATH}/login`,
-            ),
+            value: errorExample('ACCOUNT_SUSPENDED', `${AUTH_PATH}/login`),
           },
         },
       },
@@ -320,11 +310,13 @@ export class AuthController {
   })
   public login(
     @Body() body: LoginDto,
-  ): Promise<TokenPairResponseDto | TwoStepChallengeResponseDto> {
-    return this.service.login(body.email, body.password);
+    @Req() request?: Request,
+  ): Promise<LoginResponseDto | TwoStepChallengeResponseDto> {
+    return this.service.login(body.email, body.password, sessionMetadataFromRequest(request));
   }
 
   @Post('login/two-step')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Complete login two-step verification',
@@ -357,7 +349,10 @@ export class AuthController {
       },
     },
   })
-  @ApiOkResponse({ description: 'The two-step proof was accepted.', content: tokenPairContent })
+  @ApiOkResponse({
+    description: 'The two-step proof was accepted and the authenticated user was returned.',
+    content: loginSuccessContent,
+  })
   @ApiUnauthorizedResponse({
     description: 'The challenge, emailed code, or recovery code cannot be accepted.',
     content: {
@@ -365,39 +360,19 @@ export class AuthController {
         examples: {
           invalidChallenge: {
             summary: 'Invalid or expired challenge',
-            value: errorExample(
-              401,
-              'INVALID_TWO_STEP_CHALLENGE',
-              'The two-step challenge is invalid or has expired',
-              `${AUTH_PATH}/login/two-step`,
-            ),
+            value: errorExample('INVALID_TWO_STEP_CHALLENGE', `${AUTH_PATH}/login/two-step`),
           },
           invalidCode: {
             summary: 'Invalid emailed code',
-            value: errorExample(
-              401,
-              'INVALID_TWO_STEP_CODE',
-              'The two-step verification code is incorrect',
-              `${AUTH_PATH}/login/two-step`,
-            ),
+            value: errorExample('INVALID_TWO_STEP_CODE', `${AUTH_PATH}/login/two-step`),
           },
           invalidRecoveryCode: {
             summary: 'Invalid recovery code',
-            value: errorExample(
-              401,
-              'INVALID_RECOVERY_CODE',
-              'The recovery code is invalid or has already been used',
-              `${AUTH_PATH}/login/two-step`,
-            ),
+            value: errorExample('INVALID_RECOVERY_CODE', `${AUTH_PATH}/login/two-step`),
           },
           attemptsExceeded: {
             summary: 'Attempt limit reached',
-            value: errorExample(
-              401,
-              'TWO_STEP_ATTEMPTS_EXCEEDED',
-              'Too many two-step verification attempts',
-              `${AUTH_PATH}/login/two-step`,
-            ),
+            value: errorExample('TWO_STEP_ATTEMPTS_EXCEEDED', `${AUTH_PATH}/login/two-step`),
           },
         },
       },
@@ -405,12 +380,7 @@ export class AuthController {
   })
   @ApiForbiddenResponse({
     description: 'The account became unavailable before challenge completion.',
-    content: errorContent(
-      403,
-      'ACCOUNT_SUSPENDED',
-      'The account is suspended',
-      `${AUTH_PATH}/login/two-step`,
-    ),
+    content: errorContent('ACCOUNT_SUSPENDED', `${AUTH_PATH}/login/two-step`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The selected proof body failed validation.',
@@ -418,16 +388,19 @@ export class AuthController {
   })
   public completeLoginTwoStep(
     @Body() body: CompleteLoginTwoStepDto,
-  ): Promise<TokenPairResponseDto> {
+    @Req() request?: Request,
+  ): Promise<LoginResponseDto> {
     return this.service.completeLoginTwoStep(
       body.challengeToken,
       body.method === 'email_code'
         ? { method: 'email_code', code: body.code ?? '' }
         : { method: 'recovery_code', recoveryCode: body.recoveryCode ?? '' },
+      sessionMetadataFromRequest(request),
     );
   }
 
   @Post('refresh')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Rotate a refresh token',
@@ -441,21 +414,11 @@ export class AuthController {
         examples: {
           invalid: {
             summary: 'Invalid refresh token',
-            value: errorExample(
-              401,
-              'INVALID_REFRESH_TOKEN',
-              'The refresh token is invalid or expired',
-              `${AUTH_PATH}/refresh`,
-            ),
+            value: errorExample('INVALID_REFRESH_TOKEN', `${AUTH_PATH}/refresh`),
           },
           reused: {
             summary: 'Rotated token reused',
-            value: errorExample(
-              401,
-              'REFRESH_TOKEN_REUSED',
-              'Refresh token reuse was detected and the session was revoked',
-              `${AUTH_PATH}/refresh`,
-            ),
+            value: errorExample('REFRESH_TOKEN_REUSED', `${AUTH_PATH}/refresh`),
           },
         },
       },
@@ -470,6 +433,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Request a password reset',
@@ -489,6 +453,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Reset a password',
@@ -500,12 +465,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({
     description: 'The reset token is invalid or expired.',
-    content: errorContent(
-      401,
-      'INVALID_OR_EXPIRED_TOKEN',
-      'The token is invalid or has expired',
-      `${AUTH_PATH}/reset-password`,
-    ),
+    content: errorContent('INVALID_OR_EXPIRED_TOKEN', `${AUTH_PATH}/reset-password`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The token or password failed validation.',
@@ -528,12 +488,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({
     description: 'Authentication or the current password is invalid.',
-    content: errorContent(
-      401,
-      'INVALID_CREDENTIALS',
-      'Email or password is incorrect',
-      `${AUTH_PATH}/change-password`,
-    ),
+    content: errorContent('INVALID_CREDENTIALS', `${AUTH_PATH}/change-password`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'A password failed validation.',
@@ -560,12 +515,7 @@ export class AuthController {
   })
   @ApiConflictResponse({
     description: 'Email two-step verification is already enabled.',
-    content: errorContent(
-      409,
-      'TWO_STEP_ALREADY_ENABLED',
-      'Email two-step verification is already enabled',
-      `${AUTH_PATH}/two-step/enable/request`,
-    ),
+    content: errorContent('TWO_STEP_ALREADY_ENABLED', `${AUTH_PATH}/two-step/enable/request`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The current password failed validation.',
@@ -619,12 +569,7 @@ export class AuthController {
   })
   @ApiConflictResponse({
     description: 'Email two-step verification is not enabled.',
-    content: errorContent(
-      409,
-      'TWO_STEP_NOT_ENABLED',
-      'Email two-step verification is not enabled',
-      `${AUTH_PATH}/two-step/disable/request`,
-    ),
+    content: errorContent('TWO_STEP_NOT_ENABLED', `${AUTH_PATH}/two-step/disable/request`),
   })
   @ApiUnprocessableEntityResponse({
     description: 'The current password failed validation.',
@@ -683,9 +628,7 @@ export class AuthController {
   @ApiConflictResponse({
     description: 'Email two-step verification is not enabled.',
     content: errorContent(
-      409,
       'TWO_STEP_NOT_ENABLED',
-      'Email two-step verification is not enabled',
       `${AUTH_PATH}/two-step/recovery-codes/regenerate/request`,
     ),
   })
@@ -746,9 +689,66 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({
     description: 'No valid authenticated session was supplied.',
-    content: errorContent(401, 'UNAUTHORIZED', 'Authentication is required', `${AUTH_PATH}/logout`),
+    content: errorContent('UNAUTHORIZED', `${AUTH_PATH}/logout`),
   })
   public logout(@CurrentPrincipal() principal: AuthenticatedPrincipal): Promise<void> {
     return this.service.logout(principal.sessionId, principal.userId);
   }
+}
+
+function sessionMetadataFromRequest(request?: Request): SessionMetadata {
+  if (!request) {
+    return { ipAddress: null, userAgent: null, device: null, location: null };
+  }
+  const userAgent = headerValue(request, 'user-agent', 512);
+  const country =
+    headerValue(request, 'cf-ipcountry', 16) ?? headerValue(request, 'x-vercel-ip-country', 16);
+  const region = headerValue(request, 'x-vercel-ip-country-region', 128);
+  const city = headerValue(request, 'x-vercel-ip-city', 128);
+  return {
+    ipAddress: request.ip?.slice(0, 64) ?? null,
+    userAgent,
+    device: userAgent ? parseDeviceMetadata(userAgent) : null,
+    location: country || region || city ? { country, region, city } : null,
+  };
+}
+
+function headerValue(request: Request | undefined, name: string, maxLength: number): string | null {
+  if (!request) return null;
+  const value = request.headers[name];
+  const first = Array.isArray(value) ? value[0] : value;
+  return typeof first === 'string' && first.trim() ? first.trim().slice(0, maxLength) : null;
+}
+
+function parseDeviceMetadata(userAgent: string): {
+  type: string;
+  os: string | null;
+  browser: string | null;
+} {
+  const type = /mobile|android|iphone|ipad/i.test(userAgent)
+    ? 'mobile'
+    : /tablet/i.test(userAgent)
+      ? 'tablet'
+      : 'desktop';
+  const os = /Windows/i.test(userAgent)
+    ? 'Windows'
+    : /Android/i.test(userAgent)
+      ? 'Android'
+      : /iPhone|iPad|iOS/i.test(userAgent)
+        ? 'iOS'
+        : /Mac OS X/i.test(userAgent)
+          ? 'macOS'
+          : /Linux/i.test(userAgent)
+            ? 'Linux'
+            : null;
+  const browser = /Edg\//i.test(userAgent)
+    ? 'Edge'
+    : /Chrome\//i.test(userAgent)
+      ? 'Chrome'
+      : /Firefox\//i.test(userAgent)
+        ? 'Firefox'
+        : /Safari\//i.test(userAgent)
+          ? 'Safari'
+          : null;
+  return { type, os, browser };
 }

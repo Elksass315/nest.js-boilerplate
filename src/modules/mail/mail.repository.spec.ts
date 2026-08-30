@@ -10,7 +10,16 @@ describe(MailRepository.name, () => {
       Promise.resolve({ id: 'delivery-1', ...value }),
     ),
     update: jest.fn(),
+    createQueryBuilder: jest.fn(),
+    query: jest.fn(),
   };
+  const queryBuilder = {
+    update: jest.fn().mockReturnThis(),
+    set: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    execute: jest.fn().mockResolvedValue({ affected: 1 }),
+  };
+  deliveries.createQueryBuilder.mockReturnValue(queryBuilder);
   const repository = new MailRepository(deliveries as unknown as Repository<MailDeliveryEntity>);
 
   afterEach(() => jest.clearAllMocks());
@@ -28,6 +37,13 @@ describe(MailRepository.name, () => {
     expect(JSON.stringify(deliveries.create.mock.calls)).not.toContain('Amina.Private@example.com');
   });
 
+  it('cleans only bounded terminal deliveries', async () => {
+    deliveries.query.mockResolvedValue({ rowCount: 2 });
+    await expect(repository.cleanupDeliveries(new Date('2026-01-01'), 5)).resolves.toBe(2);
+    deliveries.query.mockResolvedValue(undefined);
+    await expect(repository.cleanupDeliveries(new Date('2026-01-01'), 5)).resolves.toBe(0);
+  });
+
   it('records only safe terminal delivery metadata', async () => {
     await repository.markSent('delivery-1', 2);
     await repository.markFailed('delivery-2', 5, 'SMTP_DELIVERY_FAILED');
@@ -40,6 +56,14 @@ describe(MailRepository.name, () => {
       status: 'failed',
       attempts: 5,
       errorCode: 'SMTP_DELIVERY_FAILED',
+    });
+  });
+
+  it('claims processing only when the delivery is not already sent', async () => {
+    await expect(repository.markProcessing('delivery-1', 1)).resolves.toBe(true);
+    expect(queryBuilder.where).toHaveBeenCalledWith('id = :id AND status <> :sent', {
+      id: 'delivery-1',
+      sent: 'sent',
     });
   });
 });

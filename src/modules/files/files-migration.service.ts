@@ -2,8 +2,11 @@ import { createHash } from 'node:crypto';
 import { Transform, type TransformCallback } from 'node:stream';
 
 import { Injectable } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, type EntityManager } from 'typeorm';
 import { PinoLogger } from 'nestjs-pino';
 
+import { OutboxRepository } from '@/core/outbox/outbox.repository';
 import { FilesRepository } from './files.repository';
 import type {
   FileMigrationOptions,
@@ -18,7 +21,9 @@ export class FilesMigrationService {
   public constructor(
     private readonly repository: FilesRepository,
     private readonly providers: StorageProviderFactory,
+    private readonly outbox: OutboxRepository,
     private readonly logger: PinoLogger,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {
     this.logger.setContext(FilesMigrationService.name);
   }
@@ -93,7 +98,25 @@ export class FilesMigrationService {
       }
       await verifyStoredObject(target, targetKey, file);
     }
-    if (!(await this.repository.switchProvider(file.id, source.driver, target.driver, targetKey))) {
+    const switched = await this.dataSource.transaction(async (manager: EntityManager) => {
+      const changed = await this.repository.switchProvider(
+        file.id,
+        source.driver,
+        target.driver,
+        targetKey,
+        manager,
+      );
+      if (changed) {
+        await this.outbox.insert(
+          manager,
+          'file.migration-source-delete',
+          { fileId: file.id, correlationId: file.correlationId },
+          file.correlationId,
+        );
+      }
+      return changed;
+    });
+    if (!switched) {
       throw new Error('File provider changed during migration');
     }
     try {

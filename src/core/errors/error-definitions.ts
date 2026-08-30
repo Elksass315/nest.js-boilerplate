@@ -86,6 +86,21 @@ export const ERROR_DEFINITIONS = {
     messageKey: 'errors.memberAlreadyExists',
     fallbackMessage: 'A member with this email already exists',
   },
+  FEATURE_FLAG_NOT_FOUND: {
+    status: HttpStatus.NOT_FOUND,
+    messageKey: 'errors.featureFlagNotFound',
+    fallbackMessage: 'The requested feature flag was not found',
+  },
+  FEATURE_FLAG_ALREADY_EXISTS: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.featureFlagAlreadyExists',
+    fallbackMessage: 'A feature flag with this key already exists',
+  },
+  FEATURE_FLAG_VERSION_CONFLICT: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.featureFlagVersionConflict',
+    fallbackMessage: 'The feature flag changed; read it again before retrying',
+  },
   ROLE_ASSIGNMENT_FORBIDDEN: {
     status: HttpStatus.FORBIDDEN,
     messageKey: 'errors.roleAssignmentForbidden',
@@ -105,6 +120,16 @@ export const ERROR_DEFINITIONS = {
     status: HttpStatus.UNAUTHORIZED,
     messageKey: 'errors.invalidOrExpiredToken',
     fallbackMessage: 'The token is invalid or has expired',
+  },
+  INVALID_OR_EXPIRED_VERIFICATION_CODE: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.invalidOrExpiredVerificationCode',
+    fallbackMessage: 'The verification code is invalid or has expired',
+  },
+  VERIFICATION_ATTEMPTS_EXCEEDED: {
+    status: HttpStatus.UNAUTHORIZED,
+    messageKey: 'errors.verificationAttemptsExceeded',
+    fallbackMessage: 'Too many email verification attempts; request a new code',
   },
   INVALID_REFRESH_TOKEN: {
     status: HttpStatus.UNAUTHORIZED,
@@ -145,6 +170,11 @@ export const ERROR_DEFINITIONS = {
     status: HttpStatus.CONFLICT,
     messageKey: 'errors.twoStepNotEnabled',
     fallbackMessage: 'Email two-step verification is not enabled',
+  },
+  TWO_STEP_REQUIRED_FOR_ADMIN_ROLE: {
+    status: HttpStatus.CONFLICT,
+    messageKey: 'errors.twoStepRequiredForAdminRole',
+    fallbackMessage: 'Email two-step verification is required for administrator roles',
   },
   EMAIL_NOT_VERIFIED: {
     status: HttpStatus.FORBIDDEN,
@@ -234,7 +264,7 @@ export const ERROR_DEFINITIONS = {
   INTERNAL_SERVER_ERROR: {
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     messageKey: 'errors.internalServerError',
-    fallbackMessage: 'An unexpected error occurred',
+    fallbackMessage: 'Internal server error',
   },
 } as const;
 

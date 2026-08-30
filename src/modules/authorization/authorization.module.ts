@@ -8,9 +8,17 @@ import { PermissionsGuard } from './guards/permissions.guard';
 import { PermissionEntity } from './entities/permission.entity';
 import { RolePermissionEntity } from './entities/role-permission.entity';
 import { RoleEntity } from './entities/role.entity';
+import { UserPermissionOverrideEntity } from './entities/user-permission-override.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([RoleEntity, PermissionEntity, RolePermissionEntity])],
+  imports: [
+    TypeOrmModule.forFeature([
+      RoleEntity,
+      PermissionEntity,
+      RolePermissionEntity,
+      UserPermissionOverrideEntity,
+    ]),
+  ],
   controllers: [AuthorizationController],
   providers: [AuthorizationService, AuthorizationRepository, PermissionsGuard],
   exports: [AuthorizationService, PermissionsGuard],

@@ -1,6 +1,8 @@
 import type { DatabaseConfig } from '@/database/config/database.config';
 import type { RedisConfig } from '@/redis/config/redis.config';
 
+import type { CapabilityConfiguration } from './capability-configuration';
+
 export type NodeEnvironment = 'development' | 'test' | 'staging' | 'production';
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
 export type SwaggerDocsAccess = 'public' | 'basic' | 'disabled';
@@ -9,6 +11,7 @@ export type FileStorageDriver = 'local' | 's3';
 export interface AppConfig {
   nodeEnv: NodeEnvironment;
   name: string;
+  baseUrl: string;
   port: number;
   apiPrefix: string;
 }
@@ -21,6 +24,34 @@ export interface LoggingConfig {
   level: LogLevel;
 }
 
+export interface ObservabilityConfig {
+  enabled: boolean;
+  serviceName: string;
+  endpoint: string;
+  metricExportIntervalMs: number;
+  exportTimeoutMs: number;
+}
+
+export interface RetentionConfig {
+  enabled: boolean;
+  intervalMs: number;
+  batchSize: number;
+  authTokenDays: number;
+  sessionDays: number;
+  mailDays: number;
+  outboxDays: number;
+  outboxFailureDays: number;
+}
+
+export interface SentryConfig {
+  enabled: boolean;
+  dsn: string;
+  environment: string;
+  release: string;
+  tracesSampleRate: number;
+  debug: boolean;
+}
+
 export interface SwaggerConfig {
   access: SwaggerDocsAccess;
   username: string;
@@ -28,6 +59,15 @@ export interface SwaggerConfig {
 }
 
 export interface RateLimitConfig {
+  global: RateLimitPolicy;
+  authentication: RateLimitPolicy;
+  otp: RateLimitPolicy;
+  recovery: RateLimitPolicy;
+  emailDelivery: RateLimitPolicy;
+  trustedProxyIps: string[];
+}
+
+interface RateLimitPolicy {
   ttlMs: number;
   max: number;
 }
@@ -44,7 +84,8 @@ export interface AuthConfig {
   tokenAudience: string;
   accessTokenTtlSeconds: number;
   sessionTtlSeconds: number;
-  verificationTokenTtlSeconds: number;
+  verificationCodeTtlSeconds: number;
+  verificationCodeMaxAttempts: number;
   passwordResetTokenTtlSeconds: number;
   maxActiveSessions: number;
   maxFailedLoginAttempts: number;
@@ -62,6 +103,7 @@ export interface MailConfig {
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
+  smtpRequireTls: boolean;
   smtpUsername: string;
   smtpPassword: string;
   maxRetries: number;
@@ -94,6 +136,7 @@ export interface FilesConfig {
   workerConcurrency: number;
   maxRetries: number;
   retryDelayMs: number;
+  metadataRetentionDays: number;
   userAvatar: {
     maxBytes: number;
     maxWidth: number;
@@ -113,17 +156,17 @@ export interface FilesConfig {
   };
 }
 
-export interface AppConfiguration {
+export interface AppConfiguration extends CapabilityConfiguration {
   app: AppConfig;
   cors: CorsConfig;
   logging: LoggingConfig;
+  observability: ObservabilityConfig;
+  retention: RetentionConfig;
   swagger: SwaggerConfig;
   rateLimit: RateLimitConfig;
   i18n: I18nConfig;
   auth: AuthConfig;
   mail: MailConfig;
-  invitations: InvitationsConfig;
-  files: FilesConfig;
   database: DatabaseConfig;
   redis: RedisConfig;
 }
@@ -131,9 +174,4 @@ export interface AppConfiguration {
 export type MailWorkerConfiguration = Pick<
   AppConfiguration,
   'app' | 'logging' | 'mail' | 'database' | 'redis'
->;
-
-export type FileWorkerConfiguration = Pick<
-  AppConfiguration,
-  'app' | 'logging' | 'files' | 'database' | 'redis'
 >;

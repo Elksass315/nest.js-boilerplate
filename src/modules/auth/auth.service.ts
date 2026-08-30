@@ -13,9 +13,15 @@ import type { TwoStepPurpose } from './auth.constants';
 import { AuthCryptoService } from './auth-crypto.service';
 import { AuthRepository } from './auth.repository';
 import type { MessageResponseDto } from './dto/message-response.dto';
+import type {
+  RegistrationResponseDto,
+  VerificationResendResponseDto,
+} from './dto/email-verification.dto';
+import type { LoginResponseDto } from './dto/login-response.dto';
 import type { SessionResponseDto } from './dto/session-response.dto';
 import type { TokenPairResponseDto } from './dto/token-pair-response.dto';
 import type { RecoveryCodesResponseDto, TwoStepChallengeResponseDto } from './dto/two-step.dto';
+import type { SessionMetadata } from './auth.types';
 
 interface ActionDelivery {
   userId: string;
@@ -23,7 +29,7 @@ interface ActionDelivery {
   token: string;
 }
 
-type LoginResult = TokenPairResponseDto | TwoStepChallengeResponseDto;
+type LoginResult = LoginResponseDto | TwoStepChallengeResponseDto;
 type LoginTwoStepCredential =
   { method: 'email_code'; code: string } | { method: 'recovery_code'; recoveryCode: string };
 type TwoStepProofResult =
@@ -32,12 +38,15 @@ type TwoStepProofResult =
   | { kind: 'invalid_code' }
   | { kind: 'invalid_recovery' }
   | { kind: 'success'; userId: string };
+type VerificationProofResult =
+  { kind: 'invalid' } | { kind: 'attempts_exceeded' } | { kind: 'success' };
 
 @Injectable()
 export class AuthService {
   private readonly accessTtl: number;
   private readonly sessionTtl: number;
   private readonly verificationTtl: number;
+  private readonly verificationMaxAttempts: number;
   private readonly resetTtl: number;
   private readonly maxSessions: number;
   private readonly maxAttempts: number;
@@ -56,7 +65,10 @@ export class AuthService {
   ) {
     this.accessTtl = config.getOrThrow('auth.accessTokenTtlSeconds', { infer: true });
     this.sessionTtl = config.getOrThrow('auth.sessionTtlSeconds', { infer: true });
-    this.verificationTtl = config.getOrThrow('auth.verificationTokenTtlSeconds', { infer: true });
+    this.verificationTtl = config.getOrThrow('auth.verificationCodeTtlSeconds', { infer: true });
+    this.verificationMaxAttempts = config.getOrThrow('auth.verificationCodeMaxAttempts', {
+      infer: true,
+    });
     this.resetTtl = config.getOrThrow('auth.passwordResetTokenTtlSeconds', { infer: true });
     this.maxSessions = config.getOrThrow('auth.maxActiveSessions', { infer: true });
     this.maxAttempts = config.getOrThrow('auth.maxFailedLoginAttempts', { infer: true });
@@ -66,88 +78,163 @@ export class AuthService {
     this.recoveryCodeCount = config.getOrThrow('auth.recoveryCodeCount', { infer: true });
   }
 
+  public cleanupOperationalData(
+    tokenBefore: Date,
+    sessionBefore: Date,
+    limit: number,
+  ): Promise<number> {
+    return this.repository.cleanupOperationalData(tokenBefore, sessionBefore, limit);
+  }
+
   public async register(
     fullName: string,
     email: string,
     password: string,
-  ): Promise<ActionDelivery> {
+  ): Promise<RegistrationResponseDto> {
     const normalizedEmail = this.normalizeEmail(email);
     const passwordHash = await this.crypto.hashPassword(password);
-    const user = await this.users.createPendingUser({
-      fullName: fullName.trim(),
-      email: normalizedEmail,
-      normalizedEmail,
-      passwordHash,
+    let registrationId = '';
+    await this.dataSource.transaction(async (manager) => {
+      const user = await this.users.createOrUpdatePendingUser(
+        {
+          fullName: fullName.trim(),
+          email: normalizedEmail,
+          normalizedEmail,
+          passwordHash,
+        },
+        manager,
+      );
+      registrationId = user.id;
+      const code = await this.issueEmailVerificationCode(user.id, manager);
+      await this.mail.sendEmailVerification(
+        {
+          email: user.email,
+          fullName: user.fullName,
+          code,
+          expiresInSeconds: this.verificationTtl,
+        },
+        manager,
+      );
     });
-    const delivery = await this.issueAction(user, 'email_verification', this.verificationTtl);
-    await this.mail.sendEmailVerification({
-      email: delivery.email,
-      fullName: user.fullName,
-      token: delivery.token,
-      expiresInSeconds: this.verificationTtl,
-    });
-    return delivery;
+    return {
+      registrationId,
+      verificationExpiresIn: this.verificationTtl,
+      message: 'Registration accepted; enter the code sent to your email',
+    };
   }
 
   public hashAccountPassword(password: string): Promise<string> {
     return this.crypto.hashPassword(password);
   }
 
-  public async resendVerification(email: string): Promise<ActionDelivery | null> {
-    const user = await this.users.findForAuthentication(this.normalizeEmail(email));
-    if (!user || user.emailVerifiedAt || user.status === 'suspended') return null;
-    const delivery = await this.issueAction(user, 'email_verification', this.verificationTtl);
-    await this.mail.sendEmailVerification({
-      email: delivery.email,
-      fullName: user.fullName,
-      token: delivery.token,
-      expiresInSeconds: this.verificationTtl,
-    });
-    return delivery;
+  public async resendVerification(registrationId: string): Promise<VerificationResendResponseDto> {
+    const user = await this.users.findByIdForAuthentication(registrationId);
+    if (user?.status === 'pending_verification' && !user.emailVerifiedAt) {
+      await this.dataSource.transaction(async (manager) => {
+        const code = await this.issueEmailVerificationCode(user.id, manager);
+        await this.mail.sendEmailVerification(
+          {
+            email: user.email,
+            fullName: user.fullName,
+            code,
+            expiresInSeconds: this.verificationTtl,
+          },
+          manager,
+        );
+      });
+    }
+    return {
+      verificationExpiresIn: this.verificationTtl,
+      message: 'If the registration is eligible, a verification code will be sent',
+    };
   }
 
-  public async verifyEmail(rawToken: string): Promise<MessageResponseDto> {
-    const outcome = await this.dataSource.transaction(async (manager) => {
-      const token = await this.repository.findActionTokenForUpdate(
+  public async verifyEmail(registrationId: string, code: string): Promise<MessageResponseDto> {
+    const result: VerificationProofResult = await this.dataSource.transaction(async (manager) => {
+      const verification = await this.repository.findEmailVerificationCodeForUpdate(
         manager,
-        this.crypto.hashToken(rawToken),
-        'email_verification',
+        registrationId,
       );
-      if (!token || token.consumedAt || token.expiresAt <= new Date()) return false;
-      await this.users.verifyEmail(token.userId);
-      await this.repository.consumeActionToken(manager, token);
-      return true;
+      if (!verification || verification.expiresAt <= new Date()) {
+        return { kind: 'invalid' } as const;
+      }
+      if (verification.attempts >= this.verificationMaxAttempts) {
+        return { kind: 'attempts_exceeded' } as const;
+      }
+      if (!(await this.crypto.verifySecret(verification.codeHash, code))) {
+        verification.attempts += 1;
+        if (verification.attempts >= this.verificationMaxAttempts) {
+          verification.consumedAt = new Date();
+        }
+        await this.repository.saveEmailVerificationCode(manager, verification);
+        return verification.attempts >= this.verificationMaxAttempts
+          ? ({ kind: 'attempts_exceeded' } as const)
+          : ({ kind: 'invalid' } as const);
+      }
+      verification.consumedAt = new Date();
+      await this.users.verifyEmail(registrationId, manager);
+      await this.repository.saveEmailVerificationCode(manager, verification);
+      return { kind: 'success' } as const;
     });
-    if (!outcome) throw new AppException('INVALID_OR_EXPIRED_TOKEN');
+    if (result.kind === 'attempts_exceeded') {
+      throw new AppException('VERIFICATION_ATTEMPTS_EXCEEDED');
+    }
+    if (result.kind === 'invalid') {
+      throw new AppException('INVALID_OR_EXPIRED_VERIFICATION_CODE');
+    }
     return { message: 'Email address verified' };
   }
 
-  public async login(email: string, password: string): Promise<LoginResult> {
+  private async issueEmailVerificationCode(
+    userId: string,
+    transactionManager: EntityManager,
+  ): Promise<string> {
+    const code = this.crypto.numericCode();
+    const codeHash = await this.crypto.hashSecret(code);
+    const issue = (manager: EntityManager): Promise<void> =>
+      this.repository.issueEmailVerificationCode(
+        manager,
+        userId,
+        codeHash,
+        new Date(Date.now() + this.verificationTtl * 1000),
+      );
+    await issue(transactionManager);
+    return code;
+  }
+
+  public async login(
+    email: string,
+    password: string,
+    metadata: SessionMetadata = emptySessionMetadata(),
+  ): Promise<LoginResult> {
     const user = await this.users.findForAuthentication(this.normalizeEmail(email));
     if (!user) {
       await this.crypto.verifyDummyPassword(password);
       throw new AppException('INVALID_CREDENTIALS');
     }
-    if (user.lockedUntil && user.lockedUntil > new Date()) throw new AppException('ACCOUNT_LOCKED');
+    const locked = user.lockedUntil !== null && user.lockedUntil > new Date();
     if (!(await this.crypto.verifyPassword(user.passwordHash, password))) {
-      await this.users.recordFailedLogin(user.id, this.maxAttempts, this.lockSeconds);
+      if (!locked) await this.users.recordFailedLogin(user.id, this.maxAttempts, this.lockSeconds);
       throw new AppException('INVALID_CREDENTIALS');
     }
     this.assertLoginAllowed(user);
     const current = await this.users.recordSuccessfulLogin(user.id);
-    if (current.emailTwoStepEnabled) return this.issueTwoStepChallenge(current, 'login');
-    return this.createSession(current);
+    if (this.requiresEmailTwoStep(current)) return this.issueTwoStepChallenge(current, 'login');
+    return this.createSession(current, metadata);
   }
 
   public async completeLoginTwoStep(
     challengeToken: string,
     credential: LoginTwoStepCredential,
-  ): Promise<TokenPairResponseDto> {
+    metadata: SessionMetadata = emptySessionMetadata(),
+  ): Promise<LoginResponseDto> {
     const userId = await this.consumeTwoStepProof(challengeToken, 'login', credential);
     const user = await this.users.findByIdForAuthentication(userId);
-    if (!user?.emailTwoStepEnabled) throw new AppException('INVALID_TWO_STEP_CHALLENGE');
+    if (!user || !this.requiresEmailTwoStep(user)) {
+      throw new AppException('INVALID_TWO_STEP_CHALLENGE');
+    }
     this.assertLoginAllowed(user);
-    return this.createSession(user);
+    return this.createSession(user, metadata);
   }
 
   public async requestTwoStepChange(
@@ -158,6 +245,12 @@ export class AuthService {
     const user = await this.requireCurrentPassword(userId, currentPassword);
     if (purpose === 'enable' && user.emailTwoStepEnabled) {
       throw new AppException('TWO_STEP_ALREADY_ENABLED');
+    }
+    if (
+      purpose !== 'enable' &&
+      user.roles.some(({ key }) => key === 'admin' || key === 'super_admin')
+    ) {
+      throw new AppException('TWO_STEP_REQUIRED_FOR_ADMIN_ROLE');
     }
     if (purpose !== 'enable' && !user.emailTwoStepEnabled) {
       throw new AppException('TWO_STEP_NOT_ENABLED');
@@ -284,12 +377,18 @@ export class AuthService {
   public async forgotPassword(email: string): Promise<ActionDelivery | null> {
     const user = await this.users.findForAuthentication(this.normalizeEmail(email));
     if (user?.status !== 'active') return null;
-    const delivery = await this.issueAction(user, 'password_reset', this.resetTtl);
-    await this.mail.sendPasswordReset({
-      email: delivery.email,
-      fullName: user.fullName,
-      token: delivery.token,
-      expiresInSeconds: this.resetTtl,
+    const delivery = await this.dataSource.transaction(async (manager) => {
+      const action = await this.issueAction(user, 'password_reset', this.resetTtl, manager);
+      await this.mail.sendPasswordReset(
+        {
+          email: action.email,
+          fullName: user.fullName,
+          token: action.token,
+          expiresInSeconds: this.resetTtl,
+        },
+        manager,
+      );
+      return action;
     });
     return delivery;
   }
@@ -346,8 +445,9 @@ export class AuthService {
     userId: string,
     page: number,
     limit: number,
+    revoked?: boolean,
   ): Promise<OffsetPage<SessionResponseDto>> {
-    const [sessions, total] = await this.repository.findPage(userId, page, limit);
+    const [sessions, total] = await this.repository.findPage(userId, page, limit, revoked);
     return buildOffsetPage(
       sessions.map((session) => ({
         id: session.id,
@@ -355,6 +455,10 @@ export class AuthService {
         lastUsedAt: session.lastUsedAt.toISOString(),
         expiresAt: session.expiresAt.toISOString(),
         revokedAt: session.revokedAt?.toISOString() ?? null,
+        ipAddress: session.ipAddress,
+        userAgent: session.userAgent,
+        device: session.deviceMetadata,
+        location: session.approximateLocation,
       })),
       total,
       page,
@@ -380,26 +484,58 @@ export class AuthService {
     return this.revokeEverySession(userId, 'user_requested');
   }
 
-  private async createSession(user: UserWithRoles): Promise<TokenPairResponseDto> {
+  private async createSession(
+    user: UserWithRoles,
+    metadata: SessionMetadata,
+  ): Promise<LoginResponseDto> {
     const refresh = this.crypto.opaqueToken();
     const expiresAt = new Date(Date.now() + this.sessionTtl * 1000);
     const session = await this.dataSource.transaction(async (manager) => {
       await this.repository.lockUserSessions(manager, user.id);
       await this.repository.enforceSessionLimit(manager, user.id, this.maxSessions);
-      return this.repository.createSession(
+      const created = await this.repository.createSession(
         manager,
         user.id,
         user.authVersion,
         expiresAt,
         refresh.hash,
+        metadata,
       );
+      await this.mail.sendNewSession(
+        { email: user.email, fullName: user.fullName, occurredAt: new Date() },
+        manager,
+      );
+      return created;
     });
-    await this.mail.sendNewSession({
-      email: user.email,
-      fullName: user.fullName,
-      occurredAt: new Date(),
-    });
-    return this.tokenPair(user, session.id, refresh.raw);
+    const tokens = await this.tokenPair(user, session.id, refresh.raw);
+    const profile = await this.users.getSelf(user.id);
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      tokenType: tokens.tokenType,
+      expiresIn: tokens.expiresIn,
+      user: {
+        id: profile.id,
+        fullName: profile.fullName,
+        email: profile.email,
+        status: profile.status,
+        emailVerifiedAt: profile.emailVerifiedAt,
+        emailTwoStepEnabled: profile.emailTwoStepEnabled,
+        emailTwoStepRequired: profile.emailTwoStepRequired,
+        roles: profile.roles,
+        permissions: [...new Set(user.roles.flatMap(({ permissions }) => permissions))],
+        ...(profile.avatar === undefined ? {} : { avatar: profile.avatar }),
+        createdAt: profile.createdAt,
+        updatedAt: profile.updatedAt,
+      },
+    };
+  }
+
+  private requiresEmailTwoStep(user: UserWithRoles): boolean {
+    return (
+      user.emailTwoStepEnabled ||
+      user.roles.some(({ key }) => key === 'admin' || key === 'super_admin')
+    );
   }
 
   private async issueTwoStepChallenge(
@@ -409,22 +545,25 @@ export class AuthService {
     const challenge = this.crypto.opaqueToken();
     const code = this.crypto.numericCode();
     const codeHash = await this.crypto.hashSecret(code);
-    await this.dataSource.transaction((manager) =>
-      this.repository.issueTwoStepChallenge(
+    await this.dataSource.transaction(async (manager) => {
+      await this.repository.issueTwoStepChallenge(
         manager,
         user.id,
         purpose,
         challenge.hash,
         codeHash,
         new Date(Date.now() + this.twoStepTtl * 1000),
-      ),
-    );
-    await this.mail.sendTwoStepCode({
-      email: user.email,
-      fullName: user.fullName,
-      code,
-      expiresInSeconds: this.twoStepTtl,
-      purpose,
+      );
+      await this.mail.sendTwoStepCode(
+        {
+          email: user.email,
+          fullName: user.fullName,
+          code,
+          expiresInSeconds: this.twoStepTtl,
+          purpose,
+        },
+        manager,
+      );
     });
     return { requiresTwoStep: true, challengeToken: challenge.raw, expiresIn: this.twoStepTtl };
   }
@@ -537,19 +676,20 @@ export class AuthService {
 
   private async issueAction(
     user: UserWithRoles,
-    purpose: 'email_verification' | 'password_reset',
+    purpose: 'password_reset',
     ttl: number,
+    transactionManager: EntityManager,
   ): Promise<ActionDelivery> {
     const token = this.crypto.opaqueToken();
-    await this.dataSource.transaction((manager) =>
+    const issue = (manager: EntityManager): Promise<void> =>
       this.repository.issueActionToken(
         manager,
         user.id,
         purpose,
         token.hash,
         new Date(Date.now() + ttl * 1000),
-      ),
-    );
+      );
+    await issue(transactionManager);
     return { userId: user.id, email: user.email, token: token.raw };
   }
 
@@ -565,4 +705,8 @@ export class AuthService {
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
   }
+}
+
+function emptySessionMetadata(): SessionMetadata {
+  return { ipAddress: null, userAgent: null, device: null, location: null };
 }

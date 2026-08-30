@@ -16,10 +16,15 @@
   "invitationResendLimitReached": "The invitation resend limit has been reached",
   "invitationDeliveryUnavailable": "The invitation email could not be queued",
   "memberAlreadyExists": "A member with this email already exists",
+  "featureFlagNotFound": "The requested feature flag was not found",
+  "featureFlagAlreadyExists": "A feature flag with this key already exists",
+  "featureFlagVersionConflict": "The feature flag changed; read it again before retrying",
   "roleAssignmentForbidden": "You are not allowed to assign the requested role",
   "invalidCredentials": "Email or password is incorrect",
   "accountLocked": "The account is temporarily locked",
   "invalidOrExpiredToken": "The token is invalid or has expired",
+  "invalidOrExpiredVerificationCode": "The verification code is invalid or has expired",
+  "verificationAttemptsExceeded": "Too many email verification attempts; request a new code",
   "invalidRefreshToken": "The refresh token is invalid or expired",
   "refreshTokenReused": "Refresh token reuse was detected and the session was revoked",
   "invalidTwoStepChallenge": "The two-step challenge is invalid or has expired",
@@ -28,6 +33,7 @@
   "twoStepAttemptsExceeded": "Too many two-step verification attempts",
   "twoStepAlreadyEnabled": "Email two-step verification is already enabled",
   "twoStepNotEnabled": "Email two-step verification is not enabled",
+  "twoStepRequiredForAdminRole": "Email two-step verification is required for administrator roles",
   "emailNotVerified": "Verify the email address before signing in",
   "accountSuspended": "The account is suspended",
   "sessionNotFound": "The requested session was not found",
@@ -45,5 +51,5 @@
   "forbidden": "You are not allowed to perform this action",
   "tooManyRequests": "Too many requests",
   "serviceNotReady": "One or more required services are unavailable",
-  "internalServerError": "An unexpected error occurred"
+  "internalServerError": "Internal server error"
 }

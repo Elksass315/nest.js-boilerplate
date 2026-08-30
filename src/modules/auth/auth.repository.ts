@@ -1,20 +1,60 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, IsNull, MoreThan, type Repository } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import {
+  DataSource,
+  EntityManager,
+  IsNull,
+  MoreThan,
+  Not,
+  type FindOptionsWhere,
+  type Repository,
+} from 'typeorm';
 
 import type { AuthTokenPurpose, SessionRevokeReason, TwoStepPurpose } from './auth.constants';
 import { AuthRecoveryCodeEntity } from './entities/auth-recovery-code.entity';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
+import { AuthEmailVerificationCodeEntity } from './entities/auth-email-verification-code.entity';
 import { AuthRefreshTokenEntity } from './entities/auth-refresh-token.entity';
 import { AuthSessionEntity } from './entities/auth-session.entity';
 import { AuthTwoStepChallengeEntity } from './entities/auth-two-step-challenge.entity';
+import type { SessionMetadata } from './auth.types';
 
 @Injectable()
 export class AuthRepository {
   public constructor(
     @InjectRepository(AuthSessionEntity)
     private readonly sessions: Repository<AuthSessionEntity>,
+    @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
   ) {}
+
+  public async cleanupOperationalData(
+    tokenBefore: Date,
+    sessionBefore: Date,
+    limit: number,
+  ): Promise<number> {
+    if (!this.dataSource) throw new Error('Database datasource is required for retention cleanup');
+    return this.dataSource.transaction(async (manager) => {
+      let deleted = 0;
+      const tokenStatements = [
+        `DELETE FROM auth_action_tokens WHERE id IN (SELECT id FROM auth_action_tokens WHERE expires_at < $1 OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_email_verification_codes WHERE id IN (SELECT id FROM auth_email_verification_codes WHERE expires_at < $1 OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_two_step_challenges WHERE id IN (SELECT id FROM auth_two_step_challenges WHERE expires_at < $1 OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_recovery_codes WHERE id IN (SELECT id FROM auth_recovery_codes WHERE consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_refresh_tokens WHERE id IN (SELECT id FROM auth_refresh_tokens WHERE expires_at < $1 OR (status <> 'active' AND updated_at < $1) ORDER BY id LIMIT $2)`,
+      ];
+      for (const statement of tokenStatements) {
+        const result: unknown = await manager.query(statement, [tokenBefore, limit]);
+        deleted += rowCount(result);
+      }
+      const sessionResult: unknown = await manager.query(
+        `DELETE FROM auth_sessions WHERE id IN (SELECT id FROM auth_sessions WHERE expires_at < $1 OR revoked_at < $1 ORDER BY id LIMIT $2)`,
+        [sessionBefore, limit],
+      );
+      deleted += rowCount(sessionResult);
+      return deleted;
+    });
+  }
 
   public async lockUserSessions(manager: EntityManager, userId: string): Promise<void> {
     await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`auth:sessions:${userId}`]);
@@ -26,6 +66,12 @@ export class AuthRepository {
     authVersion: number,
     expiresAt: Date,
     tokenHash: string,
+    metadata: SessionMetadata = {
+      ipAddress: null,
+      userAgent: null,
+      device: null,
+      location: null,
+    },
   ): Promise<AuthSessionEntity> {
     const now = new Date();
     const session = await manager.getRepository(AuthSessionEntity).save(
@@ -36,6 +82,10 @@ export class AuthRepository {
         expiresAt,
         revokedAt: null,
         revokeReason: null,
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+        deviceMetadata: metadata.device,
+        approximateLocation: metadata.location,
       }),
     );
     await manager.getRepository(AuthRefreshTokenEntity).save(
@@ -145,9 +195,12 @@ export class AuthRepository {
     userId: string,
     page: number,
     limit: number,
+    revoked?: boolean,
   ): Promise<[AuthSessionEntity[], number]> {
+    const where: FindOptionsWhere<AuthSessionEntity> = { userId };
+    if (revoked !== undefined) where.revokedAt = revoked ? Not(IsNull()) : IsNull();
     return this.sessions.findAndCount({
-      where: { userId },
+      where,
       order: { createdAt: 'DESC', id: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -199,6 +252,43 @@ export class AuthRepository {
   ): Promise<void> {
     token.consumedAt = new Date();
     await manager.getRepository(AuthActionTokenEntity).save(token);
+  }
+
+  public async issueEmailVerificationCode(
+    manager: EntityManager,
+    userId: string,
+    codeHash: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await manager
+      .getRepository(AuthEmailVerificationCodeEntity)
+      .createQueryBuilder()
+      .update()
+      .set({ consumedAt: new Date() })
+      .where('user_id = :userId AND consumed_at IS NULL', { userId })
+      .execute();
+    const repository = manager.getRepository(AuthEmailVerificationCodeEntity);
+    await repository.save(
+      repository.create({ userId, codeHash, attempts: 0, expiresAt, consumedAt: null }),
+    );
+  }
+
+  public findEmailVerificationCodeForUpdate(
+    manager: EntityManager,
+    userId: string,
+  ): Promise<AuthEmailVerificationCodeEntity | null> {
+    return manager.getRepository(AuthEmailVerificationCodeEntity).findOne({
+      where: { userId, consumedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  public async saveEmailVerificationCode(
+    manager: EntityManager,
+    verification: AuthEmailVerificationCodeEntity,
+  ): Promise<void> {
+    await manager.getRepository(AuthEmailVerificationCodeEntity).save(verification);
   }
 
   public async issueTwoStepChallenge(
@@ -288,4 +378,13 @@ export class AuthRepository {
   public async deleteRecoveryCodes(manager: EntityManager, userId: string): Promise<void> {
     await manager.getRepository(AuthRecoveryCodeEntity).delete({ userId });
   }
+}
+
+function rowCount(value: unknown): number {
+  return typeof value === 'object' &&
+    value !== null &&
+    'rowCount' in value &&
+    typeof value.rowCount === 'number'
+    ? value.rowCount
+    : 0;
 }

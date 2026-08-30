@@ -1,4 +1,6 @@
-export const MAIL_QUEUE = 'mail';
+import { OUTBOX_MAIL_QUEUE } from '@/core/outbox/outbox.types';
+
+export const MAIL_QUEUE = OUTBOX_MAIL_QUEUE;
 
 export type MailTemplate =
   | 'email-verification'
@@ -29,11 +31,16 @@ export interface MailJob {
 export interface VerificationMailInput {
   email: string;
   fullName: string;
-  token: string;
+  code: string;
   expiresInSeconds: number;
 }
 
-export type PasswordResetMailInput = VerificationMailInput;
+export interface PasswordResetMailInput {
+  email: string;
+  fullName: string;
+  token: string;
+  expiresInSeconds: number;
+}
 
 export interface TwoStepCodeMailInput {
   email: string;
@@ -65,7 +72,7 @@ export interface TeamInvitationMailInput {
   email: string;
   inviterName: string;
   role: string;
-  token: string;
+  actionUrl: string;
   expiresAt: Date;
 }
 

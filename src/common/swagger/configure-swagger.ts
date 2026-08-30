@@ -1,9 +1,10 @@
 import type { ConfigService } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule, type OpenAPIObject } from '@nestjs/swagger';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 
 import { API_VERSION } from '@/common/http/api-version.constants';
 import type { AppConfiguration } from '@/config/configuration.types';
+import { ERROR_DEFINITIONS } from '@/core/errors/error-definitions';
 
 import { createSwaggerBasicAuthMiddleware } from './swagger-basic-auth.middleware';
 
@@ -27,13 +28,32 @@ export function configureSwagger(
   }
 
   const appName = configService.getOrThrow('app.name', { infer: true });
+  const document = createOpenApiDocument(app, appName);
+  SwaggerModule.setup('docs', app, document, {
+    customSiteTitle: `${appName} Documentation`,
+  });
+}
+
+export type CompanyOpenApiDocument = OpenAPIObject & {
+  'x-stable-errors': Record<string, { statusCode: number; message: string }>;
+};
+
+export function createOpenApiDocument(
+  app: NestExpressApplication,
+  appName: string,
+): CompanyOpenApiDocument {
   const swaggerConfig = new DocumentBuilder()
     .setTitle(appName)
     .setDescription('Single-tenant SaaS platform API')
     .setVersion(API_VERSION)
     .addBearerAuth()
     .build();
-  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig), {
-    customSiteTitle: `${appName} Documentation`,
-  });
+  const document = SwaggerModule.createDocument(app, swaggerConfig) as CompanyOpenApiDocument;
+  document['x-stable-errors'] = Object.fromEntries(
+    Object.entries(ERROR_DEFINITIONS).map(([code, definition]) => [
+      code,
+      { statusCode: definition.status, message: definition.fallbackMessage },
+    ]),
+  );
+  return document;
 }

@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
+import { validateEndpointTables } from './documentation-endpoints.mjs';
+
 const root = process.cwd();
 const docsRoot = path.join(root, 'docs');
 const modulesRoot = path.join(root, 'src', 'modules');
@@ -59,6 +61,13 @@ for (const entry of readdirSync(modulesRoot, { withFileTypes: true }).filter((it
     violations.push(`Feature "${entry.name}" requires docs/01-backend/modules/${entry.name}.md`);
   }
 }
+
+violations.push(
+  ...validateEndpointTables({
+    modulesRoot,
+    docsRoot: path.join(docsRoot, '01-backend', 'modules'),
+  }),
+);
 
 if (violations.length > 0) {
   process.stderr.write(`Documentation policy violations:\n${violations.join('\n')}\n`);

@@ -1,15 +1,16 @@
 import { Readable } from 'node:stream';
 
-import type { Queue } from 'bullmq';
 import type { ConfigService } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 
 import type { AppConfiguration, FilesConfig } from '@/config/configuration.types';
 import { AppException } from '@/core/errors/app.exception';
+import type { OutboxRepository } from '@/core/outbox/outbox.repository';
+import type { DataSource } from 'typeorm';
 
 import type { FilesRepository } from './files.repository';
 import { FilesService } from './files.service';
-import type { FileJob, StoredFile, StorageProvider } from './files.types';
+import type { StoredFile, StorageProvider } from './files.types';
 import type { StorageProviderFactory } from './providers/storage-provider.factory';
 import type { RedisTusLocker } from './redis-tus-locker';
 
@@ -28,13 +29,17 @@ describe(FilesService.name, () => {
     findReadyPublicByIds: jest.fn(),
     claimPrepared: jest.fn(),
     markDeletingInTransaction: jest.fn(),
+    cleanupTemporaryMetadata: jest.fn(),
   };
   const local = provider();
   const providers = {
     resolve: jest.fn(() => local),
     enabled: jest.fn(() => [local]),
   };
-  const queue = { add: jest.fn() };
+  const outbox = { insert: jest.fn() };
+  const dataSource = {
+    transaction: jest.fn(async (work: (manager: object) => Promise<unknown>) => work({})),
+  };
   const logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
   const filesConfig = {
     writeDriver: 'local',
@@ -48,14 +53,17 @@ describe(FilesService.name, () => {
   beforeEach(() => {
     jest.clearAllMocks();
     const config = {
-      getOrThrow: jest.fn(() => filesConfig),
+      getOrThrow: jest.fn((key: string) =>
+        key === 'app.baseUrl' ? 'https://api.example.test' : filesConfig,
+      ),
     } as unknown as ConfigService<AppConfiguration, true>;
     service = new FilesService(
       config,
       repository as unknown as FilesRepository,
       providers as unknown as StorageProviderFactory,
       {} as RedisTusLocker,
-      queue as unknown as Queue<FileJob>,
+      outbox as unknown as OutboxRepository,
+      dataSource as unknown as DataSource,
       logger as unknown as PinoLogger,
     );
     repository.findCleanupCandidates.mockResolvedValue([]);
@@ -69,6 +77,13 @@ describe(FilesService.name, () => {
       kind: 'redirect',
       url: 'https://objects.example/file',
     });
+  });
+
+  it('delegates temporary metadata retention to the files repository', async () => {
+    repository.cleanupTemporaryMetadata.mockResolvedValue(3);
+    const before = new Date('2026-01-01');
+    await expect(service.cleanupTemporaryMetadata(before, 10)).resolves.toBe(3);
+    expect(repository.cleanupTemporaryMetadata).toHaveBeenCalledWith(before, 10);
   });
 
   it('streams a public local object with safe metadata', async () => {
@@ -94,12 +109,48 @@ describe(FilesService.name, () => {
     expect(logger.error).toHaveBeenCalled();
   });
 
+  it('returns absolute public URLs from the configured application base URL', async () => {
+    repository.findReadyPublicByIds.mockResolvedValue([
+      {
+        fileId: 'file-1',
+        publicId: 'public-1',
+        url: '/api/v1/files/public/public-1',
+        mimeType: 'image/png',
+        sizeBytes: 9,
+      },
+    ]);
+
+    await expect(service.findPublicDescriptors(['file-1'])).resolves.toEqual([
+      expect.objectContaining({ url: 'https://api.example.test/api/v1/files/public/public-1' }),
+    ]);
+  });
+
   it('enqueues bounded correlated deletion jobs', async () => {
     await service.enqueueDeletion('file-1', 'correlation-1');
-    expect(queue.add).toHaveBeenCalledWith(
-      'files.physical-delete',
+    expect(outbox.insert).toHaveBeenCalledWith(
+      expect.anything(),
+      'file.delete',
       { fileId: 'file-1', correlationId: 'correlation-1' },
-      expect.objectContaining({ attempts: 5, backoff: { type: 'exponential', delay: 30_000 } }),
+      'correlation-1',
+    );
+  });
+
+  it('writes both avatar cleanup requests through one caller transaction', async () => {
+    await service.enqueueClaimCleanup('file-1', 'old-file', 'correlation-1', {} as never);
+
+    expect(outbox.insert).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      'file.migration-source-delete',
+      { fileId: 'file-1', correlationId: 'correlation-1' },
+      'correlation-1',
+    );
+    expect(outbox.insert).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'file.delete',
+      { fileId: 'old-file', correlationId: 'correlation-1' },
+      'correlation-1',
     );
   });
 
@@ -128,8 +179,8 @@ describe(FilesService.name, () => {
       storedFile({ pendingDeleteProvider: 's3', pendingDeleteStorageKey: 'old-key' }),
     ]);
     await expect(service.sweepExpired('sweeper-correlation')).resolves.toBe(2);
-    expect(repository.markDeleting).toHaveBeenCalledWith('file-1');
-    expect(queue.add).toHaveBeenCalledTimes(2);
+    expect(repository.markDeleting).toHaveBeenCalledWith('file-1', expect.anything());
+    expect(outbox.insert).toHaveBeenCalledTimes(2);
   });
 
   it('deletes a deferred migration source and checks all enabled providers', async () => {
@@ -157,7 +208,7 @@ describe(FilesService.name, () => {
     repository.claimPrepared.mockResolvedValue({
       fileId: upload.id,
       publicId: upload.publicId,
-      url: `/api/v1/files/public/${upload.publicId}`,
+      url: `http://localhost:3000/api/v1/files/public/${upload.publicId}`,
       mimeType: 'image/png',
       sizeBytes: 9,
     });
@@ -226,7 +277,7 @@ describe(FilesService.name, () => {
   });
 
   it('keeps enqueue failures recoverable after database commit', async () => {
-    queue.add.mockRejectedValueOnce(new Error('redis unavailable'));
+    outbox.insert.mockRejectedValueOnce(new Error('database unavailable'));
     await expect(service.scheduleDeletion('file-1', 'correlation-1')).resolves.toBeUndefined();
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ fileId: 'file-1', correlationId: 'correlation-1' }),

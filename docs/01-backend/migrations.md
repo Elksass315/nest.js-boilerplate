@@ -3,11 +3,14 @@
 Identity migration `1786579200000-CreateIdentityCore` creates users, role assignments, security
 audits, roles, permissions, and role-permission mappings with explicit checks, indexes, and foreign
 keys. Seed `002-rbac` installs deterministic fixed RBAC definitions. The seed contains no user or
-bootstrap-super-admin credentials; that optional behavior requires explicit seed configuration in a
-later auth change.
+bootstrap-super-admin credentials. After migrations and seeds, create the first administrator with
+the interactive one-shot `pnpm auth:bootstrap-admin` command. It requires a TTY for password input,
+refuses to modify an existing user, refuses to run when an active super-admin already exists, and
+records a `user.created` audit event. Never put bootstrap credentials in seed files or commit them to
+environment configuration.
 
 Auth migration `1786665600000-CreateAuthSessions` creates absolute-lifetime sessions, append-only
-rotating refresh-token records, and single-use verification/reset action tokens. Unique token
+rotating refresh-token records, and the original single-use verification/reset action tokens. Unique token
 hashes, status/purpose checks, ownership foreign keys, and stable session indexes are enforced in
 PostgreSQL. Only SHA-256 token hashes are stored. Migration reversal removes auth action tokens,
 refresh tokens, then sessions without modifying users or RBAC state.
@@ -16,6 +19,22 @@ Identity email-security migration `1786752000000-CreateIdentityEmailSecurity` cr
 expiring two-step challenges, hashed single-use recovery codes, and mail-delivery state. Delivery
 records store only a SHA-256 recipient fingerprint plus a masked address; queue payloads retain the
 full recipient only for the bounded Redis job lifetime. Reversal removes these three owned tables.
+
+Email-verification migration `1787356800000-CreateEmailVerificationCodes` invalidates legacy
+email-verification link rows, restricts action tokens to password reset, and creates dedicated
+Argon2id-hashed six-digit code state with attempts, expiry, consumption, ownership, and an active
+lookup index. Existing pending accounts remain and can resubmit registration to receive a new code.
+Reversal restores the legacy purpose constraint but cannot restore invalidated raw link tokens.
+
+Session metadata migration `1787443200000-AddSessionMetadata` adds nullable IP address, user-agent,
+device metadata, and approximate location JSON fields to `auth_sessions`. Existing sessions remain
+valid with null metadata; reversal drops only these four columns.
+
+User-permission migration `1787529600000-CreateUserPermissionOverrides` adds unique per-user grant
+or revoke rows referencing the permission catalog. Seed `006-user-permission-overrides-rbac` grants
+`users.permissions.manage` only to `super_admin`. Runtime mutation additionally requires the actor's
+real super-admin role and rejects protected grants, so an override cannot delegate authorization
+administration.
 
 File migration `1786838400000-CreateFileStorage` creates `stored_files` with provider/key and public
 identifier uniqueness, lifecycle/visibility/provider checks, uploader ownership, expiry indexes,
@@ -29,5 +48,26 @@ foreign key to `stored_files` and `ON DELETE SET NULL`. The migration imports ne
 entity; users and files continue to access persistence only through their owning repositories and
 public services. Reversal drops the foreign key, uniqueness constraint, and column without deleting
 stored bytes.
+
+Security-center migration `1787184000000-IndexSecurityAuditPagination` replaces the initial
+security-audit subject/time index with `(user_id, created_at, id)`, matching newest-first offset
+pagination with a unique tie-breaker. Its reversal restores the original index. Immutable seed
+`004-security-audit-rbac` grants cross-user audit lookup only to the fixed `super_admin` role.
+
+Transactional outbox migration `1787600000000-CreateTransactionalOutbox` creates durable,
+versioned `mail.send`, `file.delete`, and `file.migration-source-delete` messages with correlation
+IDs, attempts, availability windows, and expiring leases. Mail delivery rows and `mail.send`
+messages are committed together by the owning service transaction. The outbox worker claims rows
+with `FOR UPDATE SKIP LOCKED` and uses the outbox UUID as the BullMQ job ID. `pnpm outbox:status`
+and `pnpm outbox:retry <message-id>` are guarded CLI operations; retry always requires one explicit
+UUID and preserves the stored correlation context.
+
+Deployment migrations follow an expand/contract policy. Add nullable columns, tables, indexes, and
+dual-read/write behavior first so the currently running image remains compatible; deploy the new
+image only after the expand migration succeeds; remove legacy columns or constraints in a later
+contract migration after the previous image is no longer eligible for rollback. The immutable image
+declares this policy in `deployment/migration-compatibility.json` and carries the same declaration as
+an OCI label. Jenkins refuses image rollback when the declaration is absent and requires a managed
+production backup reference before any migration runs.
 
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Error Handling](error-handling.md)

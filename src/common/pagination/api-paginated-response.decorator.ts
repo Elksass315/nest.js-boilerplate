@@ -6,6 +6,7 @@ import { CursorPageMetaDto, OffsetPageMetaDto } from './pagination.dto';
 export function ApiOffsetPaginatedResponse(
   model: Type<unknown>,
   description: string,
+  example?: Record<string, unknown>,
 ): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(model, OffsetPageMetaDto),
@@ -21,6 +22,7 @@ export function ApiOffsetPaginatedResponse(
               meta: { $ref: getSchemaPath(OffsetPageMetaDto) },
             },
           },
+          ...(example ? { example } : {}),
         },
       },
     }),

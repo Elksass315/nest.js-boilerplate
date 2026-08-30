@@ -30,10 +30,10 @@ describe(SessionsController.name, () => {
 
   it('delegates paginated list and owned revocations', async () => {
     service.listSessions.mockResolvedValue({ items: [], meta: {} });
-    await controller.list(principal, { page: 1, limit: 20 });
+    await controller.list(principal, { page: 1, limit: 20, revoked: false });
     await controller.revoke(principal, 'b8f10c56-5e3c-42ee-8436-7994b9691ced');
     await controller.revokeAll(principal);
-    expect(service.listSessions).toHaveBeenCalledWith(principal.userId, 1, 20);
+    expect(service.listSessions).toHaveBeenCalledWith(principal.userId, 1, 20, false);
     expect(service.revokeAllSessions).toHaveBeenCalledWith(principal.userId);
   });
 });

@@ -2,12 +2,18 @@
 
 ## Purpose and scope
 
+The initializer treats avatars as an optional `user-avatars` capability (resolved with `files`).
+Profiles that omit it do not generate avatar routes or response/OpenAPI fields; the users module
+consumes the capability through its optional profile-enricher contract.
+
 `users` owns account identity state, profile data, role assignments, and append-only security audit
 records. It does not authenticate credentials, issue tokens, manage sessions, send mail, or define
 role/permission policy. Those capabilities belong to the `auth`, `mail`, and `authorization`
 modules.
 It owns avatar authorization, upload routes, image policy, profile attachment, and avatar security
-audits while consuming byte storage only through the public `FilesService`.
+audits while consuming byte storage only through the public `FilesService`. Avatar image processing
+and association persistence now live in the optional `user-avatars` capability; compatibility
+exports preserve the existing routes and response shape.
 
 ## Structure and public surface
 
@@ -22,30 +28,48 @@ command for invitations. That feature cannot access user entities or repositorie
 the sole owner of account lookup and audit persistence.
 The public service also provides a transaction-aware invited-user command that creates an active
 verified account, one fixed role assignment, and its acceptance audit atomically.
+Pending registration creation/revision is serialized by normalized-email advisory lock. A repeated
+pending registration updates only its full name, canonical email, and password hash and records
+`auth.registration.updated`; active and suspended duplicates remain conflicts.
 
 ## API contracts
 
-All routes use URI version `v1` and require the `PermissionsGuard`. The global access-token guard
-hydrates the typed `request.user` principal from current user/session state before permission checks.
+All routes use URI version `v1` and declare an explicit access policy. `RequireAuthenticated` and
+`RequirePermissions` install `PermissionsGuard`; `Public` is reserved for anonymous OPTIONS
+capability discovery. The global access-token guard hydrates the typed `request.user` principal
+from current user/session state before permission checks.
 
-| Method                 | Route                                  | Policy                | Success | Reachable errors                                                 |
-| ---------------------- | -------------------------------------- | --------------------- | ------- | ---------------------------------------------------------------- |
-| GET                    | `/users/me`                            | authenticated         | 200     | 401                                                              |
-| PATCH                  | `/users/me`                            | authenticated         | 200     | 401, 422 `VALIDATION_ERROR`                                      |
-| OPTIONS                | `/users/me/avatar/uploads`             | public capability     | 204     | none                                                             |
-| POST/HEAD/PATCH/DELETE | `/users/me/avatar/uploads[/:uploadId]` | authenticated owner   | tus     | 400, 401, 403, 404, 409, 410, 412, 413, 415, 503                 |
-| PATCH                  | `/users/me/avatar`                     | authenticated         | 200     | 401, 403, 404, 409, 410, 413, 415, 422, 503                      |
-| DELETE                 | `/users/me/avatar`                     | authenticated         | 204     | 401, 404                                                         |
-| GET                    | `/users`                               | `users.read`          | 200     | 401, 403, 422 `VALIDATION_ERROR`                                 |
-| GET                    | `/users/:id`                           | `users.read`          | 200     | 400 `BAD_REQUEST`, 401, 403, 404 `USER_NOT_FOUND`                |
-| PATCH                  | `/users/:id/status`                    | `users.status.manage` | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 409 `LAST_SUPER_ADMIN`, 422 |
-| PUT                    | `/users/:id/roles`                     | `users.roles.manage`  | 200     | 400, 401, 403, 404 user/role, 409 `LAST_SUPER_ADMIN`, 422        |
+| Method  | Route                                | Policy                           | Success | Reachable errors                                                 |
+| ------- | ------------------------------------ | -------------------------------- | ------- | ---------------------------------------------------------------- |
+| GET     | `/users/me`                          | authenticated                    | 200     | 401                                                              |
+| GET     | `/users/me/security-audits`          | authenticated                    | 200     | 401, 422 `VALIDATION_ERROR`                                      |
+| PATCH   | `/users/me`                          | authenticated                    | 200     | 401, 422 `VALIDATION_ERROR`                                      |
+| OPTIONS | `/users/me/avatar/uploads`           | public capability                | 204     | none                                                             |
+| POST    | `/users/me/avatar/uploads`           | authenticated owner              | 201     | 400, 401, 412, 413, 415, 503                                     |
+| HEAD    | `/users/me/avatar/uploads/:uploadId` | authenticated owner              | 200     | 400, 401, 403, 404, 410, 412, 503                                |
+| PATCH   | `/users/me/avatar/uploads/:uploadId` | authenticated owner              | 204     | 400, 401, 403, 404, 409, 410, 412, 503                           |
+| DELETE  | `/users/me/avatar/uploads/:uploadId` | authenticated owner              | 204     | 400, 401, 403, 404, 410, 412, 503                                |
+| PATCH   | `/users/me/avatar`                   | authenticated                    | 200     | 401, 403, 404, 409, 410, 413, 415, 422, 503                      |
+| DELETE  | `/users/me/avatar`                   | authenticated                    | 204     | 401, 404                                                         |
+| GET     | `/users`                             | `users.read`                     | 200     | 401, 403, 422 `VALIDATION_ERROR`                                 |
+| GET     | `/users/:id`                         | `users.read`                     | 200     | 400 `BAD_REQUEST`, 401, 403, 404 `USER_NOT_FOUND`                |
+| GET     | `/users/:id/security-audits`         | `users.security-audits.read.any` | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 422 `VALIDATION_ERROR`      |
+| PATCH   | `/users/:id/status`                  | `users.status.manage`            | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`, 409 `LAST_SUPER_ADMIN`, 422 |
+| PUT     | `/users/:id/roles`                   | `users.roles.manage`             | 200     | 400, 401, 403, 404 user/role, 409 `LAST_SUPER_ADMIN`, 422        |
+| GET     | `/users/:id/permissions`             | `users.permissions.manage`       | 200     | 400, 401, 403, 404 `USER_NOT_FOUND`                              |
+| PUT     | `/users/:id/permissions`             | permission + real `super_admin`  | 200     | 400, 401, 403, 404 user/catalog, 409 `RESOURCE_CONFLICT`, 422    |
 
 Collections use canonical page/limit offset pagination. Responses never contain `passwordHash`,
 normalized email, login counters, lock timestamps, or ORM entities. Swagger contains concrete
 payloads and exact stable error messages for every route.
-User responses include `avatar: null` or an immutable contract with file ID, stable relative public
-URL, detected MIME type, and sanitized byte size.
+User responses include `avatar: null` or an immutable contract with file ID, absolute public URL,
+detected MIME type, and sanitized byte size. The URL uses the configured `APP_BASE_URL` origin.
+
+Security-audit collections are ordered by `createdAt DESC, id DESC` and expose event type, actor
+identifier, occurrence time, correlation ID, and an event-specific allowlist of safe details. Raw
+metadata and request IDs remain private. Personal lookup is always scoped from the authenticated
+principal; callers cannot supply a different subject. Cross-user lookup requires the dedicated
+super-admin-only `users.security-audits.read.any` permission.
 
 ## Data and migrations
 
@@ -60,9 +84,18 @@ this module; foreign keys preserve referential integrity without cross-module en
 Updates run in service-owned transactions. Status/role mutations increment `authVersion` so later
 token validation can invalidate stale authorization state.
 
-Status and role mutations enqueue correlated security emails after persistence succeeds. Payloads
-contain only the target user's public display data and the safe resulting state; audit records and
-logs never contain message bodies or full mail-job payloads.
+`emailTwoStepEnabled` records voluntary enrollment only. `emailTwoStepRequired` is derived on every
+response from an `admin` or `super_admin` role. Either condition requires a login challenge. Role
+creation, promotion, and demotion never rewrite voluntary enrollment. An enrolled administrator is
+demoted before disabling enrollment; role policy independently protects unenrolled administrators.
+Migration `1787184000000-IndexSecurityAuditPagination` replaces the earlier subject/time index with
+`(user_id, created_at, id)` so the API's deterministic tie-breaker is indexed and reversible.
+
+Status and role mutations enqueue correlated security emails after persistence succeeds. The mail
+service records delivery metadata and a durable outbox request before the API operation succeeds;
+the relay delivers asynchronously. Payloads contain only the target user's public display data and
+the safe resulting state; audit records and logs never contain message bodies or full mail-job
+payloads.
 
 The last-active-super-admin rule is serialized with PostgreSQL transaction advisory lock
 `users:last-super-admin`, preventing concurrent status or role changes from removing all active
@@ -71,7 +104,14 @@ super administrators.
 `users.avatar_file_id` is nullable and unique. Avatar attachment locks the user then file row in one
 transaction, claims only a completed unexpired `user_avatar` upload owned by that user, and records
 `user.avatar.changed`. Repeating the same attachment or removal is idempotent. Replaced files enter
-durable `deleting` state inside the transaction; cleanup jobs are sent only after commit.
+durable `deleting` state and file-cleanup outbox messages inside the transaction. Prepared-but-
+unclaimed objects remain covered by the expiry sweeper.
+
+Migration `1787702400000-CreateUserAvatarAssociations` adds the optional
+`user_avatar_associations` table with unique user and file references, backfills existing
+`users.avatar_file_id` values, and keeps the legacy column during the v1 compatibility window.
+Generated projects consume `UserAvatarsService` through its public module index; consumers never
+import the association entity or repository.
 
 ## Security and observability
 
@@ -91,7 +131,8 @@ uploads remain protected and never become profile images directly.
 
 ## Test strategy and change impact
 
-Unit tests cover paginated response mapping, credential-field exclusion, duplicate emails,
+Unit tests cover paginated response mapping, credential-field exclusion, safe audit-detail
+allowlisting, personal scoping, privileged missing-user handling, duplicate emails,
 correlated auth/profile audit data, lockout transitions, password auth-version changes, role
 replacement, and last-super-admin protection. Migration validation exercises `up` and `down`
 against a temporary PostgreSQL test database. Avatar tests cover resumable-route delegation,
@@ -103,4 +144,13 @@ removal, transactional replacement races, idempotency, deletion, and correlation
 Not applicable. User administration uses bounded offset pagination; no measured scale or stable
 append traversal requirement justifies cursor pagination.
 
+Per-user permission overrides are managed with `GET`/`PUT /users/:id/permissions`. Only
+an actor who both holds `users.permissions.manage` and has a persisted `super_admin` role may mutate
+them; a delegated override cannot satisfy the role check. Super-admin targets are protected, and
+`users.permissions.manage` plus `users.roles.manage` cannot be delegated as grants. Overrides are
+audited, increment `authVersion`, and are resolved for collections with bounded batch queries.
+
 **Navigation:** [Previous: Mail Module](mail.md) | [Documentation Index](../../README.md) | [Next: REST and Versioning Standard](../../02-api/rest-standard.md)
+
+User responses use an optional profile enricher. Avatar persistence and image processing stay in
+`user-avatars`, so the base users module remains usable in profiles without file storage.

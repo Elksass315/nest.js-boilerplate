@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, type EntityManager } from 'typeorm';
 
 import { buildOffsetPage, type OffsetPage } from '@/common/pagination';
 import type { AppConfiguration } from '@/config/configuration.types';
@@ -21,8 +21,6 @@ import { InvitationsRepository } from './invitations.repository';
 
 @Injectable()
 export class InvitationsService {
-  private readonly logger = new Logger(InvitationsService.name);
-
   public constructor(
     private readonly repository: InvitationsRepository,
     private readonly authorization: AuthorizationService,
@@ -38,7 +36,7 @@ export class InvitationsService {
     const now = new Date();
     this.assertAcceptableInvitation(await this.repository.findByTokenHash(tokenHash), now);
     const passwordHash = await this.auth.hashAccountPassword(password);
-    const accepted = await this.dataSource.transaction(async (manager) => {
+    await this.dataSource.transaction(async (manager) => {
       const invitation = await this.repository.findByTokenHashForUpdate(manager, tokenHash);
       this.assertAcceptableInvitation(invitation, now);
       const user = await this.users.createInvitedUser(
@@ -57,22 +55,11 @@ export class InvitationsService {
       invitation.acceptedAt = now;
       invitation.tokenHash = this.hashToken(randomBytes(32).toString('base64url'));
       await this.repository.save(manager, invitation);
-      return { invitationId: invitation.id, user };
+      await this.mail.sendInvitationAccepted(
+        { email: user.email, fullName: user.fullName, occurredAt: now },
+        manager,
+      );
     });
-    try {
-      await this.mail.sendInvitationAccepted({
-        email: accepted.user.email,
-        fullName: accepted.user.fullName,
-        occurredAt: now,
-      });
-    } catch (error) {
-      this.logger.error({
-        event: 'team_invitation_acceptance_email_enqueue_failed',
-        invitationId: accepted.invitationId,
-        userId: accepted.user.id,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-      });
-    }
   }
 
   private assertAcceptableInvitation(
@@ -128,7 +115,7 @@ export class InvitationsService {
           existing.status = 'expired';
           await this.repository.save(manager, existing);
         }
-        return this.repository.create(manager, {
+        const invitation = await this.repository.create(manager, {
           email: email.trim(),
           normalizedEmail,
           roleId: role.id,
@@ -143,6 +130,14 @@ export class InvitationsService {
           lastSentAt: now,
           sendCount: 1,
         });
+        await this.sendInvitation(invitation, token, principal.userId, manager);
+        await this.users.recordSecurityAudit(
+          principal.userId,
+          'team.invitation.created',
+          { invitationId: invitation.id, role: invitation.roleKey },
+          manager,
+        );
+        return invitation;
       })
       .catch((error: unknown) => {
         if (this.isPendingEmailConflict(error)) {
@@ -150,11 +145,6 @@ export class InvitationsService {
         }
         throw error;
       });
-    await this.sendInvitation(invitation, token, principal.userId);
-    await this.users.recordSecurityAudit(principal.userId, 'team.invitation.created', {
-      invitationId: invitation.id,
-      role: invitation.roleKey,
-    });
     return this.toResponse(invitation);
   }
 
@@ -185,11 +175,15 @@ export class InvitationsService {
       current.lastSentAt = now;
       current.expiresAt = this.expirationFrom(now);
       current.sendCount += 1;
-      return this.repository.save(manager, current);
-    });
-    await this.sendInvitation(invitation, token, principal.userId);
-    await this.users.recordSecurityAudit(principal.userId, 'team.invitation.resent', {
-      invitationId: invitation.id,
+      const saved = await this.repository.save(manager, current);
+      await this.sendInvitation(saved, token, principal.userId, manager);
+      await this.users.recordSecurityAudit(
+        principal.userId,
+        'team.invitation.resent',
+        { invitationId: saved.id },
+        manager,
+      );
+      return saved;
     });
     return this.toResponse(invitation);
   }
@@ -222,16 +216,22 @@ export class InvitationsService {
     invitation: InvitationEntity,
     token: string,
     actorUserId: string,
+    manager?: EntityManager,
   ): Promise<void> {
     const inviter = await this.users.getSelf(actorUserId);
+    const actionUrl = new URL(this.config.getOrThrow('invitations.baseUrl', { infer: true }));
+    actionUrl.searchParams.set('token', token);
     try {
-      await this.mail.sendTeamInvitation({
-        email: invitation.email,
-        inviterName: inviter.fullName,
-        role: invitation.roleKey,
-        token,
-        expiresAt: invitation.expiresAt,
-      });
+      await this.mail.sendTeamInvitation(
+        {
+          email: invitation.email,
+          inviterName: inviter.fullName,
+          role: invitation.roleKey,
+          actionUrl: actionUrl.toString(),
+          expiresAt: invitation.expiresAt,
+        },
+        manager,
+      );
     } catch {
       throw new AppException('INVITATION_DELIVERY_UNAVAILABLE');
     }

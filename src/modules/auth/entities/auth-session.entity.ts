@@ -24,4 +24,20 @@ export class AuthSessionEntity extends AppBaseEntity {
 
   @Column({ name: 'revoke_reason', type: 'varchar', length: 40, nullable: true })
   public revokeReason!: string | null;
+
+  @Column({ name: 'ip_address', type: 'varchar', length: 64, nullable: true })
+  public ipAddress!: string | null;
+
+  @Column({ name: 'user_agent', type: 'varchar', length: 512, nullable: true })
+  public userAgent!: string | null;
+
+  @Column({ name: 'device_metadata', type: 'jsonb', nullable: true })
+  public deviceMetadata!: { type: string | null; os: string | null; browser: string | null } | null;
+
+  @Column({ name: 'approximate_location', type: 'jsonb', nullable: true })
+  public approximateLocation!: {
+    country: string | null;
+    region: string | null;
+    city: string | null;
+  } | null;
 }

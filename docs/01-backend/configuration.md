@@ -2,7 +2,7 @@
 
 Copy `.env.example` for development. Managed environments inject secrets outside Git.
 
-Configuration is namespaced and typed by domain: app, CORS, logging, Swagger, rate limits, i18n,
+Configuration is namespaced and typed by domain: app, CORS, logging, observability, retention, Swagger, rate limits, i18n,
 database, Redis, auth, mail, invitations, and files. Each domain owns its schema fragment, loader, contract, tests, and
 environment documentation. One composed validator creates the API configuration.
 
@@ -19,19 +19,30 @@ Raw `process.env` access is restricted to configuration and CLI entrypoints. App
 typed `ConfigService` paths such as `app.port`, `auth.accessTokenTtlSeconds`, and `mail.branding`.
 Missing, malformed, insecure, or contradictory values fail before dependency connections.
 
+`APP_BASE_URL` is the canonical externally reachable origin for absolute public file URLs. It must
+use `http` or `https`; it defaults to `http://localhost:3000` for local development. Configure it
+to the public API origin in staging and production, for example `https://api.example.com`.
+
 `AUTH_ACCESS_TOKEN_SECRET` is mandatory and contains at least 32 characters. Access tokens default
-to 15 minutes; absolute session lifetime defaults to 14 days. Verification tokens default to one
-day, reset tokens to 30 minutes, active sessions to five, and password lockout to five failed
-attempts for 15 minutes.
+to 15 minutes; absolute session lifetime defaults to 14 days. Registration verification codes
+default to 10 minutes and five attempts, reset tokens to 30 minutes, active sessions to five, and
+password lockout to five failed attempts for 15 minutes. `AUTH_VERIFICATION_CODE_TTL_SECONDS` and
+`AUTH_VERIFICATION_CODE_MAX_ATTEMPTS` are bounded independently from two-step policy.
 
 Two-step email codes default to five minutes and five attempts. Enrollment creates ten single-use
 recovery codes by default. `AUTH_TWO_STEP_CODE_TTL_SECONDS`, `AUTH_TWO_STEP_MAX_ATTEMPTS`, and
 `AUTH_RECOVERY_CODE_COUNT` are bounded and fail validation when unsafe.
 
 Mail configuration owns sender, public action URL, SMTP connection timeouts, worker concurrency,
-retry policy, and branding. `MAIL_ENABLED=false` safely suppresses queue production and worker SMTP
+retry policy, TLS policy, and branding. `MAIL_ENABLED=false` safely suppresses queue production and worker SMTP
 startup. When enabled, auth queues named HBS templates with correlation context; no SMTP password,
 token, code, body, or full recipient is logged.
+
+Staging and production reject template credentials, example branding addresses, localhost URLs, and
+non-HTTPS public URLs. They require a database password of at least 16 characters, PostgreSQL SSL
+with certificate verification (`DATABASE_SSL_ENABLED=true` and `DATABASE_REJECT_UNAUTHORIZED=true`),
+and `MAIL_SMTP_REQUIRE_TLS=true`. Production file writes must use S3; local storage remains a
+development-only option.
 
 Invitation configuration owns the public acceptance URL, 1-168 hour token lifetime, total send
 limit, and resend cooldown. Defaults are 72 hours, five sends, and 60 seconds. Raw invitation tokens
@@ -51,5 +62,26 @@ decoded pixels; configuration remains bounded before Sharp receives untrusted im
 When configuration changes, update schema, tests, `.env.example`, Compose/CI/deployment inputs, and
 this document together. Swagger modes remain `public`, `basic`, and `disabled`; managed environments
 reject public access.
+
+Rate limiting uses named global, authentication, OTP, recovery, and email-delivery windows backed
+by Redis. Sensitive windows enforce independent IP and hashed account/challenge-identifier budgets,
+so changing a submitted identifier cannot bypass the IP budget and distributing requests across IPs
+cannot bypass the identifier budget. `TRUSTED_PROXY_IPS` is disabled by default (an explicit empty
+value is valid for local development) and must be an explicit IP allowlist in staging
+and production; the API uses it when determining the client address, so forwarded headers from
+untrusted proxies cannot bypass limits. Managed deployments should tune the named `RATE_LIMIT_*`
+values for their traffic profile.
+
+OpenTelemetry is optional and exports traces/metrics only when `OTEL_ENABLED=true` and an OTLP
+endpoint is configured. OpenTelemetry logs remain disabled; Pino is the logging source. Retention
+is enabled by default with bounded batches and a 15-minute cadence. `RETENTION_*` values control
+operational cutoffs; security audits, feature-flag audits, and business records are never removed.
+
+Sentry is a separate typed namespace shared by API and worker profiles. `SENTRY_ENABLED` and
+`SENTRY_DSN` must agree, tracing is bounded from zero to one, and disabled monitoring performs no
+transmission. Migration and seed profiles remain database-only and do not load Sentry configuration.
+
+Optional configuration schemas are composed from the selected capability manifest. Generated
+profiles do not retain validation, types, or environment keys for omitted capabilities.
 
 **Navigation:** [Previous: Technology Stack](../00-overview/tech-stack.md) | [Documentation Index](../README.md) | [Next: Database, Migration, and Seed Standard](database.md)

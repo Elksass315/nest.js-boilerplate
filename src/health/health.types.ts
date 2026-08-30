@@ -8,8 +8,8 @@ export interface ReadinessResponse {
   status: 'ok';
   timestamp: string;
   checks: {
-    database: 'up';
-    redis: 'up';
-    storage: 'up';
+    database: 'up' | 'down';
+    redis: 'up' | 'down';
+    [name: string]: 'up' | 'down';
   };
 }

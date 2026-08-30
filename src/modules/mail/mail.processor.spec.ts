@@ -39,6 +39,10 @@ describe(MailProcessor.name, () => {
 
   afterEach(() => jest.clearAllMocks());
 
+  beforeEach(() => {
+    repository.markProcessing.mockResolvedValue(true);
+  });
+
   it('renders, sends, and records successful SMTP delivery without logging recipient data', async () => {
     const job = { data, attemptsMade: 0, opts: { attempts: 5 }, id: 'job-1' } as Job<MailJob>;
 
@@ -58,5 +62,15 @@ describe(MailProcessor.name, () => {
 
     expect(repository.markFailed).toHaveBeenCalledWith('delivery-1', 5, 'SMTP_DELIVERY_FAILED');
     expect(JSON.stringify(logger.error.mock.calls)).not.toContain('SMTP response contained');
+  });
+
+  it('does not send a duplicate relay after the delivery is already sent', async () => {
+    repository.markProcessing.mockResolvedValueOnce(false);
+    const job = { data, attemptsMade: 1, opts: { attempts: 5 }, id: 'job-1' } as Job<MailJob>;
+
+    await processor.process(job);
+
+    expect(smtp.send).not.toHaveBeenCalled();
+    expect(repository.markSent).not.toHaveBeenCalled();
   });
 });

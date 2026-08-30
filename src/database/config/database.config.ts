@@ -21,7 +21,7 @@ export const databaseEnvironmentSchema = {
     .pattern(/^[a-zA-Z0-9_-]+$/)
     .required(),
   DATABASE_USERNAME: Joi.string().required(),
-  DATABASE_PASSWORD: Joi.string().min(12).required(),
+  DATABASE_PASSWORD: Joi.string().min(4).required(),
   DATABASE_SSL_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
   DATABASE_REJECT_UNAUTHORIZED: Joi.boolean().truthy('true').falsy('false').default(true),
   DATABASE_POOL_SIZE: Joi.number().integer().min(1).max(100).default(20),

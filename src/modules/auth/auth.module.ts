@@ -10,6 +10,7 @@ import { AuthCryptoService } from './auth-crypto.service';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
+import { AuthEmailVerificationCodeEntity } from './entities/auth-email-verification-code.entity';
 import { AuthRefreshTokenEntity } from './entities/auth-refresh-token.entity';
 import { AuthRecoveryCodeEntity } from './entities/auth-recovery-code.entity';
 import { AuthSessionEntity } from './entities/auth-session.entity';
@@ -23,6 +24,7 @@ import { SessionsController } from './sessions.controller';
       AuthSessionEntity,
       AuthRefreshTokenEntity,
       AuthActionTokenEntity,
+      AuthEmailVerificationCodeEntity,
       AuthTwoStepChallengeEntity,
       AuthRecoveryCodeEntity,
     ]),

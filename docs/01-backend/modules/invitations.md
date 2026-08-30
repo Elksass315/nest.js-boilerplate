@@ -17,15 +17,21 @@ Other modules may import only public feature indexes.
 
 ## API contracts
 
-- `POST /api/v1/team/invitations` creates a pending invitation. Admins may assign `user`;
-  super administrators may assign any fixed role.
-- `GET /api/v1/team/invitations?page=1&limit=20` returns the canonical offset page.
-- `GET /api/v1/team/invitations/:id` returns one safe contract without a token hash.
-- `POST /api/v1/team/invitations/:id/resend` rotates the token, extends expiry, and enforces cooldown
-  and maximum-send policy.
-- `DELETE /api/v1/team/invitations/:id` idempotently revokes a pending invitation.
-- `POST /api/v1/team/invitations/accept` publicly consumes a token, full name, and password. It
-  creates an active verified account with the invited role and never creates a login session.
+| Method | Route                          | Policy                    | Success | Reachable errors                  |
+| ------ | ------------------------------ | ------------------------- | ------- | --------------------------------- |
+| POST   | `/team/invitations/accept`     | anonymous                 | 201     | 401, 409, 422                     |
+| POST   | `/team/invitations`            | `team.invitations.create` | 201     | 401, 403, 409, 422, 503           |
+| GET    | `/team/invitations`            | `team.invitations.read`   | 200     | 401, 403, 422                     |
+| GET    | `/team/invitations/:id`        | `team.invitations.read`   | 200     | 400, 401, 403, 404                |
+| POST   | `/team/invitations/:id/resend` | `team.invitations.resend` | 200     | 400, 401, 403, 404, 409, 410, 503 |
+| DELETE | `/team/invitations/:id`        | `team.invitations.revoke` | 204     | 400, 401, 403, 404, 409           |
+
+Creation lets admins assign `user` while super administrators may assign any fixed role. Invitation
+creation and resend commit token rotation, audit metadata, and the durable `mail.send` outbox row in
+one transaction. Acceptance publicly consumes a token, full name, and password, creates an active
+verified account with the invited role, records its audit, and commits the acceptance notice in the
+same transaction; it never creates a login session. Resend rotates the token and enforces cooldown and
+maximum-send policy.
 
 Swagger is authoritative for concrete success payloads and exact errors. Stable feature errors cover
 invalid tokens, missing/expired/non-pending invitations, duplicate members or pending invitations,
@@ -46,7 +52,8 @@ and admin roles without changing the checksum of the already-applied base RBAC s
 
 ## Security and observability
 
-Every route requires a typed permission and every role assignment is checked against inviter
+Every administrative route declares a typed permission that installs the authorization guard;
+acceptance is the sole explicitly public route. Every role assignment is checked against inviter
 authority. Tokens are generated from 32 random bytes, shown only to the mail producer, rotated on
 resend and consumption, and excluded from DTOs, logs, and audits. Mail jobs and
 `team.invitation.*` audit events carry
@@ -69,3 +76,6 @@ Rollback drops invitation history, so operators must confirm retention requireme
 Not applicable. Invitation administration uses the default bounded offset pagination contract.
 
 **Navigation:** [Previous: Files Module](files.md) | [Documentation Index](../../README.md) | [Next: Mail Module](mail.md)
+
+Invitation routes, configuration, RBAC seed, migrations, and documentation are omitted when the
+capability is not selected; generated profiles retain the mandatory mail and outbox platform.

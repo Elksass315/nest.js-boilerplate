@@ -3,11 +3,10 @@ import { getDataSourceToken } from '@nestjs/typeorm';
 
 import { RequestContextService } from '@/core/request-context/request-context.service';
 import { AuthorizationService, type RoleDefinition } from '@/modules/authorization';
-import { FilesService } from '@/modules/files';
 import { MailService } from '@/modules/mail';
 
-import { AvatarImageService } from './avatar-image.service';
 import { UserEntity } from './entities/user.entity';
+import { UserSecurityAuditEntity } from './entities/user-security-audit.entity';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
@@ -24,7 +23,6 @@ describe(UsersService.name, () => {
     authVersion: 1,
     failedLoginCount: 0,
     lockedUntil: null,
-    avatarFileId: null,
     createdAt: new Date('2026-08-12T09:45:00.000Z'),
     updatedAt: new Date('2026-08-12T10:05:00.000Z'),
   } as UserEntity;
@@ -57,17 +55,25 @@ describe(UsersService.name, () => {
     updateStatus: jest.fn(),
     replaceRoles: jest.fn(),
     createWithRole: jest.fn(),
+    lockRegistrationEmail: jest.fn(),
     createActiveWithRole: jest.fn(),
     lockSuperAdminPolicy: jest.fn(),
     hasRole: jest.fn(),
     countActiveUsersWithRole: jest.fn(),
     findByIdForUpdate: jest.fn(),
     saveWithAudit: jest.fn(),
+    findSecurityAuditPage: jest.fn(),
   };
   const authorization = {
     resolveRoles: jest.fn(),
     getRequiredRole: jest.fn(),
     requireRoleIds: jest.fn(),
+    applyUserOverridesForUsers: jest.fn((roles: Map<string, RoleDefinition[]>) =>
+      Promise.resolve(roles),
+    ),
+    getUserPermissionOverrides: jest.fn(),
+    resolvePermissionKeys: jest.fn(),
+    replaceUserPermissionOverrides: jest.fn(),
   };
   const context = {
     getRequestId: jest.fn(() => 'request-1'),
@@ -77,25 +83,6 @@ describe(UsersService.name, () => {
     sendAccountStatusChanged: jest.fn(),
     sendRoleChanged: jest.fn(),
   };
-  const files = {
-    findPublicDescriptors: jest.fn(),
-    readUploadedForOwner: jest.fn(),
-    prepareReplacement: jest.fn(),
-    claimPrepared: jest.fn(),
-    markDeletingForOwner: jest.fn(),
-    enqueueClaimCleanup: jest.fn(),
-    discardPrepared: jest.fn(),
-    scheduleDeletion: jest.fn(),
-  };
-  const avatarImages = {
-    getLimits: jest.fn(() => ({
-      maxBytes: 5_242_880,
-      maxWidth: 8192,
-      maxHeight: 8192,
-      maxPixels: 25_000_000,
-    })),
-    sanitize: jest.fn(),
-  };
   const dataSource = {
     transaction: jest.fn(async (work: (manager: never) => Promise<unknown>) => work({} as never)),
   };
@@ -103,14 +90,11 @@ describe(UsersService.name, () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    user.avatarFileId = null;
     const module = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: UsersRepository, useValue: repository },
         { provide: AuthorizationService, useValue: authorization },
-        { provide: FilesService, useValue: files },
-        { provide: AvatarImageService, useValue: avatarImages },
         { provide: MailService, useValue: mail },
         { provide: RequestContextService, useValue: context },
         { provide: getDataSourceToken(), useValue: dataSource },
@@ -122,7 +106,6 @@ describe(UsersService.name, () => {
     authorization.getRequiredRole.mockImplementation((key: string) =>
       Promise.resolve(key === 'super_admin' ? superAdminRole : userRole),
     );
-    files.findPublicDescriptors.mockResolvedValue([]);
   });
 
   it('returns a paginated user response without credential fields', async () => {
@@ -134,7 +117,89 @@ describe(UsersService.name, () => {
       expect.objectContaining({ id: user.id, roles: ['user'], fullName: 'Amina Hassan' }),
     );
     expect(result.items[0]).not.toHaveProperty('passwordHash');
+    expect(result.items[0]).toEqual(expect.objectContaining({ emailTwoStepRequired: false }));
     expect(result.meta.totalItems).toBe(1);
+  });
+
+  it('derives required two-step policy from privileged roles', async () => {
+    repository.findPage.mockResolvedValue([[user], 1]);
+    repository.roleIdsByUserIds.mockResolvedValue(new Map([[user.id, [superAdminRole.id]]]));
+    authorization.resolveRoles.mockResolvedValue([superAdminRole]);
+
+    const result = await service.list(1, 20);
+
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        emailTwoStepEnabled: false,
+        emailTwoStepRequired: true,
+        roles: ['super_admin'],
+      }),
+    );
+  });
+
+  it('batches override resolution for a user collection', async () => {
+    repository.findPage.mockResolvedValue([
+      [user, Object.assign(new UserEntity(), user, { id: 'user-2' })],
+      2,
+    ]);
+    repository.roleIdsByUserIds.mockResolvedValue(
+      new Map([
+        [user.id, [userRole.id]],
+        ['user-2', [userRole.id]],
+      ]),
+    );
+
+    await service.list(1, 20);
+
+    expect(authorization.applyUserOverridesForUsers).toHaveBeenCalledTimes(1);
+    expect(authorization.applyUserOverridesForUsers).toHaveBeenCalledWith(
+      expect.objectContaining({ size: 2 }),
+    );
+  });
+
+  it('returns only allowlisted audit details with correlation context', async () => {
+    const audit = Object.assign(new UserSecurityAuditEntity(), {
+      id: 'a68c1d2a-e244-4d3a-a64f-054763e23f85',
+      userId: user.id,
+      actorUserId: user.id,
+      eventType: 'auth.login.failed' as const,
+      requestId: 'request-1',
+      correlationId: 'correlation-1',
+      metadata: {
+        failedLoginCount: 2,
+        locked: false,
+        email: 'must-not-be-exposed@example.com',
+        nested: { unsafe: true },
+      },
+      createdAt: new Date('2026-08-18T12:00:00.000Z'),
+      updatedAt: new Date('2026-08-18T12:00:00.000Z'),
+    });
+    repository.findSecurityAuditPage.mockResolvedValue([[audit], 1]);
+
+    const result = await service.listOwnSecurityAudits(user.id, 1, 20);
+
+    expect(repository.findSecurityAuditPage).toHaveBeenCalledWith(user.id, 1, 20);
+    expect(result.items).toEqual([
+      {
+        id: audit.id,
+        eventType: 'auth.login.failed',
+        actorUserId: user.id,
+        details: { failedLoginCount: 2, locked: false },
+        correlationId: 'correlation-1',
+        occurredAt: '2026-08-18T12:00:00.000Z',
+      },
+    ]);
+    expect(result.items[0]).not.toHaveProperty('requestId');
+    expect(result.items[0]?.details).not.toHaveProperty('email');
+  });
+
+  it('requires the target user before privileged audit lookup', async () => {
+    repository.findById.mockResolvedValue(null);
+
+    await expect(service.listUserSecurityAudits(user.id, 1, 20)).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(repository.findSecurityAuditPage).not.toHaveBeenCalled();
   });
 
   it('records request and correlation IDs when updating a profile', async () => {
@@ -156,13 +221,42 @@ describe(UsersService.name, () => {
     repository.findByNormalizedEmail.mockResolvedValue(user);
 
     await expect(
-      service.createPendingUser({
+      service.createOrUpdatePendingUser({
         fullName: 'Amina Hassan',
         email: user.email,
         normalizedEmail: user.normalizedEmail,
         passwordHash: '$argon2id$new',
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('updates an existing pending registration under the normalized-email lock', async () => {
+    const pending = Object.assign(new UserEntity(), user, {
+      status: 'pending_verification' as const,
+      emailVerifiedAt: null,
+    });
+    repository.findByNormalizedEmail.mockResolvedValue(pending);
+    repository.saveWithAudit.mockImplementation((_manager: unknown, value: UserEntity) =>
+      Promise.resolve(value),
+    );
+
+    const result = await service.createOrUpdatePendingUser({
+      fullName: 'Amina Revised',
+      email: user.email,
+      normalizedEmail: user.normalizedEmail,
+      passwordHash: '$argon2id$new',
+    });
+
+    expect(repository.lockRegistrationEmail).toHaveBeenCalledWith(
+      expect.anything(),
+      user.normalizedEmail,
+    );
+    expect(repository.saveWithAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ fullName: 'Amina Revised', passwordHash: '$argon2id$new' }),
+      expect.objectContaining({ eventType: 'auth.registration.updated' }),
+    );
+    expect(result.fullName).toBe('Amina Revised');
   });
 
   it('creates an active invited user in the caller transaction with correlated audit context', async () => {
@@ -225,7 +319,133 @@ describe(UsersService.name, () => {
     );
     expect(mail.sendRoleChanged).toHaveBeenCalledWith(
       expect.objectContaining({ email: user.email, roles: ['user'] }),
+      expect.anything(),
     );
+  });
+
+  it('does not change voluntary two-step enrollment when roles change', async () => {
+    authorization.requireRoleIds.mockResolvedValue([superAdminRole]);
+    repository.findById.mockResolvedValue(
+      Object.assign(new UserEntity(), user, { emailTwoStepEnabled: true }),
+    );
+    repository.hasRole.mockResolvedValue(false);
+    repository.replaceRoles.mockResolvedValue(
+      Object.assign(new UserEntity(), user, { emailTwoStepEnabled: true }),
+    );
+
+    const result = await service.replaceRoles(user.id, [superAdminRole.id], superAdminRole.id);
+
+    expect(repository.replaceRoles).toHaveBeenCalledWith(
+      expect.anything(),
+      user.id,
+      [superAdminRole.id],
+      expect.anything(),
+    );
+    expect(result.emailTwoStepEnabled).toBe(true);
+    expect(result.emailTwoStepRequired).toBe(true);
+  });
+
+  it('rejects permission mutation authorized only by a delegated permission', async () => {
+    await expect(
+      service.replacePermissionOverrides(
+        user.id,
+        { grants: ['feature-flags.read'], revokes: [] },
+        'actor-1',
+        ['admin'],
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(repository.findById).not.toHaveBeenCalled();
+  });
+
+  it('rejects protected permission grants even from a super administrator', async () => {
+    await expect(
+      service.replacePermissionOverrides(
+        user.id,
+        { grants: ['users.roles.manage'], revokes: [] },
+        'actor-1',
+        ['super_admin'],
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(repository.findById).not.toHaveBeenCalled();
+  });
+
+  it('rejects permission override changes for super-admin targets', async () => {
+    repository.findById.mockResolvedValue(user);
+    repository.roleIdsByUserIds.mockResolvedValue(new Map([[user.id, [superAdminRole.id]]]));
+    authorization.resolveRoles.mockResolvedValue([superAdminRole]);
+
+    await expect(
+      service.replacePermissionOverrides(
+        user.id,
+        { grants: ['feature-flags.read'], revokes: [] },
+        'actor-1',
+        ['super_admin'],
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('persists and audits ordinary overrides from a real super administrator', async () => {
+    const target = Object.assign(new UserEntity(), user);
+    repository.findById.mockResolvedValue(target);
+    repository.roleIdsByUserIds.mockResolvedValue(new Map([[target.id, [userRole.id]]]));
+    authorization.resolveRoles.mockResolvedValue([userRole]);
+    authorization.resolvePermissionKeys.mockResolvedValue(
+      new Map([
+        ['feature-flags.read', 'permission-1'],
+        ['sessions.read.any', 'permission-2'],
+      ]),
+    );
+    authorization.getUserPermissionOverrides.mockResolvedValue([
+      { key: 'feature-flags.read', effect: 'grant' },
+      { key: 'sessions.read.any', effect: 'revoke' },
+    ]);
+    const withEffectiveGrant = (
+      rolesByUser: Map<string, RoleDefinition[]>,
+    ): Promise<Map<string, RoleDefinition[]>> =>
+      Promise.resolve(
+        new Map(
+          [...rolesByUser].map(([userId, roles]) => [
+            userId,
+            roles.map((role, index): RoleDefinition => ({
+              ...role,
+              permissions: index === 0 ? ['feature-flags.read'] : [],
+            })),
+          ]),
+        ),
+      );
+    authorization.applyUserOverridesForUsers
+      .mockImplementationOnce(withEffectiveGrant)
+      .mockImplementationOnce(withEffectiveGrant);
+    repository.saveWithAudit.mockResolvedValue(target);
+
+    const result = await service.replacePermissionOverrides(
+      target.id,
+      { grants: ['feature-flags.read'], revokes: ['sessions.read.any'] },
+      'actor-1',
+      ['super_admin'],
+    );
+
+    expect(authorization.replaceUserPermissionOverrides).toHaveBeenCalledWith(
+      expect.anything(),
+      target.id,
+      [
+        { permissionId: 'permission-1', effect: 'grant' },
+        { permissionId: 'permission-2', effect: 'revoke' },
+      ],
+    );
+    expect(repository.saveWithAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ authVersion: 2 }),
+      expect.objectContaining({
+        eventType: 'user.permissions.changed',
+        actorUserId: 'actor-1',
+      }),
+    );
+    expect(result).toEqual({
+      effective: ['feature-flags.read'],
+      grants: ['feature-flags.read'],
+      revokes: ['sessions.read.any'],
+    });
   });
 
   it('notifies the user after a status change is persisted', async () => {
@@ -239,6 +459,7 @@ describe(UsersService.name, () => {
 
     expect(mail.sendAccountStatusChanged).toHaveBeenCalledWith(
       expect.objectContaining({ email: user.email, status: 'suspended' }),
+      expect.anything(),
     );
   });
 
@@ -314,125 +535,6 @@ describe(UsersService.name, () => {
         requestId: 'request-1',
         correlationId: 'correlation-1',
       }),
-    );
-  });
-
-  it('sanitizes and atomically attaches an owned avatar with correlated cleanup', async () => {
-    const mutable = Object.assign(new UserEntity(), user, {
-      avatarFileId: '11111111-1111-4111-8111-111111111111',
-    });
-    repository.findById.mockResolvedValue(mutable);
-    repository.findByIdForUpdate.mockResolvedValue(mutable);
-    repository.saveWithAudit.mockImplementation((_manager: unknown, value: UserEntity) =>
-      Promise.resolve(value),
-    );
-    files.readUploadedForOwner.mockResolvedValue({
-      fileId: '22222222-2222-4222-8222-222222222222',
-      originalName: 'avatar.webp',
-      declaredMimeType: 'image/webp',
-      sizeBytes: 4,
-      bytes: Buffer.from('raw'),
-    });
-    avatarImages.sanitize.mockResolvedValue({ bytes: Buffer.from('safe'), mimeType: 'image/webp' });
-    files.prepareReplacement.mockResolvedValue({
-      fileId: '22222222-2222-4222-8222-222222222222',
-      provider: 'local',
-      storageKey: 'ready/new',
-      mimeType: 'image/webp',
-      sizeBytes: 4,
-      checksumSha256: 'checksum',
-    });
-    files.claimPrepared.mockResolvedValue({
-      fileId: '22222222-2222-4222-8222-222222222222',
-      publicId: '33333333-3333-4333-8333-333333333333',
-      url: '/api/v1/files/public/33333333-3333-4333-8333-333333333333',
-      mimeType: 'image/webp',
-      sizeBytes: 4,
-    });
-
-    const result = await service.replaceOwnAvatar(user.id, '22222222-2222-4222-8222-222222222222');
-
-    expect(files.markDeletingForOwner).toHaveBeenCalledWith(
-      expect.anything(),
-      '11111111-1111-4111-8111-111111111111',
-      user.id,
-      'user_avatar',
-    );
-    expect(repository.saveWithAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ avatarFileId: '22222222-2222-4222-8222-222222222222' }),
-      expect.objectContaining({ eventType: 'user.avatar.changed', correlationId: 'correlation-1' }),
-    );
-    expect(files.enqueueClaimCleanup).toHaveBeenCalledWith(
-      '22222222-2222-4222-8222-222222222222',
-      '11111111-1111-4111-8111-111111111111',
-      'correlation-1',
-    );
-    expect(result.avatar).toEqual(expect.objectContaining({ mimeType: 'image/webp', size: 4 }));
-  });
-
-  it('returns an already attached avatar idempotently without processing bytes', async () => {
-    const attached = Object.assign(new UserEntity(), user, {
-      avatarFileId: '22222222-2222-4222-8222-222222222222',
-    });
-    repository.findById.mockResolvedValue(attached);
-    files.findPublicDescriptors.mockResolvedValue([
-      {
-        fileId: attached.avatarFileId,
-        publicId: '33333333-3333-4333-8333-333333333333',
-        url: '/api/v1/files/public/33333333-3333-4333-8333-333333333333',
-        mimeType: 'image/png',
-        sizeBytes: 12,
-      },
-    ]);
-
-    const result = await service.replaceOwnAvatar(user.id, attached.avatarFileId);
-
-    expect(result.avatar?.fileId).toBe(attached.avatarFileId);
-    expect(files.readUploadedForOwner).not.toHaveBeenCalled();
-  });
-
-  it('discards staged bytes when the avatar transaction fails', async () => {
-    repository.findById.mockResolvedValue(user);
-    repository.findByIdForUpdate.mockRejectedValue(new Error('transaction failed'));
-    files.readUploadedForOwner.mockResolvedValue({
-      fileId: '22222222-2222-4222-8222-222222222222',
-      originalName: 'avatar.png',
-      declaredMimeType: 'image/png',
-      sizeBytes: 3,
-      bytes: Buffer.from('raw'),
-    });
-    avatarImages.sanitize.mockResolvedValue({ bytes: Buffer.from('safe'), mimeType: 'image/png' });
-    const prepared = {
-      fileId: '22222222-2222-4222-8222-222222222222',
-      provider: 'local' as const,
-      storageKey: 'ready/new',
-      mimeType: 'image/png',
-      sizeBytes: 4,
-      checksumSha256: 'checksum',
-    };
-    files.prepareReplacement.mockResolvedValue(prepared);
-
-    await expect(service.replaceOwnAvatar(user.id, prepared.fileId)).rejects.toThrow(
-      'transaction failed',
-    );
-    expect(files.discardPrepared).toHaveBeenCalledWith(prepared);
-  });
-
-  it('detaches an avatar once and schedules deletion after commit', async () => {
-    const mutable = Object.assign(new UserEntity(), user, {
-      avatarFileId: '11111111-1111-4111-8111-111111111111',
-    });
-    repository.findByIdForUpdate.mockResolvedValue(mutable);
-    repository.saveWithAudit.mockResolvedValue(mutable);
-
-    await service.deleteOwnAvatar(user.id);
-
-    expect(mutable.avatarFileId).toBeNull();
-    expect(files.markDeletingForOwner).toHaveBeenCalled();
-    expect(files.scheduleDeletion).toHaveBeenCalledWith(
-      '11111111-1111-4111-8111-111111111111',
-      'correlation-1',
     );
   });
 });

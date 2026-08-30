@@ -16,7 +16,8 @@ FROM base AS development
 ENV NODE_ENV=development
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-RUN chown -R node:node /app
+RUN mkdir -p /app/storage/files \
+    && chown -R node:node /app
 USER node
 EXPOSE 3000
 CMD ["pnpm", "start:dev"]
@@ -36,15 +37,18 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     && pnpm rebuild argon2 sharp
 
 FROM ${NODE_IMAGE} AS runtime
+ARG MIGRATION_COMPATIBILITY=expand-contract-v1
 ENV NODE_ENV=production
 ENV PORT=3000
 WORKDIR /app
+LABEL org.opencontainers.image.migration-compatibility=$MIGRATION_COMPATIBILITY
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
         /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/package.json ./package.json
+COPY --from=build --chown=node:node /app/deployment/migration-compatibility.json ./deployment/migration-compatibility.json
 USER node
 EXPOSE 3000
-CMD ["node", "--enable-source-maps", "dist/main.js"]
+CMD ["node", "--enable-source-maps", "dist/apps/api/main.js"]

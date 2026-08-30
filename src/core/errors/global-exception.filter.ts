@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Inject,
   Logger,
   type ExceptionFilter,
 } from '@nestjs/common';
@@ -12,6 +13,12 @@ import { I18nService } from 'nestjs-i18n';
 import { QueryFailedError } from 'typeorm';
 
 import { isPlainRecord } from '@/shared/helpers/is-plain-record';
+import { projectSafeError } from '@/common/logging/safe-error';
+import {
+  ERROR_REPORTER,
+  NoopErrorReporter,
+  type ErrorReporter,
+} from '@/core/error-reporting/error-reporter';
 
 import { ERROR_DEFINITIONS, type ErrorCode, isErrorCode } from './error-definitions';
 import type { ErrorResponse } from './error-response.interface';
@@ -21,7 +28,10 @@ import type { ErrorResponse } from './error-response.interface';
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
-  public constructor(private readonly i18n: I18nService) {}
+  public constructor(
+    private readonly i18n: I18nService,
+    @Inject(ERROR_REPORTER) private readonly reporter: ErrorReporter = new NoopErrorReporter(),
+  ) {}
 
   public catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
@@ -47,13 +57,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       path: request.originalUrl,
       requestId,
       correlationId,
-      ...(resolved.details === undefined ? {} : { details: resolved.details }),
+      ...(resolved.code === 'INTERNAL_SERVER_ERROR' || resolved.details === undefined
+        ? {}
+        : { details: resolved.details }),
     };
 
     response.setHeader('Content-Language', language);
     if (resolved.status >= 500) {
+      this.reporter.capture(exception, { requestId, correlationId });
       this.logger.error(
-        { exception, requestId, correlationId, method: request.method, path: request.originalUrl },
+        {
+          ...projectSafeError(exception),
+          requestId,
+          correlationId,
+          method: request.method,
+          path: request.originalUrl,
+        },
         'Unhandled request failure',
       );
     }
@@ -83,8 +102,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
     const payload = exception.getResponse();
     if (isPlainRecord(payload) && isErrorCode(payload['code'])) {
+      const code = status === 500 ? 'INTERNAL_SERVER_ERROR' : payload['code'];
       return {
-        code: payload['code'],
+        code,
         status,
         ...(payload['details'] === undefined ? {} : { details: payload['details'] }),
       };

@@ -10,6 +10,10 @@ Business collection endpoints never return raw arrays. Offset pagination is the 
 with page, limit, totalItems, totalPages, hasNextPage, and hasPreviousPage. Use the canonical query
 DTO, result builder, and `ApiOffsetPaginatedResponse` decorator.
 
+The generated OpenAPI contract requires every collection response to include a deterministic page
+example. Controllers pass the example to the canonical decorator; the CI OpenAPI linter checks that
+the example remains present alongside the complete pagination metadata.
+
 Cursor pagination is available only for high-volume, append-oriented, or stable traversal needs.
 Its opaque cursor contains a versioned stable sort value and unique entity ID. The repository orders
 by both values and fetches one extra row to determine `hasNextPage`. Document the evidence under
@@ -17,6 +21,10 @@ by both values and fetches one extra row to determine `hasNextPage`. Document th
 
 Canonical pagination response decorators are the only composed Swagger responses accepted by the
 contract checker; they emit the item model and complete page metadata schema without duplicating it
-in each controller.
+in each controller. Feature controllers supply a deterministic synthetic page example through the
+decorator's optional example argument; examples must match the DTO and page metadata contract and
+must not contain real user or credential data. The same route-contract gate requires every
+collection route, like every other route, to declare `Public`, `RequireAuthenticated`, or
+`RequirePermissions` explicitly.
 
 **Navigation:** [Previous: Platform Error Catalog](error-catalog.md) | [Documentation Index](../README.md) | [Next: Branching Strategy](../03-dev-process/branching-strategy.md)

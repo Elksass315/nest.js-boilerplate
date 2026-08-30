@@ -3,19 +3,19 @@ module.exports = {
   clearMocks: true,
   collectCoverageFrom: [
     'src/**/*.ts',
-    '!src/main.ts',
-    '!src/file-worker.ts',
-    '!src/files-migration.ts',
-    '!src/mail-worker.ts',
-    '!src/bootstrap.ts',
+    '!src/apps/**/main.ts',
+    '!src/instrument.ts',
+    '!src/apps/**/bootstrap.ts',
     '!src/**/*.module.ts',
     '!src/**/*.interface.ts',
     '!src/**/*.types.ts',
     '!src/**/*.d.ts',
     '!src/**/*.dto.ts',
+    '!src/**/*.entity.ts',
     '!src/**/index.ts',
     '!src/common/pagination/api-paginated-response.decorator.ts',
     '!src/database/migrations/*.ts',
+    '!src/database/*-cli.ts',
     '!src/database/seeds/seed-runner.ts',
     '!src/database/seeds/seed.registry.ts',
     '!src/database/data-source.ts',
@@ -39,6 +39,17 @@ module.exports = {
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.spec.ts'],
   transform: {
-    '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
+    '^.+\\.ts$': [
+      '@swc/jest',
+      {
+        jsc: {
+          parser: { syntax: 'typescript', decorators: true, dynamicImport: true },
+          transform: { decoratorMetadata: true },
+          target: 'es2023',
+        },
+        module: { type: 'commonjs' },
+        sourceMaps: 'inline',
+      },
+    ],
   },
 };

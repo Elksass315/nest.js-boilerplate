@@ -22,11 +22,19 @@ the same native tus runtime is exercised rather than mocked.
 
 ## API contracts
 
-`GET /api/v1/files/public/:publicId` is anonymously readable and serves only `ready + public`
-records. It streams local bytes with immutable safe headers or redirects to a short-lived signed S3
-URL. Protected, unfinished, and unknown records all return `404 FILE_NOT_FOUND`; provider failures
-return `503 FILE_STORAGE_UNAVAILABLE`. The controller owns the versioned `files` path; the global
-API prefix and URI-versioning policy produce the documented URL exactly once.
+| Method | Route                     | Policy    | Success    | Reachable errors                               |
+| ------ | ------------------------- | --------- | ---------- | ---------------------------------------------- |
+| GET    | `/files/public/:publicId` | anonymous | 200 or 302 | 400, 404 `FILE_NOT_FOUND`, 503 storage failure |
+
+The controller is explicitly marked `Public`; adding a stateful or protected route to it requires
+moving that route to an authenticated owning feature or replacing the class policy. The public-file
+route serves only `ready + public` records. It streams local bytes with immutable
+safe headers or redirects to a short-lived signed S3 URL. Protected, unfinished, and unknown records
+all return `404 FILE_NOT_FOUND`; provider failures return `503 FILE_STORAGE_UNAVAILABLE`.
+
+Every public file descriptor returned by the service uses an absolute URL built from `APP_BASE_URL`,
+for example `https://api.example.com/api/v1/files/public/<public-id>`. This applies consistently to
+avatars and any future public file consumer; protected files are never included in these descriptors.
 
 `FilesService.handleTus` supports creation, HEAD offset discovery, sequential PATCH continuation,
 expiration, and termination. Deferred length, concatenation, and parallel uploads are disabled.
@@ -72,9 +80,19 @@ encryption must be configured for tus multipart uploads; direct provider writes 
 configured SSE mode. Configure an S3 lifecycle rule to abort incomplete multipart uploads after one
 day as defense in depth, while the worker terminates known abandoned tus uploads.
 
-The file worker uses bounded exponential retries, idempotent delete jobs, a 15-minute sweeper, and a
-PostgreSQL advisory lock. Logs contain file IDs, providers, safe error types, request IDs, and
+The file worker registers the `files` BullMQ queue in its consumer module, then consumes
+`file.delete` and `file.migration-source-delete` requests from the
+transactional outbox relay. File state transitions and their cleanup messages are committed in the
+same PostgreSQL transaction; the outbox UUID becomes the BullMQ job ID, so relay retries are
+idempotent. The worker uses bounded retries, idempotent physical deletion, a 15-minute sweeper,
+and a PostgreSQL advisory lock. Logs contain file IDs, providers, safe error types, request IDs, and
 correlation IDs—never filenames, paths, object bodies, tokens, or personal data.
+
+The sweeper writes cleanup messages transactionally, allowing prepared-but-unclaimed objects and
+interrupted provider moves to recover without direct durable queue writes. Cleanup consumers are
+idempotent when a relay or worker crash causes a duplicate attempt.
+The file worker refreshes a `/tmp` heartbeat used by deployment health checks; a stale heartbeat
+causes the managed rollout to fail rather than accepting a wedged consumer.
 
 Example lifecycle rule:
 
@@ -104,5 +122,11 @@ must be handled operationally before reversing the migration.
 ## Cursor pagination rationale
 
 Not applicable. The module exposes no business collection endpoint.
+
+The files module is optional in generated profiles. Its readiness contributor, worker, cleanup
+queue, migrations, environment keys, and Compose storage are emitted only when `files` is selected.
+
+Retention cleanup removes only unclaimed expired failed metadata. Ready files and
+physical object cleanup remain owned by the files worker and its outbox jobs.
 
 **Navigation:** [Previous: Authorization Module](authorization.md) | [Documentation Index](../../README.md) | [Next: Mail Module](mail.md)

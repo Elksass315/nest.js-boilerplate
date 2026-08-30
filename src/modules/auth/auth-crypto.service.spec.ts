@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { decodeJwt } from 'jose';
 
 import { AuthCryptoService } from './auth-crypto.service';
 
@@ -46,6 +47,17 @@ describe(AuthCryptoService.name, () => {
       authVersion: 3,
     };
     const token = await service.signAccessToken(claims);
+    const payload = decodeJwt(token);
+    expect(payload).toEqual(
+      expect.objectContaining({
+        sub: claims.userId,
+        sid: claims.sessionId,
+        av: claims.authVersion,
+      }),
+    );
+    expect(payload).not.toHaveProperty('jti');
+    expect(payload).not.toHaveProperty('roles');
+    expect(payload).not.toHaveProperty('permissions');
     await expect(service.verifyAccessToken(token)).resolves.toEqual(claims);
     await expect(service.verifyAccessToken(`${token}tampered`)).resolves.toBeNull();
   });

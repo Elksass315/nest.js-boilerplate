@@ -12,6 +12,7 @@ pipeline {
         choice(name: 'TARGET_ENV', choices: ['development', 'staging', 'production'], description: 'Deployment environment')
         string(name: 'SOURCE_BRANCH', defaultValue: '', description: 'Protected source branch that produced the image')
         string(name: 'SOURCE_COMMIT', defaultValue: '', description: 'Git commit that produced the image')
+        string(name: 'BACKUP_REFERENCE', defaultValue: '', description: 'Managed database backup/PITR reference captured before production migrations')
     }
 
     environment {
@@ -32,6 +33,11 @@ pipeline {
                         production:main) ;;
                         *) echo "Branch $SOURCE_BRANCH cannot deploy to $TARGET_ENV" >&2; exit 1 ;;
                     esac
+
+                    if test "$TARGET_ENV" = production && test -z "$BACKUP_REFERENCE"; then
+                        echo 'BACKUP_REFERENCE is required before production migrations' >&2
+                        exit 1
+                    fi
 
                     docker --version
                     docker compose version
@@ -61,6 +67,7 @@ pipeline {
                     deploy_path="$DEPLOY_ROOT/$TARGET_ENV"
                     env_file="$deploy_path/.env"
                     state_file="$deploy_path/.deployed-image"
+                    deployment_record="$deploy_path/.deployment-record"
                     previous_image=""
 
                     test -f "$env_file"
@@ -75,12 +82,17 @@ pipeline {
                     rollback() {
                         exit_code=$?
                         if test "$exit_code" -ne 0 && test -n "$previous_image"; then
-                            echo "Deployment failed; rolling back to $previous_image"
-                            APP_IMAGE="$previous_image" APP_ENV_FILE="$env_file" \
-                                docker compose --env-file "$env_file" \
-                                -f "$deploy_path/compose.yaml" \
-                                -f "$deploy_path/compose.deploy.yaml" \
-                                up --detach --no-build --wait api mail-worker file-worker postgres redis
+                            previous_compatibility="$(docker image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.migration-compatibility\" }}' "$previous_image" 2>/dev/null || true)"
+                            if test -z "$previous_compatibility" || test "$previous_compatibility" = '<no value>'; then
+                                echo "Rollback refused: previous image $previous_image has no migration compatibility declaration" >&2
+                            else
+                                echo "Deployment failed; rolling back to $previous_image"
+                                APP_IMAGE="$previous_image" APP_ENV_FILE="$env_file" \
+                                    docker compose --env-file "$env_file" \
+                                    -f "$deploy_path/compose.yaml" \
+                                    -f "$deploy_path/compose.deploy.yaml" \
+                                    up --detach --no-build --wait api mail-worker file-worker outbox-worker maintenance-worker
+                            fi
                         fi
                         exit "$exit_code"
                     }
@@ -92,7 +104,13 @@ pipeline {
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
                         -f "$deploy_path/compose.deploy.yaml" \
-                        pull api mail-worker file-worker migrate seed
+                        pull api mail-worker file-worker outbox-worker maintenance-worker migrate seed
+
+                    migration_compatibility="$(docker image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.migration-compatibility\" }}' "$IMAGE_REF" 2>/dev/null || true)"
+                    if test -z "$migration_compatibility" || test "$migration_compatibility" = '<no value>'; then
+                        echo "Image $IMAGE_REF has no migration compatibility declaration" >&2
+                        exit 1
+                    fi
 
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
@@ -107,13 +125,37 @@ pipeline {
                     docker compose --env-file "$env_file" \
                         -f "$deploy_path/compose.yaml" \
                         -f "$deploy_path/compose.deploy.yaml" \
-                        up --detach --no-build --wait api mail-worker file-worker postgres redis
+                        up --detach --no-build --wait api mail-worker file-worker outbox-worker maintenance-worker
 
                     api_port="$(grep -E '^API_HOST_PORT=' "$env_file" | tail -n 1 | cut -d= -f2 || true)"
                     api_port="${api_port:-3000}"
                     curl --fail --silent --show-error \
                         --retry 5 --retry-delay 2 \
                         "http://127.0.0.1:${api_port}/health/ready"
+
+                    docker compose --env-file "$env_file" \
+                        -f "$deploy_path/compose.yaml" \
+                        -f "$deploy_path/compose.deploy.yaml" \
+                        exec -T api node -e 'const Redis=require("ioredis"); const client=new Redis({host:process.env.REDIS_HOST,port:Number(process.env.REDIS_PORT),password:process.env.REDIS_PASSWORD||undefined,db:Number(process.env.REDIS_DB||0),connectTimeout:3000}); client.ping().then((value)=>{if(value!=="PONG")process.exit(1);}).catch(()=>process.exit(1)).finally(()=>client.disconnect());'
+
+                    docker compose --env-file "$env_file" \
+                        -f "$deploy_path/compose.yaml" \
+                        -f "$deploy_path/compose.deploy.yaml" \
+                        exec -T mail-worker node -e 'const net=require("node:net"); const socket=net.createConnection({host:process.env.MAIL_SMTP_HOST,port:Number(process.env.MAIL_SMTP_PORT)},()=>{socket.end(); process.exit(0);}); socket.setTimeout(3000,()=>{socket.destroy();process.exit(1);}); socket.on("error",()=>process.exit(1));'
+
+                    docker compose --env-file "$env_file" \
+                        -f "$deploy_path/compose.yaml" \
+                        -f "$deploy_path/compose.deploy.yaml" \
+                        exec -T file-worker node -e 'const {S3Client,HeadBucketCommand}=require("@aws-sdk/client-s3"); const client=new S3Client({region:process.env.FILES_S3_REGION,endpoint:process.env.FILES_S3_ENDPOINT,forcePathStyle:process.env.FILES_S3_FORCE_PATH_STYLE==="true",credentials:process.env.FILES_S3_ACCESS_KEY_ID?{accessKeyId:process.env.FILES_S3_ACCESS_KEY_ID,secretAccessKey:process.env.FILES_S3_SECRET_ACCESS_KEY}:undefined}); client.send(new HeadBucketCommand({Bucket:process.env.FILES_S3_BUCKET})).then(()=>process.exit(0)).catch(()=>process.exit(1));'
+
+                    {
+                        printf 'image=%s\n' "$IMAGE_REF"
+                        printf 'source_commit=%s\n' "$SOURCE_COMMIT"
+                        printf 'migration_compatibility=%s\n' "$migration_compatibility"
+                        printf 'backup_reference=%s\n' "${BACKUP_REFERENCE:-not-required}"
+                        printf 'deployed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                    } > "$deployment_record"
+                    chmod 0640 "$deployment_record"
 
                     printf '%s\n' "$IMAGE_REF" > "$state_file"
                     chmod 0640 "$state_file"
