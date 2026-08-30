@@ -36,5 +36,7 @@ tests; a generated project must pass the complete validation workflow before it 
 `tools/project-capabilities.test.mjs` validates dependency resolution and rejects unknown or cyclic
 capabilities. `pnpm profiles:check` generates and structurally checks all 24 resolved profiles;
 `pnpm profiles:validate` additionally runs generated-project quality commands.
+The generated `.company-template.json` provenance file is machine-owned metadata and is excluded from
+Prettier source formatting checks; its schema and capability lists remain covered by generator tests.
 
 **Navigation:** [Previous: Feature Module Architecture](module-architecture.md) | [Documentation Index](../README.md) | [Next: Configuration](configuration.md)

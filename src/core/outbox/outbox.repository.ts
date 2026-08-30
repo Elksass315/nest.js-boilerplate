@@ -54,7 +54,7 @@ export class OutboxRepository {
   public async claimBatch(limit: number, leaseMs: number): Promise<OutboxMessageEntity[]> {
     return this.dataSource.transaction(async (manager) => {
       const leaseToken = randomUUID();
-      const rawRows = await manager.query<Record<string, unknown>[]>(
+      const rawResult: unknown = await manager.query(
         `UPDATE outbox_messages SET status = 'processing', attempts = attempts + 1,
           lease_until = now() + ($2 * interval '1 millisecond'), lease_token = $3, updated_at = now()
          WHERE id IN (SELECT id FROM outbox_messages
@@ -63,6 +63,7 @@ export class OutboxRepository {
          RETURNING *`,
         [limit, leaseMs, leaseToken],
       );
+      const rawRows = returnedRows(rawResult);
       return rawRows.map((row) =>
         manager.getRepository(OutboxMessageEntity).create({
           id: String(row['id']),
@@ -76,6 +77,8 @@ export class OutboxRepository {
           leaseUntil: dateValue(row['lease_until']),
           leaseToken: stringValue(row['lease_token']),
           lastErrorCode: stringValue(row['last_error_code']),
+          createdAt: dateValue(row['created_at']) ?? new Date(),
+          updatedAt: dateValue(row['updated_at']) ?? new Date(),
         }),
       );
     });
@@ -96,6 +99,17 @@ export class OutboxRepository {
       [id, leaseToken, errorCode],
     );
   }
+}
+
+function returnedRows(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  // TypeORM's PostgreSQL transaction query adapter returns UPDATE ... RETURNING
+  // as [rows, rowCount], while other adapters return rows directly.
+  const rows = Array.isArray(value[0]) ? value[0] : value;
+  return rows.filter(
+    (row): row is Record<string, unknown> =>
+      typeof row === 'object' && row !== null && !Array.isArray(row),
+  );
 }
 
 function rowCount(value: unknown): number {

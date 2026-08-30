@@ -34,7 +34,8 @@ and does not run migrations or seeds in its entrypoint. Runtime entrypoints are 
 and `seed` one-shot services before
 rolling out the API and all four workers from the same image. Every worker writes a short-lived
 heartbeat in `/tmp`; Compose health checks fail when a process stops refreshing it.
-The file worker consumes bounded idempotent cleanup jobs and runs the advisory-locked expiry
+The file worker imports the shared Redis module so its readiness dependency is available before it
+consumes bounded idempotent cleanup jobs and runs the advisory-locked expiry
 sweeper; it exposes no port and shuts down gracefully. The mail worker uses
 `dist/apps/mail-worker/main.js`, exposes no port, verifies SMTP before consuming jobs, and shuts down
 gracefully. Local PostgreSQL, Redis, and Mailpit UI ports bind only to `127.0.0.1`; deployment

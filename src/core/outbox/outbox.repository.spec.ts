@@ -67,6 +67,46 @@ describe(OutboxRepository.name, () => {
     ]);
   });
 
+  it('normalizes PostgreSQL UPDATE RETURNING structured results', async () => {
+    const entityRepository = { create: jest.fn((value: OutboxMessageEntity) => value) };
+    const row = {
+      id: '11111111-1111-4111-8111-111111111111',
+      topic: 'mail.send',
+      version: 1,
+      payload: { template: 'email-verification' },
+      correlation_id: 'correlation-1',
+      status: 'processing',
+      attempts: 1,
+      available_at: new Date().toISOString(),
+      lease_until: new Date().toISOString(),
+      lease_token: '22222222-2222-4222-8222-222222222222',
+      last_error_code: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const manager = {
+      query: jest.fn().mockResolvedValue([[row], 1]),
+      getRepository: jest.fn().mockReturnValue(entityRepository),
+    } as unknown as EntityManager;
+    const dataSource = {
+      transaction: jest.fn(
+        async (callback: (value: EntityManager) => Promise<OutboxMessageEntity[]>) =>
+          callback(manager),
+      ),
+    } as unknown as DataSource;
+
+    const records = await new OutboxRepository(dataSource).claimBatch(10, 30_000);
+    expect(records[0]).toEqual(
+      expect.objectContaining({
+        id: row.id,
+        topic: row.topic,
+        correlationId: row.correlation_id,
+        payload: row.payload,
+      }),
+    );
+    expect(entityRepository.create).toHaveBeenCalledTimes(1);
+  });
+
   it('marks publication state only for the current lease token', async () => {
     const dataSource = { query: jest.fn().mockResolvedValue(undefined) } as unknown as DataSource;
     const repository = new OutboxRepository(dataSource);

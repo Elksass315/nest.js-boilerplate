@@ -2,6 +2,10 @@
 
 ## Purpose and scope
 
+The initializer treats avatars as an optional `user-avatars` capability (resolved with `files`).
+Profiles that omit it do not generate avatar routes or response/OpenAPI fields; the users module
+consumes the capability through its optional profile-enricher contract.
+
 `users` owns account identity state, profile data, role assignments, and append-only security audit
 records. It does not authenticate credentials, issue tokens, manage sessions, send mail, or define
 role/permission policy. Those capabilities belong to the `auth`, `mail`, and `authorization`

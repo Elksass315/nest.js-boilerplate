@@ -3,3 +3,4 @@ coverage
 node_modules
 pnpm-lock.yaml
 src/modules/mail/templates/**/*.hbs
+.company-template.json

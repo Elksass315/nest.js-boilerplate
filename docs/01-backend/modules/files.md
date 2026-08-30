@@ -80,7 +80,8 @@ encryption must be configured for tus multipart uploads; direct provider writes 
 configured SSE mode. Configure an S3 lifecycle rule to abort incomplete multipart uploads after one
 day as defense in depth, while the worker terminates known abandoned tus uploads.
 
-The file worker consumes `file.delete` and `file.migration-source-delete` requests from the
+The file worker registers the `files` BullMQ queue in its consumer module, then consumes
+`file.delete` and `file.migration-source-delete` requests from the
 transactional outbox relay. File state transitions and their cleanup messages are committed in the
 same PostgreSQL transaction; the outbox UUID becomes the BullMQ job ID, so relay retries are
 idempotent. The worker uses bounded retries, idempotent physical deletion, a 15-minute sweeper,
@@ -122,10 +123,10 @@ must be handled operationally before reversing the migration.
 
 Not applicable. The module exposes no business collection endpoint.
 
-**Navigation:** [Previous: Authorization Module](authorization.md) | [Documentation Index](../../README.md) | [Next: Mail Module](mail.md)
-
 The files module is optional in generated profiles. Its readiness contributor, worker, cleanup
 queue, migrations, environment keys, and Compose storage are emitted only when `files` is selected.
 
 Retention cleanup removes only unclaimed expired failed metadata. Ready files and
 physical object cleanup remain owned by the files worker and its outbox jobs.
+
+**Navigation:** [Previous: Authorization Module](authorization.md) | [Documentation Index](../../README.md) | [Next: Mail Module](mail.md)

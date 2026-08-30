@@ -62,10 +62,10 @@ import { CAPABILITY_API_IMPORTS, CAPABILITY_API_PROVIDERS } from './capability-c
     RedisModule,
     OutboxModule,
     HealthModule,
+    ...CAPABILITY_API_IMPORTS,
     AuthorizationModule,
     UsersModule,
     AuthModule,
-    ...CAPABILITY_API_IMPORTS,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

@@ -1,4 +1,5 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, type EntityManager } from 'typeorm';
 
@@ -52,16 +53,26 @@ const PROTECTED_OVERRIDE_GRANTS = new Set<Permission>([
 
 @Injectable()
 export class UsersService {
+  private profileEnricher: UserProfileEnricher | undefined;
+
   public constructor(
     private readonly repository: UsersRepository,
     private readonly authorization: AuthorizationService,
     private readonly mail: MailService,
     private readonly requestContext: RequestContextService,
     @InjectDataSource() private readonly dataSource: DataSource,
-    @Optional()
-    @Inject(USER_PROFILE_ENRICHER)
-    private readonly profileEnricher?: UserProfileEnricher,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  public onModuleInit(): void {
+    try {
+      this.profileEnricher = this.moduleRef.get<UserProfileEnricher>(USER_PROFILE_ENRICHER, {
+        strict: false,
+      });
+    } catch {
+      this.profileEnricher = undefined;
+    }
+  }
 
   public async list(page: number, limit: number): Promise<OffsetPage<UserResponseDto>> {
     const [users, total] = await this.repository.findPage(page, limit);

@@ -26,4 +26,4 @@ Operators should alert on API error rate/latency, queue lag, outbox age/failure 
 rate, cleanup failures, and missing worker heartbeats. Group dashboards by service, route template,
 queue, topic, and worker—not by users or request identifiers.
 
-**Navigation:** [Previous: Sentry](sentry.md) | [Documentation Index](../README.md) | [Next: Database, Migration, and Seed Standard](database.md)
+**Navigation:** [Previous: Logging](logging.md) | [Documentation Index](../README.md) | [Next: Database, Migration, and Seed Standard](database.md)

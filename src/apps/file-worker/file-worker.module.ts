@@ -9,6 +9,7 @@ import { DatabaseModule } from '@/database/database.module';
 import { FilesWorkerConsumerModule } from '@/modules/files/files-worker.module';
 import { FILE_QUEUE } from '@/modules/files/files.types';
 import type { RedisConfig } from '@/redis/config/redis.config';
+import { RedisModule } from '@/redis/redis.module';
 import { CAPABILITY_WORKER_IMPORTS } from '@/apps/capability-worker-imports';
 
 import {
@@ -32,6 +33,7 @@ import {
     }),
     CoreModule,
     DatabaseModule,
+    RedisModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<FileWorkerConfiguration, true>) => {
