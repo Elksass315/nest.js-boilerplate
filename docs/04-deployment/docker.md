@@ -7,6 +7,11 @@ and deployment layers because managed environments provide them as external serv
 loopback-only local dependency/UI ports. Development also includes digest-pinned LocalStack S3 on
 `127.0.0.1:4566`; its ready hook creates the configured private test bucket. Local dependency image
 updates are accepted only after their container health checks and integration workflow pass.
+The development overlay invokes the built entrypoints directly rather than starting one compiler
+watcher per container. This avoids concurrent `dist` cleanup races when the API and workers share
+the source mount; run `pnpm build` after source changes before restarting the overlay. Startup grace
+periods are longer for the source-mounted development services; deployment health-check timings are
+unchanged.
 `compose.deploy.yaml` adds the immutable runtime image, read-only filesystems, dropped capabilities,
 and one-shot migration and seed jobs. It does not create PostgreSQL, Redis, Mailpit, or LocalStack.
 
@@ -23,7 +28,9 @@ pnpm docker:logs
 pnpm docker:down
 ```
 
-The API and file worker share `files_data` at `/app/storage/files`; the container root remains
+The API and file worker share `files_data` at `/app/storage/files`; the development image creates
+that directory before the volume is initialized so the non-root `node` user can write local-file
+health markers and upload data. The container root remains
 read-only in deployment. Multiple local-driver replicas require a real shared persistent volume.
 S3 is recommended for managed environments.
 
