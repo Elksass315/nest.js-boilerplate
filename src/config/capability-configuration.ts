@@ -26,6 +26,8 @@ export const capabilityEnvironmentMessages = {
     'FILES_READ_DRIVERS must include FILES_WRITE_DRIVER and S3 settings must be complete when s3 is enabled',
   'environment.productionFiles': 'Production file writes require the S3 storage driver',
   'environment.sentryDsn': 'SENTRY_DSN must be set exactly when SENTRY_ENABLED is true',
+  'environment.managedSecrets': 'Managed environments cannot use local or test storage credentials',
+  'environment.managedUrls': 'Managed capability URLs must use a public HTTPS origin',
 };
 
 export function validateApiCapabilityContradictions(

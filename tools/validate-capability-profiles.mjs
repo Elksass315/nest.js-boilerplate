@@ -163,7 +163,7 @@ function collectTypeScript(directory, files) {
   for (const entry of readdirSync(directory)) {
     const absolute = path.join(directory, entry);
     if (statSync(absolute).isDirectory()) collectTypeScript(absolute, files);
-    else if (absolute.endsWith('.ts')) files.push(absolute);
+    else if (absolute.endsWith('.ts') && !absolute.endsWith('.spec.ts')) files.push(absolute);
   }
 }
 

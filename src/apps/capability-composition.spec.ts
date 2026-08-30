@@ -3,6 +3,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 
 import { CAPABILITY_API_IMPORTS, CAPABILITY_API_PROVIDERS } from './api/capability-composition';
+import { CAPABILITY_WORKER_IMPORTS } from './capability-worker-imports';
 import { CAPABILITY_MAINTENANCE_PROVIDERS } from './maintenance-worker/capability-composition';
 import { MAINTENANCE_CAPABILITY_CLEANER } from './maintenance-worker/maintenance-capability-cleaner';
 import { CAPABILITY_OUTBOX_PROVIDERS } from './outbox-worker/capability-composition';
@@ -15,6 +16,7 @@ describe('generated capability composition', () => {
   it('registers the selected API capability contributions', () => {
     expect(CAPABILITY_API_IMPORTS).toHaveLength(5);
     expect(CAPABILITY_API_PROVIDERS).toHaveLength(1);
+    expect(CAPABILITY_WORKER_IMPORTS).toHaveLength(1);
   });
 
   it('builds the maintenance cleaner from platform dependencies', async () => {
@@ -66,5 +68,18 @@ describe('generated capability composition', () => {
     );
     await publisher.close();
     expect(queue.close).toHaveBeenCalled();
+
+    await publisher.publish(
+      Object.assign(new OutboxMessageEntity(), {
+        id: 'migration-id',
+        topic: 'file.migration-source-delete',
+        payload: { key: 'source-key' },
+      }),
+    );
+    expect(queue.add).toHaveBeenLastCalledWith(
+      'files.migration-source-delete',
+      { key: 'source-key' },
+      expect.objectContaining({ jobId: 'migration-id' }),
+    );
   });
 });

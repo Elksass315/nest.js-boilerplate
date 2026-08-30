@@ -27,11 +27,11 @@ authentication, queue, and data-integrity smoke tests. Compare the recovered poi
 RPO target and the full recovery duration with the 4-hour RTO target. Record gaps and remediation
 owners before closing the drill.
 
-| Evidence                           | Status              | Owner                  | Link or record     |
-| ---------------------------------- | ------------------- | ---------------------- | ------------------ |
-| Full validation and security scans | Pending per release | Application team       | CI run             |
-| Clean initializer exercise         | Pending per release | Template maintainers   | Initializer report |
-| Managed deployment rehearsal       | Pending per release | Platform team          | Deployment record  |
-| PITR restore drill                 | Quarterly           | Database/platform team | Recovery report    |
+| Evidence                           | Status                                                                                            | Owner                  | Link or record     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------- | ------------------ |
+| Full validation and security scans | Static/unit/security gates pass; changed-coverage gate remains below 80%; CI confirmation pending | Application team       | CI run             |
+| Clean initializer exercise         | All 24 profiles structurally validated locally; generated command/OpenAPI checks pending          | Template maintainers   | Initializer report |
+| Managed deployment rehearsal       | Pending; requires staging services and immutable image digest                                     | Platform team          | Deployment record  |
+| PITR restore drill                 | Quarterly                                                                                         | Database/platform team | Recovery report    |
 
 **Navigation:** [Previous: CI/CD Ownership](ci-cd.md) | [Documentation Index](../README.md) | [Next: Documentation Policy](../governance/documentation-policy.md)
