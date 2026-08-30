@@ -5,7 +5,12 @@ import { Queue } from 'bullmq';
 
 import { OutboxMessageEntity } from './outbox.entity';
 import { OutboxRepository } from './outbox.repository';
-import { OUTBOX_FILE_QUEUE, OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from './outbox.types';
+import { OUTBOX_MAIL_QUEUE, OUTBOX_QUEUE } from './outbox.types';
+import {
+  OUTBOX_CAPABILITY_PUBLISHER,
+  type OutboxCapabilityPublisher,
+} from './outbox-capability-publisher';
+import { Inject } from '@nestjs/common';
 import { WorkerHeartbeatService } from '../worker/worker-heartbeat.service';
 import { OperationalMetricsService } from '@/observability/operational-metrics';
 import { withTelemetrySpan } from '@/observability/telemetry';
@@ -20,9 +25,11 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
     private readonly repository: OutboxRepository,
     @InjectQueue(OUTBOX_QUEUE) private readonly queue: Queue,
     @InjectQueue(OUTBOX_MAIL_QUEUE) private readonly mailQueue: Queue,
-    @InjectQueue(OUTBOX_FILE_QUEUE) private readonly fileQueue: Queue,
     private readonly heartbeat: WorkerHeartbeatService,
     @Optional() private readonly metrics?: OperationalMetricsService,
+    @Optional()
+    @Inject(OUTBOX_CAPABILITY_PUBLISHER)
+    private readonly capabilityPublisher?: OutboxCapabilityPublisher,
   ) {}
 
   public onModuleInit(): void {
@@ -36,7 +43,7 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
     if (this.timer) clearInterval(this.timer);
     await this.queue.close();
     await this.mailQueue.close();
-    await this.fileQueue.close();
+    await this.capabilityPublisher?.close();
     await this.heartbeat.stop('outbox-worker');
   }
 
@@ -54,6 +61,12 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
             ? Math.max(0, Date.now() - record.createdAt.getTime())
             : 0,
         );
+        if (this.capabilityPublisher?.supports(record.topic)) {
+          await this.capabilityPublisher.publish(record);
+          if (record.leaseToken) await this.repository.markPublished(record.id, record.leaseToken);
+          this.metrics?.recordOutbox('published');
+          return;
+        }
         let destination = this.queue;
         let name: string = record.topic;
         let data: object = {
@@ -67,16 +80,6 @@ export class OutboxWorkerService implements OnModuleInit, OnApplicationShutdown 
           case 'mail.send':
             destination = this.mailQueue;
             name = 'send-mail';
-            data = record.payload;
-            break;
-          case 'file.delete':
-            destination = this.fileQueue;
-            name = 'files.physical-delete';
-            data = record.payload;
-            break;
-          case 'file.migration-source-delete':
-            destination = this.fileQueue;
-            name = 'files.migration-source-delete';
             data = record.payload;
             break;
         }

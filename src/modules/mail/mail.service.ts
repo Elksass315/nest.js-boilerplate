@@ -172,8 +172,6 @@ export class MailService {
     input: TeamInvitationMailInput,
     manager?: EntityManager,
   ): Promise<void> {
-    const actionUrl = new URL(this.config.getOrThrow('invitations.baseUrl', { infer: true }));
-    actionUrl.searchParams.set('token', input.token);
     return this.enqueue(
       input.email,
       'team-invitation',
@@ -181,7 +179,7 @@ export class MailService {
       {
         inviterName: input.inviterName,
         role: input.role,
-        actionUrl: actionUrl.toString(),
+        actionUrl: input.actionUrl,
         expiresAt: input.expiresAt.toISOString(),
       },
       manager,

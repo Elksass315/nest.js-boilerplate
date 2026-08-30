@@ -9,10 +9,13 @@ import { CoreModule } from '@/core/core.module';
 import { OutboxModule } from '@/core/outbox/outbox.module';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthModule } from '@/modules/auth';
-import { FilesModule } from '@/modules/files';
 import { MailModule } from '@/modules/mail';
 
 import { MaintenanceWorkerService } from './maintenance-worker.service';
+import {
+  CAPABILITY_MAINTENANCE_IMPORTS,
+  CAPABILITY_MAINTENANCE_PROVIDERS,
+} from './capability-composition';
 
 @Module({
   imports: [
@@ -26,10 +29,10 @@ import { MaintenanceWorkerService } from './maintenance-worker.service';
     CoreModule,
     OutboxModule,
     MailModule,
-    FilesModule,
+    ...CAPABILITY_MAINTENANCE_IMPORTS,
     AuthModule,
   ],
-  providers: [MaintenanceWorkerService],
+  providers: [MaintenanceWorkerService, ...CAPABILITY_MAINTENANCE_PROVIDERS],
   exports: [MaintenanceWorkerService],
 })
 export class MaintenanceWorkerModule {}

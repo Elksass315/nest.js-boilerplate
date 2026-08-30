@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, type EntityManager } from 'typeorm';
 
@@ -6,7 +7,6 @@ import { buildOffsetPage, type OffsetPage } from '@/common/pagination';
 import { AppException } from '@/core/errors/app.exception';
 import { RequestContextService } from '@/core/request-context/request-context.service';
 import { AuthorizationService, type RoleDefinition } from '@/modules/authorization';
-import { FilesService, type PreparedFileContent, type PublicFileDescriptor } from '@/modules/files';
 import { MailService } from '@/modules/mail';
 import { isPlainRecord } from '@/shared/helpers/is-plain-record';
 
@@ -15,7 +15,6 @@ import type {
   SecurityAuditDetail,
   SecurityAuditResponseDto,
 } from './dto/security-audit-response.dto';
-import { AvatarImageService } from './avatar-image.service';
 import type { UserSecurityAuditEntity } from './entities/user-security-audit.entity';
 import type { UserEntity } from './entities/user.entity';
 import type {
@@ -30,15 +29,7 @@ import type { RoleKey } from '@/modules/authorization';
 import type { ReplaceUserPermissionsDto } from './dto/replace-user-permissions.dto';
 import type { UserPermissionsResponseDto } from './dto/user-permissions-response.dto';
 import { UsersRepository, type SecurityAuditInput } from './users.repository';
-
-type AvatarClaimResult =
-  | { user: UserEntity; avatar: null; replacedFileId: null; idempotent: true }
-  | {
-      user: UserEntity;
-      avatar: PublicFileDescriptor;
-      replacedFileId: string | null;
-      idempotent: false;
-    };
+import { USER_PROFILE_ENRICHER, type UserProfileEnricher } from './user-profile-enricher';
 
 const PUBLIC_AUDIT_DETAIL_KEYS: Partial<
   Record<SecurityAuditInput['eventType'], readonly string[]>
@@ -48,7 +39,7 @@ const PUBLIC_AUDIT_DETAIL_KEYS: Partial<
   'user.status.changed': ['previousStatus', 'nextStatus'],
   'user.roles.changed': ['nextRoleKeys'],
   'user.permissions.changed': ['grants', 'revokes'],
-  'auth.login.failed': ['failedLoginCount', 'locked'],
+  'auth.login.failed': ['failedLoginCount', 'locked', 'failureSuppressed'],
   'team.invitation.created': ['invitationId', 'role'],
   'team.invitation.resent': ['invitationId'],
   'team.invitation.revoked': ['invitationId'],
@@ -62,28 +53,33 @@ const PROTECTED_OVERRIDE_GRANTS = new Set<Permission>([
 
 @Injectable()
 export class UsersService {
+  private profileEnricher: UserProfileEnricher | undefined;
+
   public constructor(
     private readonly repository: UsersRepository,
     private readonly authorization: AuthorizationService,
-    private readonly files: FilesService,
-    private readonly avatarImages: AvatarImageService,
     private readonly mail: MailService,
     private readonly requestContext: RequestContextService,
     @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  public onModuleInit(): void {
+    try {
+      this.profileEnricher = this.moduleRef.get<UserProfileEnricher>(USER_PROFILE_ENRICHER, {
+        strict: false,
+      });
+    } catch {
+      this.profileEnricher = undefined;
+    }
+  }
 
   public async list(page: number, limit: number): Promise<OffsetPage<UserResponseDto>> {
     const [users, total] = await this.repository.findPage(page, limit);
     const roles = await this.rolesByUserId(users.map(({ id }) => id));
-    const avatars = await this.avatarsByFileId(users.map(({ avatarFileId }) => avatarFileId));
+    const extensions = await this.enrichProfiles(users.map(({ id }) => id));
     return buildOffsetPage(
-      users.map((user) =>
-        this.toResponse(
-          user,
-          roles.get(user.id) ?? [],
-          user.avatarFileId ? (avatars.get(user.avatarFileId) ?? null) : null,
-        ),
-      ),
+      users.map((user) => this.toResponse(user, roles.get(user.id) ?? [], extensions.get(user.id))),
       total,
       page,
       limit,
@@ -178,63 +174,6 @@ export class UsersService {
     );
     if (!user) throw new AppException('USER_NOT_FOUND');
     return this.responseFor(user, await this.rolesForUser(user.id));
-  }
-
-  public async replaceOwnAvatar(userId: string, fileId: string): Promise<UserResponseDto> {
-    const existing = await this.requireUser(userId);
-    if (existing.avatarFileId === fileId) {
-      return this.responseFor(existing, await this.rolesForUser(userId));
-    }
-
-    const limits = this.avatarImages.getLimits();
-    const uploaded = await this.files.readUploadedForOwner(
-      fileId,
-      userId,
-      'user_avatar',
-      limits.maxBytes,
-    );
-    const sanitized = await this.avatarImages.sanitize(uploaded);
-    const prepared = await this.files.prepareReplacement(
-      fileId,
-      userId,
-      'user_avatar',
-      sanitized.bytes,
-      sanitized.mimeType,
-    );
-
-    const result = await this.claimAvatarTransaction(userId, fileId, prepared).catch(
-      async (error: unknown) => {
-        await this.files.discardPrepared(prepared);
-        throw error;
-      },
-    );
-    if (result.idempotent) {
-      await this.files.discardPrepared(prepared);
-      return this.responseFor(result.user, await this.rolesForUser(userId));
-    }
-    return this.toResponse(result.user, await this.rolesForUser(userId), result.avatar);
-  }
-
-  public async deleteOwnAvatar(userId: string): Promise<void> {
-    await this.dataSource.transaction(async (manager) => {
-      const user = await this.repository.findByIdForUpdate(manager, userId);
-      if (!user) throw new AppException('USER_NOT_FOUND');
-      const fileId = user.avatarFileId;
-      if (!fileId) return null;
-      await this.files.markDeletingForOwner(manager, fileId, userId, 'user_avatar');
-      user.avatarFileId = null;
-      await this.repository.saveWithAudit(
-        manager,
-        user,
-        this.auditContext(userId, userId, 'user.avatar.changed', { action: 'removed' }),
-      );
-      await this.files.scheduleDeletion(
-        fileId,
-        this.requestContext.getCorrelationId() ?? 'unavailable',
-        manager,
-      );
-      return fileId;
-    });
   }
 
   public async updateStatus(
@@ -442,7 +381,8 @@ export class UsersService {
         user,
         this.auditContext(userId, userId, 'auth.login.failed', {
           failedLoginCount: user.failedLoginCount,
-          locked: user.lockedUntil !== null,
+          locked: false,
+          failureSuppressed: user.lockedUntil !== null,
         }),
       );
     });
@@ -555,46 +495,6 @@ export class UsersService {
     };
   }
 
-  private claimAvatarTransaction(
-    userId: string,
-    fileId: string,
-    prepared: PreparedFileContent,
-  ): Promise<AvatarClaimResult> {
-    return this.dataSource.transaction(async (manager) => {
-      const user = await this.repository.findByIdForUpdate(manager, userId);
-      if (!user) throw new AppException('USER_NOT_FOUND');
-      if (user.avatarFileId === fileId) {
-        return { user, avatar: null, replacedFileId: null, idempotent: true } as const;
-      }
-      const avatar = await this.files.claimPrepared({
-        manager,
-        prepared,
-        uploaderId: userId,
-        purpose: 'user_avatar',
-      });
-      const replacedFileId = user.avatarFileId;
-      if (replacedFileId) {
-        await this.files.markDeletingForOwner(manager, replacedFileId, userId, 'user_avatar');
-      }
-      user.avatarFileId = fileId;
-      const saved = await this.repository.saveWithAudit(
-        manager,
-        user,
-        this.auditContext(userId, userId, 'user.avatar.changed', {
-          action: 'replaced',
-          hadPreviousAvatar: replacedFileId !== null,
-        }),
-      );
-      await this.files.enqueueClaimCleanup(
-        fileId,
-        replacedFileId,
-        this.requestContext.getCorrelationId() ?? 'unavailable',
-        manager,
-      );
-      return { user: saved, avatar, replacedFileId, idempotent: false } as const;
-    });
-  }
-
   private async rolesForUser(userId: string): Promise<RoleDefinition[]> {
     return (await this.rolesByUserId([userId])).get(userId) ?? [];
   }
@@ -620,25 +520,23 @@ export class UsersService {
     user: UserEntity,
     roles: readonly RoleDefinition[],
   ): Promise<UserResponseDto> {
-    const avatar = user.avatarFileId
-      ? ((await this.files.findPublicDescriptors([user.avatarFileId]))[0] ?? null)
-      : null;
-    return this.toResponse(user, roles, avatar);
+    const extensions = await this.enrichProfiles([user.id]);
+    return this.toResponse(user, roles, extensions.get(user.id));
   }
 
-  private async avatarsByFileId(
-    fileIds: readonly (string | null)[],
-  ): Promise<Map<string, PublicFileDescriptor>> {
-    const ids = [...new Set(fileIds.filter((id): id is string => id !== null))];
-    return new Map(
-      (await this.files.findPublicDescriptors(ids)).map((avatar) => [avatar.fileId, avatar]),
+  private enrichProfiles(
+    userIds: readonly string[],
+  ): Promise<Map<string, Record<string, unknown>>> {
+    return (
+      this.profileEnricher?.enrich(userIds) ??
+      Promise.resolve(new Map<string, Record<string, unknown>>())
     );
   }
 
   private toResponse(
     user: UserEntity,
     roles: readonly RoleDefinition[],
-    avatar: PublicFileDescriptor | null,
+    extension: Record<string, unknown> = {},
   ): UserResponseDto {
     return {
       id: user.id,
@@ -649,14 +547,7 @@ export class UsersService {
       emailTwoStepEnabled: user.emailTwoStepEnabled,
       emailTwoStepRequired: roles.some(({ key }) => key === 'admin' || key === 'super_admin'),
       roles: roles.map(({ key }) => key),
-      avatar: avatar
-        ? {
-            fileId: avatar.fileId,
-            url: avatar.url,
-            mimeType: avatar.mimeType,
-            size: avatar.sizeBytes,
-          }
-        : null,
+      ...extension,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -675,7 +566,6 @@ export class UsersService {
       authVersion: user.authVersion,
       failedLoginCount: user.failedLoginCount,
       lockedUntil: user.lockedUntil,
-      avatarFileId: user.avatarFileId,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       roles,

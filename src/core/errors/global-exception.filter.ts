@@ -4,16 +4,21 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Inject,
   Logger,
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { SentryExceptionCaptured } from '@sentry/nestjs';
 import { I18nService } from 'nestjs-i18n';
 import { QueryFailedError } from 'typeorm';
 
 import { isPlainRecord } from '@/shared/helpers/is-plain-record';
 import { projectSafeError } from '@/common/logging/safe-error';
+import {
+  ERROR_REPORTER,
+  NoopErrorReporter,
+  type ErrorReporter,
+} from '@/core/error-reporting/error-reporter';
 
 import { ERROR_DEFINITIONS, type ErrorCode, isErrorCode } from './error-definitions';
 import type { ErrorResponse } from './error-response.interface';
@@ -23,9 +28,11 @@ import type { ErrorResponse } from './error-response.interface';
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
-  public constructor(private readonly i18n: I18nService) {}
+  public constructor(
+    private readonly i18n: I18nService,
+    @Inject(ERROR_REPORTER) private readonly reporter: ErrorReporter = new NoopErrorReporter(),
+  ) {}
 
-  @SentryExceptionCaptured()
   public catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const request = context.getRequest<Request>();
@@ -57,6 +64,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     response.setHeader('Content-Language', language);
     if (resolved.status >= 500) {
+      this.reporter.capture(exception, { requestId, correlationId });
       this.logger.error(
         {
           ...projectSafeError(exception),

@@ -26,14 +26,24 @@ function validConfig() {
     defaultLanguage: 'en',
     emailBranding: 'Acme',
     supportAddress: 'support@acme.test',
-    capabilities: ['user-avatars'],
+    capabilities: ['files', 'user-avatars', 'invitations', 'feature-flags', 'sentry'],
     fileDriver: 'local-development-plus-s3-production',
   };
 }
 
-test('normalizes a config and reports automatic dependencies', () => {
+test('normalizes the fully wired reference profile', () => {
   const result = normalizeProjectConfig(validConfig());
-  assert.ok(result.resolvedCapabilities.includes('files'));
+  assert.deepEqual(result.resolvedCapabilities.slice(-5), validConfig().capabilities);
+  assert.deepEqual(result.addedDependencies, []);
+});
+
+test('resolves dependency shorthand while preserving the requested capabilities', () => {
+  const result = normalizeProjectConfig({
+    ...validConfig(),
+    capabilities: ['user-avatars'],
+  });
+  assert.deepEqual(result.capabilities, ['user-avatars']);
+  assert.deepEqual(result.resolvedCapabilities.slice(-2), ['files', 'user-avatars']);
   assert.deepEqual(result.addedDependencies, ['files']);
 });
 
@@ -75,7 +85,7 @@ test('dry-run resolves capabilities without writing project metadata', async () 
     });
     assert.equal(result.branch, 'feature/init-fixture');
     assert.equal(existsSync(path.join(root, '.company-template.json')), false);
-    assert.deepEqual(result.config.addedDependencies, ['files']);
+    assert.deepEqual(result.config.addedDependencies, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

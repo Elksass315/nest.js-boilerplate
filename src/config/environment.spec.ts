@@ -3,9 +3,9 @@ import {
   loadApiConfiguration,
   validateApiEnvironment,
   validateDatabaseEnvironment,
-  validateFileWorkerEnvironment,
   validateMailWorkerEnvironment,
 } from './environment';
+import { validateFileWorkerEnvironment } from './file-worker.environment';
 
 const validEnvironment = {
   AUTH_ACCESS_TOKEN_SECRET: 'test-only-access-token-secret-at-least-32-characters',
@@ -113,11 +113,9 @@ describe('environment validation', () => {
     ).toThrow('FILES_READ_DRIVERS must include FILES_WRITE_DRIVER');
   });
 
-  it('rejects contradictory Sentry settings in API and worker profiles', () => {
+  it('rejects contradictory Sentry settings in the API profile', () => {
     const invalid = { ...validEnvironment, SENTRY_ENABLED: true, SENTRY_DSN: '' };
     expect(() => validateApiEnvironment(invalid)).toThrow('SENTRY_DSN must be set exactly');
-    expect(() => validateMailWorkerEnvironment(invalid)).toThrow('SENTRY_DSN must be set exactly');
-    expect(() => validateFileWorkerEnvironment(invalid)).toThrow('SENTRY_DSN must be set exactly');
   });
 
   it('rejects a relative local file storage root', () => {

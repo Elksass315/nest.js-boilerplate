@@ -16,7 +16,8 @@ FROM base AS development
 ENV NODE_ENV=development
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-RUN chown -R node:node /app
+RUN mkdir -p /app/storage/files \
+    && chown -R node:node /app
 USER node
 EXPOSE 3000
 CMD ["pnpm", "start:dev"]

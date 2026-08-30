@@ -64,7 +64,10 @@ this document together. Swagger modes remain `public`, `basic`, and `disabled`; 
 reject public access.
 
 Rate limiting uses named global, authentication, OTP, recovery, and email-delivery windows backed
-by Redis. `TRUSTED_PROXY_IPS` is disabled by default and must be an explicit IP allowlist in staging
+by Redis. Sensitive windows enforce independent IP and hashed account/challenge-identifier budgets,
+so changing a submitted identifier cannot bypass the IP budget and distributing requests across IPs
+cannot bypass the identifier budget. `TRUSTED_PROXY_IPS` is disabled by default (an explicit empty
+value is valid for local development) and must be an explicit IP allowlist in staging
 and production; the API uses it when determining the client address, so forwarded headers from
 untrusted proxies cannot bypass limits. Managed deployments should tune the named `RATE_LIMIT_*`
 values for their traffic profile.
@@ -77,5 +80,8 @@ operational cutoffs; security audits, feature-flag audits, and business records 
 Sentry is a separate typed namespace shared by API and worker profiles. `SENTRY_ENABLED` and
 `SENTRY_DSN` must agree, tracing is bounded from zero to one, and disabled monitoring performs no
 transmission. Migration and seed profiles remain database-only and do not load Sentry configuration.
+
+Optional configuration schemas are composed from the selected capability manifest. Generated
+profiles do not retain validation, types, or environment keys for omitted capabilities.
 
 **Navigation:** [Previous: Technology Stack](../00-overview/tech-stack.md) | [Documentation Index](../README.md) | [Next: Database, Migration, and Seed Standard](database.md)

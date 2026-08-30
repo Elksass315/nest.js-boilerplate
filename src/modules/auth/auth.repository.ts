@@ -28,22 +28,30 @@ export class AuthRepository {
     @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
   ) {}
 
-  public async cleanupOperationalData(before: Date, limit: number): Promise<number> {
+  public async cleanupOperationalData(
+    tokenBefore: Date,
+    sessionBefore: Date,
+    limit: number,
+  ): Promise<number> {
     if (!this.dataSource) throw new Error('Database datasource is required for retention cleanup');
     return this.dataSource.transaction(async (manager) => {
       let deleted = 0;
-      const statements = [
-        `DELETE FROM auth_action_tokens WHERE id IN (SELECT id FROM auth_action_tokens WHERE expires_at < now() OR consumed_at < $1 ORDER BY id LIMIT $2)`,
-        `DELETE FROM auth_email_verification_codes WHERE id IN (SELECT id FROM auth_email_verification_codes WHERE expires_at < now() OR consumed_at < $1 ORDER BY id LIMIT $2)`,
-        `DELETE FROM auth_two_step_challenges WHERE id IN (SELECT id FROM auth_two_step_challenges WHERE expires_at < now() OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+      const tokenStatements = [
+        `DELETE FROM auth_action_tokens WHERE id IN (SELECT id FROM auth_action_tokens WHERE expires_at < $1 OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_email_verification_codes WHERE id IN (SELECT id FROM auth_email_verification_codes WHERE expires_at < $1 OR consumed_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_two_step_challenges WHERE id IN (SELECT id FROM auth_two_step_challenges WHERE expires_at < $1 OR consumed_at < $1 ORDER BY id LIMIT $2)`,
         `DELETE FROM auth_recovery_codes WHERE id IN (SELECT id FROM auth_recovery_codes WHERE consumed_at < $1 ORDER BY id LIMIT $2)`,
-        `DELETE FROM auth_refresh_tokens WHERE id IN (SELECT id FROM auth_refresh_tokens WHERE expires_at < now() OR (status <> 'active' AND updated_at < $1) ORDER BY id LIMIT $2)`,
-        `DELETE FROM auth_sessions WHERE id IN (SELECT id FROM auth_sessions WHERE expires_at < now() OR revoked_at < $1 ORDER BY id LIMIT $2)`,
+        `DELETE FROM auth_refresh_tokens WHERE id IN (SELECT id FROM auth_refresh_tokens WHERE expires_at < $1 OR (status <> 'active' AND updated_at < $1) ORDER BY id LIMIT $2)`,
       ];
-      for (const statement of statements) {
-        const result: unknown = await manager.query(statement, [before, limit]);
+      for (const statement of tokenStatements) {
+        const result: unknown = await manager.query(statement, [tokenBefore, limit]);
         deleted += rowCount(result);
       }
+      const sessionResult: unknown = await manager.query(
+        `DELETE FROM auth_sessions WHERE id IN (SELECT id FROM auth_sessions WHERE expires_at < $1 OR revoked_at < $1 ORDER BY id LIMIT $2)`,
+        [sessionBefore, limit],
+      );
+      deleted += rowCount(sessionResult);
       return deleted;
     });
   }

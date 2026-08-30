@@ -31,7 +31,7 @@
       "dependencies": [],
       "sourcePaths": ["src/modules/authorization"],
       "migrationPaths": [],
-      "seedPaths": ["src/database/seeds"],
+      "seedPaths": ["src/database/seeds/002-rbac.seed.ts"],
       "configurationPaths": [],
       "environmentKeys": [],
       "workerProcesses": [],
@@ -47,7 +47,7 @@
         "src/database/migrations/1786579200000-CreateIdentityCore.ts",
         "src/database/migrations/1787184000000-IndexSecurityAuditPagination.ts"
       ],
-      "seedPaths": ["src/database/seeds"],
+      "seedPaths": ["src/database/seeds/006-user-permission-overrides-rbac.seed.ts"],
       "configurationPaths": [],
       "environmentKeys": [],
       "workerProcesses": [],
@@ -63,7 +63,7 @@
         "src/database/migrations/1786752000000-CreateIdentityEmailSecurity.ts",
         "src/database/migrations/1787356800000-CreateEmailVerificationCodes.ts"
       ],
-      "seedPaths": [],
+      "seedPaths": ["src/database/seeds/004-security-audit-rbac.seed.ts"],
       "configurationPaths": ["src/config/auth.config.ts"],
       "environmentKeys": [],
       "workerProcesses": [],
@@ -92,7 +92,7 @@
       "dependencies": ["users"],
       "sourcePaths": ["src/modules/users/entities/user-security-audit.entity.ts"],
       "migrationPaths": [],
-      "seedPaths": [],
+      "seedPaths": ["src/database/seeds/004-security-audit-rbac.seed.ts"],
       "configurationPaths": [],
       "environmentKeys": [],
       "workerProcesses": [],
@@ -119,7 +119,7 @@
       "sourcePaths": ["src/core/outbox", "src/apps/outbox-worker"],
       "migrationPaths": ["src/database/migrations/1787600000000-CreateTransactionalOutbox.ts"],
       "seedPaths": [],
-      "configurationPaths": ["src/config/outbox.config.ts"],
+      "configurationPaths": [],
       "environmentKeys": [],
       "workerProcesses": ["outbox-worker"],
       "composeServices": ["outbox-worker"],
@@ -145,12 +145,31 @@
       "sourcePaths": ["src/modules/files", "src/apps/file-worker", "src/apps/files-migration"],
       "migrationPaths": ["src/database/migrations/1786838400000-CreateFileStorage.ts"],
       "seedPaths": [],
-      "configurationPaths": ["src/config/files.config.ts"],
+      "configurationPaths": ["src/config/files.config.ts", "src/config/file-worker.environment.ts"],
+      "testPaths": [
+        "src/config/files.config.spec.ts",
+        "src/config/environment.spec.ts",
+        "test/app.e2e-spec.ts"
+      ],
       "environmentKeys": [
         "FILES_WRITE_DRIVER",
         "FILES_READ_DRIVERS",
+        "FILES_METADATA_RETENTION_DAYS",
+        "FILES_LOCAL_ROOT",
+        "FILES_UPLOAD_EXPIRATION_HOURS",
+        "FILES_SIGNED_URL_TTL_SECONDS",
+        "FILES_WORKER_CONCURRENCY",
+        "FILES_MAX_RETRIES",
+        "FILES_RETRY_DELAY_MS",
         "FILES_S3_BUCKET",
-        "FILES_S3_ENDPOINT"
+        "FILES_S3_ENDPOINT",
+        "FILES_S3_REGION",
+        "FILES_S3_FORCE_PATH_STYLE",
+        "FILES_S3_CDN_URL",
+        "FILES_S3_ACCESS_KEY_ID",
+        "FILES_S3_SECRET_ACCESS_KEY",
+        "FILES_S3_SERVER_SIDE_ENCRYPTION",
+        "FILES_S3_KMS_KEY_ID"
       ],
       "workerProcesses": ["file-worker"],
       "composeServices": ["localstack", "file-worker"],
@@ -162,7 +181,24 @@
         "@tus/s3-store",
         "@tus/server",
         "sharp"
-      ]
+      ],
+      "contributions": {
+        "apiModules": [{ "name": "FilesModule", "path": "@/modules/files" }],
+        "configurationFragments": ["files"],
+        "packageScripts": [
+          "start:worker:files",
+          "start:worker:files:dev",
+          "files:migration:status",
+          "files:migrate"
+        ],
+        "nestAssets": ["modules/files/*.cjs"],
+        "seedDefinitions": [],
+        "outboxQueues": ["files"],
+        "maintenanceCleaners": ["files"],
+        "composeVolumes": ["files_data"],
+        "environmentSections": ["files"],
+        "documentationSections": ["files"]
+      }
     },
     "user-avatars": {
       "label": "User avatars",
@@ -170,10 +206,12 @@
       "sourcePaths": ["src/modules/user-avatars"],
       "migrationPaths": [
         "src/database/migrations/1786924800000-AddUserAvatar.ts",
-        "src/database/migrations/1787702400000-CreateUserAvatarAssociations.ts"
+        "src/database/migrations/1787702400000-CreateUserAvatarAssociations.ts",
+        "src/database/migrations/1787800000000-DropLegacyUserAvatarColumn.ts"
       ],
       "seedPaths": [],
       "configurationPaths": ["src/config/files.config.ts"],
+      "testPaths": ["test/app.e2e-spec.ts"],
       "environmentKeys": [
         "FILES_USER_AVATAR_MAX_BYTES",
         "FILES_USER_AVATAR_MAX_WIDTH",
@@ -182,8 +220,20 @@
       ],
       "workerProcesses": [],
       "composeServices": [],
-      "documentation": ["docs/01-backend/modules/users.md"],
-      "packageDependencies": []
+      "documentation": ["docs/01-backend/modules/user-avatars.md"],
+      "packageDependencies": [],
+      "contributions": {
+        "apiModules": [{ "name": "UserAvatarsModule", "path": "@/modules/user-avatars" }],
+        "configurationFragments": [],
+        "packageScripts": [],
+        "nestAssets": [],
+        "seedDefinitions": [],
+        "outboxQueues": [],
+        "maintenanceCleaners": [],
+        "composeVolumes": [],
+        "environmentSections": ["user-avatars"],
+        "documentationSections": ["user-avatars"]
+      }
     },
     "invitations": {
       "label": "Team invitations",
@@ -193,26 +243,68 @@
         "src/database/migrations/1787011200000-CreateTeamInvitations.ts",
         "src/database/migrations/1787097600000-IndexInvitationTokenHash.ts"
       ],
-      "seedPaths": [],
+      "seedPaths": ["src/database/seeds/003-team-invitations-rbac.seed.ts"],
       "configurationPaths": ["src/config/invitations.config.ts"],
-      "environmentKeys": ["TEAM_INVITATION_BASE_URL", "TEAM_INVITATION_TTL_HOURS"],
+      "testPaths": [
+        "src/config/invitations.config.spec.ts",
+        "src/config/environment.spec.ts",
+        "test/app.e2e-spec.ts"
+      ],
+      "environmentKeys": [
+        "TEAM_INVITATION_BASE_URL",
+        "TEAM_INVITATION_TTL_HOURS",
+        "TEAM_INVITATION_MAX_SENDS",
+        "TEAM_INVITATION_RESEND_COOLDOWN_SECONDS"
+      ],
       "workerProcesses": [],
       "composeServices": [],
       "documentation": ["docs/01-backend/modules/invitations.md"],
-      "packageDependencies": []
+      "packageDependencies": [],
+      "contributions": {
+        "apiModules": [{ "name": "InvitationsModule", "path": "@/modules/invitations" }],
+        "configurationFragments": ["invitations"],
+        "packageScripts": [],
+        "nestAssets": [],
+        "seedDefinitions": [
+          {
+            "name": "teamInvitationsRbacSeed",
+            "path": "./003-team-invitations-rbac.seed"
+          }
+        ],
+        "outboxQueues": [],
+        "maintenanceCleaners": [],
+        "composeVolumes": [],
+        "environmentSections": ["invitations"],
+        "documentationSections": ["invitations"]
+      }
     },
     "feature-flags": {
       "label": "Feature flags",
       "dependencies": [],
       "sourcePaths": ["src/modules/feature-flags"],
       "migrationPaths": ["src/database/migrations/1787270400000-CreateFeatureFlags.ts"],
-      "seedPaths": ["src/database/seeds"],
+      "seedPaths": ["src/database/seeds/005-feature-flags-rbac.seed.ts"],
       "configurationPaths": [],
+      "testPaths": [],
       "environmentKeys": [],
       "workerProcesses": [],
       "composeServices": [],
       "documentation": ["docs/01-backend/modules/feature-flags.md"],
-      "packageDependencies": []
+      "packageDependencies": [],
+      "contributions": {
+        "apiModules": [{ "name": "FeatureFlagsModule", "path": "@/modules/feature-flags" }],
+        "configurationFragments": [],
+        "packageScripts": [],
+        "nestAssets": [],
+        "seedDefinitions": [
+          { "name": "featureFlagsRbacSeed", "path": "./005-feature-flags-rbac.seed" }
+        ],
+        "outboxQueues": [],
+        "maintenanceCleaners": [],
+        "composeVolumes": [],
+        "environmentSections": [],
+        "documentationSections": ["feature-flags"]
+      }
     },
     "sentry": {
       "label": "Sentry error reporting",
@@ -221,6 +313,11 @@
       "migrationPaths": [],
       "seedPaths": [],
       "configurationPaths": ["src/config/sentry.config.ts"],
+      "testPaths": [
+        "src/config/sentry.config.spec.ts",
+        "src/config/environment.spec.ts",
+        "src/observability/sentry.spec.ts"
+      ],
       "environmentKeys": ["SENTRY_ENABLED", "SENTRY_DSN", "SENTRY_ENVIRONMENT", "SENTRY_RELEASE"],
       "workerProcesses": [
         "api",
@@ -231,7 +328,19 @@
       ],
       "composeServices": [],
       "documentation": ["docs/01-backend/sentry.md"],
-      "packageDependencies": ["@sentry/nestjs"]
+      "packageDependencies": ["@sentry/nestjs"],
+      "contributions": {
+        "apiModules": [],
+        "configurationFragments": ["sentry"],
+        "packageScripts": [],
+        "nestAssets": [],
+        "seedDefinitions": [],
+        "outboxQueues": [],
+        "maintenanceCleaners": [],
+        "composeVolumes": [],
+        "environmentSections": ["sentry"],
+        "documentationSections": ["sentry"]
+      }
     }
   }
 }

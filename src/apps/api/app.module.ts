@@ -1,12 +1,14 @@
 import { ExecutionContext, Module } from '@nestjs/common';
-import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
 import { createLoggerOptions } from '@/common/logging/logger-options';
-import { createThrottleTracker } from '@/common/http/throttle-tracker';
+import {
+  createIdentifierThrottleTracker,
+  createIpThrottleTracker,
+} from '@/common/http/throttle-tracker';
 import type { AppConfiguration } from '@/config/configuration.types';
 import { loadApiConfiguration } from '@/config/environment';
 import { CoreModule } from '@/core/core.module';
@@ -16,19 +18,16 @@ import { DatabaseModule } from '@/database/database.module';
 import { HealthModule } from '@/health/health.module';
 import { AuthorizationModule } from '@/modules/authorization';
 import { AuthModule } from '@/modules/auth';
-import { FeatureFlagsModule } from '@/modules/feature-flags';
-import { FilesModule } from '@/modules/files';
-import { InvitationsModule } from '@/modules/invitations';
 import { UsersModule } from '@/modules/users';
 import { RedisModule } from '@/redis/redis.module';
 import { DistributedThrottlerStorage } from '@/redis/distributed-throttler.storage';
 import { REDIS_CLIENT } from '@/redis/redis.constants';
 import type Redis from 'ioredis';
 import { OutboxModule } from '@/core/outbox/outbox.module';
+import { CAPABILITY_API_IMPORTS, CAPABILITY_API_PROVIDERS } from './capability-composition';
 
 @Module({
   imports: [
-    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
@@ -48,37 +47,11 @@ import { OutboxModule } from '@/core/outbox/outbox.module';
           storage: new DistributedThrottlerStorage(redis),
           throttlers: [
             { name: 'global', ttl: limits.global.ttlMs, limit: limits.global.max },
-            {
-              name: 'authentication',
-              ttl: limits.authentication.ttlMs,
-              limit: limits.authentication.max,
-              getTracker: (request): string => createThrottleTracker(request),
-              skipIf: (context: ExecutionContext): boolean =>
-                !matchesThrottleRoute(context, 'authentication'),
-            },
-            {
-              name: 'otp',
-              ttl: limits.otp.ttlMs,
-              limit: limits.otp.max,
-              getTracker: (request): string => createThrottleTracker(request),
-              skipIf: (context: ExecutionContext): boolean => !matchesThrottleRoute(context, 'otp'),
-            },
-            {
-              name: 'recovery',
-              ttl: limits.recovery.ttlMs,
-              limit: limits.recovery.max,
-              getTracker: (request): string => createThrottleTracker(request),
-              skipIf: (context: ExecutionContext): boolean =>
-                !matchesThrottleRoute(context, 'recovery'),
-            },
-            {
-              name: 'emailDelivery',
-              ttl: limits.emailDelivery.ttlMs,
-              limit: limits.emailDelivery.max,
-              getTracker: (request): string => createThrottleTracker(request),
-              skipIf: (context: ExecutionContext): boolean =>
-                !matchesThrottleRoute(context, 'emailDelivery'),
-            },
+            ipThrottle('login', limits.authentication),
+            ...sensitiveThrottlePair('authentication', limits.authentication),
+            ...sensitiveThrottlePair('otp', limits.otp),
+            ...sensitiveThrottlePair('recovery', limits.recovery),
+            ...sensitiveThrottlePair('emailDelivery', limits.emailDelivery),
           ],
         };
       },
@@ -89,19 +62,66 @@ import { OutboxModule } from '@/core/outbox/outbox.module';
     RedisModule,
     OutboxModule,
     HealthModule,
+    ...CAPABILITY_API_IMPORTS,
     AuthorizationModule,
     UsersModule,
     AuthModule,
-    FilesModule,
-    FeatureFlagsModule,
-    InvitationsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    ...CAPABILITY_API_PROVIDERS,
   ],
 })
 export class AppModule {}
+
+function ipThrottle(
+  name: string,
+  policy: { ttlMs: number; max: number },
+): {
+  name: string;
+  ttl: number;
+  limit: number;
+  getTracker: typeof createIpThrottleTracker;
+  skipIf: (context: ExecutionContext) => boolean;
+} {
+  return {
+    name: `${name}Ip`,
+    ttl: policy.ttlMs,
+    limit: policy.max,
+    getTracker: createIpThrottleTracker,
+    skipIf: (context): boolean => !matchesThrottleRoute(context, name),
+  };
+}
+
+function sensitiveThrottlePair(
+  name: string,
+  policy: { ttlMs: number; max: number },
+): {
+  name: string;
+  ttl: number;
+  limit: number;
+  getTracker: (request: Parameters<typeof createIpThrottleTracker>[0]) => string;
+  skipIf: (context: ExecutionContext) => boolean;
+}[] {
+  const skipIf = (context: ExecutionContext): boolean => !matchesThrottleRoute(context, name);
+  return [
+    {
+      name: `${name}Ip`,
+      ttl: policy.ttlMs,
+      limit: policy.max,
+      getTracker: createIpThrottleTracker,
+      skipIf,
+    },
+    {
+      name: `${name}Identifier`,
+      ttl: policy.ttlMs,
+      limit: policy.max,
+      getTracker: createIdentifierThrottleTracker,
+      skipIf,
+    },
+  ];
+}
 
 function matchesThrottleRoute(
   context: { switchToHttp: () => { getRequest: () => { originalUrl?: string; url?: string } } },
@@ -110,7 +130,8 @@ function matchesThrottleRoute(
   const request = context.switchToHttp().getRequest();
   const path = request.originalUrl ?? request.url ?? '';
   const routes: Record<string, RegExp> = {
-    authentication: /\/auth\/(?:register|login|refresh)(?:[/?]|$)/,
+    login: /\/auth\/login(?:[/?]|$)/,
+    authentication: /\/auth\/(?:register|refresh)(?:[/?]|$)/,
     otp: /\/auth\/(?:verification|two-step)(?:[/?]|$)/,
     recovery: /\/auth\/(?:forgot-password|reset-password|recovery)(?:[/?]|$)/,
     emailDelivery: /(?:\/auth\/(?:register|verification\/resend)|\/team\/invitations)(?:[/?]|$)/,

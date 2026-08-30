@@ -111,7 +111,6 @@ export class UsersRepository {
         authVersion: 1,
         failedLoginCount: 0,
         lockedUntil: null,
-        avatarFileId: null,
       }),
     );
     await manager
@@ -137,7 +136,6 @@ export class UsersRepository {
         authVersion: 1,
         failedLoginCount: 0,
         lockedUntil: null,
-        avatarFileId: null,
       }),
     );
     const roleRepository = manager.getRepository(UserRoleEntity);

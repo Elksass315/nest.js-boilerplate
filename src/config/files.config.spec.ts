@@ -11,6 +11,7 @@ describe('files configuration', () => {
     const config = createFilesConfig({
       FILES_WRITE_DRIVER: 'local',
       FILES_READ_DRIVERS: 'local',
+      FILES_METADATA_RETENTION_DAYS: 7,
       FILES_LOCAL_ROOT: 'C:/storage/files',
       FILES_UPLOAD_EXPIRATION_HOURS: 2,
       FILES_SIGNED_URL_TTL_SECONDS: 300,

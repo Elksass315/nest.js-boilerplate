@@ -5,7 +5,7 @@
 | 400    | `BAD_REQUEST`                          | `The request could not be processed`                              | Malformed JSON, syntax, path, or query encoding.                          |
 | 401    | `UNAUTHORIZED`                         | `Authentication is required`                                      | Authentication is absent or invalid.                                      |
 | 401    | `INVALID_CREDENTIALS`                  | `Email or password is incorrect`                                  | Credential verification fails without revealing the field.                |
-| 401    | `ACCOUNT_LOCKED`                       | `The account is temporarily locked`                               | Repeated failures activate the configured login lock.                     |
+| 401    | `ACCOUNT_LOCKED`                       | `The account is temporarily locked`                               | Deprecated compatibility history; login no longer emits this code.        |
 | 401    | `INVALID_OR_EXPIRED_TOKEN`             | `The token is invalid or has expired`                             | A password-reset token cannot be consumed.                                |
 | 401    | `INVALID_OR_EXPIRED_VERIFICATION_CODE` | `The verification code is invalid or has expired`                 | A registration code is wrong, expired, superseded, or consumed.           |
 | 401    | `VERIFICATION_ATTEMPTS_EXCEEDED`       | `Too many email verification attempts; request a new code`        | A registration code reaches five failed attempts.                         |

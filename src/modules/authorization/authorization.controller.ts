@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import {
   ApiForbiddenResponse,
   ApiOperation,
@@ -18,7 +18,6 @@ import type { ErrorCode } from '@/core/errors/error-definitions';
 
 import { RequirePermissions } from './decorators/require-permissions.decorator';
 import { RoleResponseDto } from './dto/role-response.dto';
-import { PermissionsGuard } from './guards/permissions.guard';
 import { AuthorizationService } from './authorization.service';
 
 const errorContent = (
@@ -28,7 +27,6 @@ const errorContent = (
 ): Record<string, { example: Record<string, unknown> }> => swaggerErrorContent(code, path, details);
 
 @ApiTags('authorization')
-@UseGuards(PermissionsGuard)
 @Controller({ path: 'authorization/roles', version: API_VERSION })
 export class AuthorizationController {
   public constructor(private readonly service: AuthorizationService) {}

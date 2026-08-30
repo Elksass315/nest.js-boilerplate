@@ -1,13 +1,12 @@
 # NestJS SaaS Boilerplate
 
-A production-ready, single-tenant NestJS 11 foundation with strict TypeScript, PostgreSQL,
-TypeORM, Redis, structured logging, optional Sentry monitoring, health checks, hardened containers, and enforced engineering
-workflows. Phase 2 adds fixed RBAC, users, credential authentication, rotating sessions, email
-two-step verification, recovery codes, and a correlated SMTP mail worker while preserving the flat
-modular-monolith architecture. Phase 3 adds private-by-default resumable file storage, local/S3
-provider mobility, a dedicated cleanup worker, and stable public file access.
-Phase 4 begins single-workspace team administration with secure, expiring invitations while keeping
-the application explicitly single-tenant.
+A production-oriented, single-tenant NestJS 11 foundation with strict TypeScript, PostgreSQL,
+TypeORM, Redis, structured logging, health checks, hardened containers, and enforced engineering
+workflows. The fully wired reference profile includes fixed
+RBAC, users, credential authentication, rotating sessions, email two-step verification, recovery
+codes, team invitations, feature flags, transactional mail/outbox delivery, private-by-default
+resumable file storage, local/S3 provider mobility, and dedicated mail, file, outbox, and retention
+workers. The initializer supports every dependency-valid combination of the optional capabilities.
 
 ## Requirements
 
@@ -30,10 +29,24 @@ On macOS/Linux, use `cp .env.example .env`. The API listens on `http://localhost
 - Readiness: `GET /health/ready`
 - Swagger in development: `/docs` (`SWAGGER_DOCS_ACCESS=public`)
 - Mailpit UI in development: `http://localhost:8025`
+
+<!-- capability:files:start -->
+
 - Public ready files: `/api/v1/files/public/:publicId`
+
+<!-- capability:files:end -->
+<!-- capability:user-avatars:start -->
+
 - Authenticated avatar uploads: `/api/v1/users/me/avatar/uploads`
 - Avatar attachment: `PATCH /api/v1/users/me/avatar`
+
+<!-- capability:user-avatars:end -->
+<!-- capability:invitations:start -->
+
 - Invitation acceptance: `POST /api/v1/team/invitations/accept`
+
+<!-- capability:invitations:end -->
+
 - Future business endpoints: `/api/v1`
 
 Useful commands:
@@ -45,7 +58,6 @@ pnpm test:e2e
 pnpm docker:logs
 pnpm scaffold:feature billing --http --persistence --dry-run
 pnpm init:project --dry-run
-pnpm files:migration:status
 ```
 
 `pnpm docker:reset -- --confirm` deletes local PostgreSQL and Redis volumes. It is intentionally

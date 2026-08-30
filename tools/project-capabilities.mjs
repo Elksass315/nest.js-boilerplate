@@ -41,6 +41,27 @@ export function validateCapabilityManifest(manifest) {
       if (!Array.isArray(capability[field]))
         throw new Error(`Capability ${name} has invalid ${field}`);
     }
+    if (capability.testPaths !== undefined && !Array.isArray(capability.testPaths)) {
+      throw new Error(`Capability ${name} has invalid testPaths`);
+    }
+    if (capability.contributions) {
+      for (const field of [
+        'apiModules',
+        'configurationFragments',
+        'packageScripts',
+        'nestAssets',
+        'seedDefinitions',
+        'outboxQueues',
+        'maintenanceCleaners',
+        'composeVolumes',
+        'environmentSections',
+        'documentationSections',
+      ]) {
+        if (!Array.isArray(capability.contributions[field])) {
+          throw new Error(`Capability ${name} has invalid contribution ${field}`);
+        }
+      }
+    }
   }
   for (const name of names) visit(name, manifest.capabilities, [], new Set());
   return manifest;

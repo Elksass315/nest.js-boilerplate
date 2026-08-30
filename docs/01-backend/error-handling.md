@@ -81,4 +81,7 @@ and include only allowlisted process diagnostics such as error code, syscall, ad
 Permission override requests use `RESOURCE_NOT_FOUND` for unknown catalog permissions,
 `RESOURCE_CONFLICT` when a key is both granted and revoked, and `FORBIDDEN` for protected targets.
 
+Login failure suppression is deliberately distinct from authentication: passwords are still
+verified, correct credentials clear suppression, and failed attempts remain generic and IP-throttled.
+
 **Navigation:** [Previous: Database, Migration, and Seed Standard](database.md) | [Documentation Index](../README.md) | [Next: Health Endpoints](health.md)

@@ -2,6 +2,10 @@
 
 ## Purpose and scope
 
+The initializer treats avatars as an optional `user-avatars` capability (resolved with `files`).
+Profiles that omit it do not generate avatar routes or response/OpenAPI fields; the users module
+consumes the capability through its optional profile-enricher contract.
+
 `users` owns account identity state, profile data, role assignments, and append-only security audit
 records. It does not authenticate credentials, issue tokens, manage sessions, send mail, or define
 role/permission policy. Those capabilities belong to the `auth`, `mail`, and `authorization`
@@ -30,8 +34,10 @@ pending registration updates only its full name, canonical email, and password h
 
 ## API contracts
 
-All routes use URI version `v1` and require the `PermissionsGuard`. The global access-token guard
-hydrates the typed `request.user` principal from current user/session state before permission checks.
+All routes use URI version `v1` and declare an explicit access policy. `RequireAuthenticated` and
+`RequirePermissions` install `PermissionsGuard`; `Public` is reserved for anonymous OPTIONS
+capability discovery. The global access-token guard hydrates the typed `request.user` principal
+from current user/session state before permission checks.
 
 | Method  | Route                                | Policy                           | Success | Reachable errors                                                 |
 | ------- | ------------------------------------ | -------------------------------- | ------- | ---------------------------------------------------------------- |
@@ -145,3 +151,6 @@ them; a delegated override cannot satisfy the role check. Super-admin targets ar
 audited, increment `authVersion`, and are resolved for collections with bounded batch queries.
 
 **Navigation:** [Previous: Mail Module](mail.md) | [Documentation Index](../../README.md) | [Next: REST and Versioning Standard](../../02-api/rest-standard.md)
+
+User responses use an optional profile enricher. Avatar persistence and image processing stay in
+`user-avatars`, so the base users module remains usable in profiles without file storage.

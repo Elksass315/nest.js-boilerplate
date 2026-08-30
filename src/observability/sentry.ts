@@ -2,6 +2,10 @@ import * as Sentry from '@sentry/nestjs';
 import type { Event } from '@sentry/nestjs';
 
 import { loadSentryConfiguration } from '@/config/sentry.config';
+import {
+  registerStartupErrorReporter,
+  type ErrorReporter,
+} from '@/core/error-reporting/error-reporter';
 
 const SAFE_HEADERS = new Set(['x-request-id', 'x-correlation-id', 'user-agent']);
 
@@ -48,10 +52,16 @@ export function initializeSentry(): void {
   });
 }
 
-export async function captureStartupFailure(processName: string, error: unknown): Promise<void> {
+export class SentryErrorReporter implements ErrorReporter {
+  public capture(error: unknown, context: Record<string, unknown>): void {
+    Sentry.captureException(error, { extra: context });
+  }
+}
+
+registerStartupErrorReporter(async (processName: string, error: unknown): Promise<void> => {
   Sentry.captureException(error, { tags: { process: processName, phase: 'startup' } });
   await Sentry.flush(2_000);
-}
+});
 
 function readHeader(headers: Record<string, string> | undefined, name: string): string | undefined {
   if (!headers) return undefined;

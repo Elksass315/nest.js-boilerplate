@@ -12,6 +12,17 @@ export class UserAvatarsRepository {
     return this.repository(manager).findOneBy({ userId });
   }
 
+  public findByUserIds(
+    manager: EntityManager,
+    userIds: readonly string[],
+  ): Promise<UserAvatarAssociationEntity[]> {
+    if (userIds.length === 0) return Promise.resolve([]);
+    return this.repository(manager)
+      .createQueryBuilder('avatar')
+      .where('avatar.userId IN (:...userIds)', { userIds: [...userIds] })
+      .getMany();
+  }
+
   public async save(
     manager: EntityManager,
     userId: string,

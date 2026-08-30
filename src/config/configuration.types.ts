@@ -1,6 +1,8 @@
 import type { DatabaseConfig } from '@/database/config/database.config';
 import type { RedisConfig } from '@/redis/config/redis.config';
 
+import type { CapabilityConfiguration } from './capability-configuration';
+
 export type NodeEnvironment = 'development' | 'test' | 'staging' | 'production';
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
 export type SwaggerDocsAccess = 'public' | 'basic' | 'disabled';
@@ -39,7 +41,6 @@ export interface RetentionConfig {
   mailDays: number;
   outboxDays: number;
   outboxFailureDays: number;
-  fileMetadataDays: number;
 }
 
 export interface SentryConfig {
@@ -135,6 +136,7 @@ export interface FilesConfig {
   workerConcurrency: number;
   maxRetries: number;
   retryDelayMs: number;
+  metadataRetentionDays: number;
   userAvatar: {
     maxBytes: number;
     maxWidth: number;
@@ -154,30 +156,22 @@ export interface FilesConfig {
   };
 }
 
-export interface AppConfiguration {
+export interface AppConfiguration extends CapabilityConfiguration {
   app: AppConfig;
   cors: CorsConfig;
   logging: LoggingConfig;
   observability: ObservabilityConfig;
   retention: RetentionConfig;
-  sentry: SentryConfig;
   swagger: SwaggerConfig;
   rateLimit: RateLimitConfig;
   i18n: I18nConfig;
   auth: AuthConfig;
   mail: MailConfig;
-  invitations: InvitationsConfig;
-  files: FilesConfig;
   database: DatabaseConfig;
   redis: RedisConfig;
 }
 
 export type MailWorkerConfiguration = Pick<
   AppConfiguration,
-  'app' | 'logging' | 'sentry' | 'mail' | 'database' | 'redis'
->;
-
-export type FileWorkerConfiguration = Pick<
-  AppConfiguration,
-  'app' | 'logging' | 'sentry' | 'files' | 'database' | 'redis'
+  'app' | 'logging' | 'mail' | 'database' | 'redis'
 >;

@@ -18,21 +18,25 @@ The command requires `.company-template-source.json`, a clean worktree, and no e
 `chore/initialize-project` before changing files. Use `--config path/to/config.json` for a
 non-interactive run and `--dry-run` to resolve capabilities without writing.
 
-`user-avatars` automatically selects `files`. When files are selected, choose `s3`,
-`local-development-plus-s3-production`, or `both-provider-migration`. Unselected capability paths
-and package dependencies are removed only when they are not shared with a selected or mandatory
-capability. Template identities are renamed and `.company-template.json` records the source
-version, requested and resolved capabilities, initialization time, and API/error compatibility.
+Interactive and JSON configuration support selective capability generation. Dependencies are
+resolved automatically (for example, `user-avatars` selects `files`), and provenance records both
+requested and resolved lists. Structural rendering removes omitted imports, scripts, workers,
+Compose services, environment keys, migrations, tests, and documentation sections. Choose
+`s3`, `local-development-plus-s3-production`, or
+`both-provider-migration` for file storage. Template identities are renamed and
+`.company-template.json` records the source version, requested and resolved capabilities,
+initialization time, and API/error compatibility.
 
 The initializer runs install, formatting, typecheck, architecture, documentation, unit-test,
 build, and Compose configuration checks. Use `--skip-validation` only for controlled generator
 tests; a generated project must pass the complete validation workflow before it is adopted.
 
-## Capability test matrix
+## Capability validation
 
 `tools/project-capabilities.test.mjs` validates dependency resolution and rejects unknown or cyclic
-capabilities. CI should build representative minimal, files/avatar, invitations, feature-flags,
-Sentry, and full combinations on every pull request. A nightly job should generate every valid
-combination and verify that avatars without files resolve files automatically.
+capabilities. `pnpm profiles:check` generates and structurally checks all 24 resolved profiles;
+`pnpm profiles:validate` additionally runs generated-project quality commands.
+The generated `.company-template.json` provenance file is machine-owned metadata and is excluded from
+Prettier source formatting checks; its schema and capability lists remain covered by generator tests.
 
 **Navigation:** [Previous: Feature Module Architecture](module-architecture.md) | [Documentation Index](../README.md) | [Next: Configuration](configuration.md)

@@ -70,8 +70,14 @@ avatar references, and preserves a reversible down migration. It is additive: th
 `users.avatar_file_id` column remains for v1 response compatibility while the public
 `UserAvatarsService` becomes the generator boundary.
 
-**Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)
-
 Operational retention uses existing timestamp/status indexes and bounded CTE deletes. It does not
 delete security audits, feature-flag audits, or business records, and takes the
 `maintenance:retention` PostgreSQL advisory transaction lock before a sweep.
+
+Capability migrations and seeds are emitted only for selected features. The avatar compatibility
+migration backfills associations before removing the legacy user column.
+
+The outbox repository also normalizes PostgreSQL `UPDATE ... RETURNING` transaction results before
+mapping claimed rows, since the PostgreSQL adapter returns a structured `[rows, rowCount]` value.
+
+**Navigation:** [Previous: Configuration Standard](configuration.md) | [Documentation Index](../README.md) | [Next: Migrations and Seeds](migrations.md)

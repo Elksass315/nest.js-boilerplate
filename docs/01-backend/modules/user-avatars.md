@@ -19,8 +19,9 @@ entities or repositories.
 
 ## API contracts
 
-The full template preserves the existing authenticated upload routes while the controller is owned
-by this capability:
+The full template preserves the existing upload routes while the controller is owned by this
+capability. Capability discovery is explicitly public; every stateful route declares
+`RequireAuthenticated`, which installs the authorization guard:
 
 | Method  | Route                                | Policy                      | Success | Reachable errors                       |
 | ------- | ------------------------------------ | --------------------------- | ------- | -------------------------------------- |
@@ -29,13 +30,14 @@ by this capability:
 | HEAD    | `/users/me/avatar/uploads/:uploadId` | authenticated owner         | 200     | 400, 401, 403, 404, 410, 412, 503      |
 | PATCH   | `/users/me/avatar/uploads/:uploadId` | authenticated owner         | 204     | 400, 401, 403, 404, 409, 410, 412, 503 |
 | DELETE  | `/users/me/avatar/uploads/:uploadId` | authenticated owner         | 204     | 400, 401, 403, 404, 410, 412, 503      |
+| PATCH   | `/users/me/avatar`                   | authenticated owner         | 200     | 401, 404, 409, 413, 415, 422, 503      |
+| DELETE  | `/users/me/avatar`                   | authenticated owner         | 204     | 401, 404, 503                          |
 
 ## Data and migration
 
 Migration `1787702400000-CreateUserAvatarAssociations` creates unique user and file references and
-backfills the legacy `users.avatar_file_id` column. The legacy column remains during v1 so existing
-clients and rollback-compatible images continue to work; a later expand/contract migration can
-switch reads and remove it after generated projects adopt the association service.
+backfills the legacy `users.avatar_file_id` column. Migration
+`1787800000000-DropLegacyUserAvatarColumn` removes that column after the compatibility backfill.
 
 ## Security and test strategy
 
@@ -46,3 +48,6 @@ Unit tests cover dependency resolution, public-boundary imports, association uni
 existing upload controller contract. Migration tests cover backfill, foreign keys, and rollback.
 
 **Navigation:** [Previous: Users Module](users.md) | [Documentation Index](../../README.md) | [Next: File Storage Module](files.md)
+
+`user-avatars` owns attachment/removal routes and response enrichment. Selecting it automatically
+resolves `files`; without it, user responses and OpenAPI schemas contain no `avatar` property.

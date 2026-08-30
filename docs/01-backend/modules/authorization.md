@@ -24,9 +24,10 @@ repository remain private.
 
 Definitions are seeded and immutable through the API. `RequireAuthenticated` checks for a principal;
 `RequirePermissions` additionally requires every declared permission. Missing principals produce
-`401 UNAUTHORIZED`; inadequate permissions produce `403 FORBIDDEN`. Both decorators also attach
-the named Swagger bearer security requirement, so protected operations display the authorization
-lock while public operations remain unlocked.
+`401 UNAUTHORIZED`; inadequate permissions produce `403 FORBIDDEN`. Both decorators install
+`PermissionsGuard` and attach the named Swagger bearer security requirement, so a controller cannot
+forget the runtime guard while still appearing protected in Swagger. Anonymous routes use the
+explicit `Public` marker.
 
 ## API contracts
 

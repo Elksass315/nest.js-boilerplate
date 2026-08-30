@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -21,7 +21,6 @@ import { swaggerErrorContent } from '@/common/swagger/api-error-response';
 import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
-  PermissionsGuard,
   RequirePermissions,
   type AuthenticatedPrincipal,
 } from '@/modules/authorization';
@@ -46,7 +45,6 @@ const error = (code: ErrorCode): Record<string, { example: Record<string, unknow
   swaggerErrorContent(code, path);
 
 @ApiTags('feature flags')
-@UseGuards(PermissionsGuard)
 @Controller({ path: 'feature-flags', version: API_VERSION })
 export class FeatureFlagsController {
   public constructor(private readonly service: FeatureFlagsService) {}

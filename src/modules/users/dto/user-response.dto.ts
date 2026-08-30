@@ -46,7 +46,7 @@ export class UserResponseDto {
   public roles!: RoleKey[];
 
   @ApiPropertyOptional({ type: UserAvatarResponseDto, nullable: true })
-  public avatar!: UserAvatarResponseDto | null;
+  public avatar?: UserAvatarResponseDto | null;
 
   @ApiProperty({ example: '2026-08-12T09:45:00.000Z' })
   public createdAt!: string;

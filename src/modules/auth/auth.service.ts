@@ -78,8 +78,12 @@ export class AuthService {
     this.recoveryCodeCount = config.getOrThrow('auth.recoveryCodeCount', { infer: true });
   }
 
-  public cleanupOperationalData(before: Date, limit: number): Promise<number> {
-    return this.repository.cleanupOperationalData(before, limit);
+  public cleanupOperationalData(
+    tokenBefore: Date,
+    sessionBefore: Date,
+    limit: number,
+  ): Promise<number> {
+    return this.repository.cleanupOperationalData(tokenBefore, sessionBefore, limit);
   }
 
   public async register(
@@ -208,9 +212,9 @@ export class AuthService {
       await this.crypto.verifyDummyPassword(password);
       throw new AppException('INVALID_CREDENTIALS');
     }
-    if (user.lockedUntil && user.lockedUntil > new Date()) throw new AppException('ACCOUNT_LOCKED');
+    const locked = user.lockedUntil !== null && user.lockedUntil > new Date();
     if (!(await this.crypto.verifyPassword(user.passwordHash, password))) {
-      await this.users.recordFailedLogin(user.id, this.maxAttempts, this.lockSeconds);
+      if (!locked) await this.users.recordFailedLogin(user.id, this.maxAttempts, this.lockSeconds);
       throw new AppException('INVALID_CREDENTIALS');
     }
     this.assertLoginAllowed(user);
@@ -520,7 +524,7 @@ export class AuthService {
         emailTwoStepRequired: profile.emailTwoStepRequired,
         roles: profile.roles,
         permissions: [...new Set(user.roles.flatMap(({ permissions }) => permissions))],
-        avatar: profile.avatar,
+        ...(profile.avatar === undefined ? {} : { avatar: profile.avatar }),
         createdAt: profile.createdAt,
         updatedAt: profile.updatedAt,
       },

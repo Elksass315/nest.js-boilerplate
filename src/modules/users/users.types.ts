@@ -29,7 +29,6 @@ export interface UserWithRoles {
   authVersion: number;
   failedLoginCount: number;
   lockedUntil: Date | null;
-  avatarFileId: string | null;
   createdAt: Date;
   updatedAt: Date;
   roles: RoleDefinition[];

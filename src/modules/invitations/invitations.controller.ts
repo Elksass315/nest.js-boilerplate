@@ -9,7 +9,6 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -37,7 +36,7 @@ import { swaggerErrorContent, swaggerErrorExample } from '@/common/swagger/api-e
 import type { ErrorCode } from '@/core/errors/error-definitions';
 import {
   CurrentPrincipal,
-  PermissionsGuard,
+  Public,
   RequirePermissions,
   type AuthenticatedPrincipal,
 } from '@/modules/authorization';
@@ -75,12 +74,12 @@ const errorContent = (
   swaggerErrorContent(code, route, details);
 
 @ApiTags('team invitations')
-@UseGuards(PermissionsGuard)
 @Controller({ path: 'team/invitations', version: API_VERSION })
 export class InvitationsController {
   public constructor(private readonly service: InvitationsService) {}
 
   @Post('accept')
+  @Public()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Accept a team invitation',

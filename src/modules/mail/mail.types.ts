@@ -72,7 +72,7 @@ export interface TeamInvitationMailInput {
   email: string;
   inviterName: string;
   role: string;
-  token: string;
+  actionUrl: string;
   expiresAt: Date;
 }
 

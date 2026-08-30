@@ -173,9 +173,10 @@ describe(AuthService.name, () => {
 
   it('delegates operational credential cleanup to the owning repository', async () => {
     repository.cleanupOperationalData.mockResolvedValue(4);
-    const before = new Date('2026-01-01');
-    await expect(service.cleanupOperationalData(before, 10)).resolves.toBe(4);
-    expect(repository.cleanupOperationalData).toHaveBeenCalledWith(before, 10);
+    const tokenBefore = new Date('2026-01-01');
+    const sessionBefore = new Date('2025-12-01');
+    await expect(service.cleanupOperationalData(tokenBefore, sessionBefore, 10)).resolves.toBe(4);
+    expect(repository.cleanupOperationalData).toHaveBeenCalledWith(tokenBefore, sessionBefore, 10);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -488,6 +489,32 @@ describe(AuthService.name, () => {
     crypto.verifyPassword.mockResolvedValue(false);
     await expect(service.login(user.email, 'wrong')).rejects.toBeInstanceOf(AppException);
     expect(users.recordFailedLogin).toHaveBeenCalledWith(user.id, 5, 900);
+  });
+
+  it('keeps locked-account responses enumeration-safe for an invalid password', async () => {
+    users.findForAuthentication.mockResolvedValue({
+      ...user,
+      lockedUntil: new Date(Date.now() + 60_000),
+    });
+    crypto.verifyPassword.mockResolvedValue(false);
+
+    await expectErrorCode(service.login(user.email, 'wrong'), 'INVALID_CREDENTIALS');
+
+    expect(users.recordFailedLogin).not.toHaveBeenCalled();
+  });
+
+  it('allows valid credentials to clear failure suppression', async () => {
+    users.findForAuthentication.mockResolvedValue({
+      ...user,
+      lockedUntil: new Date(Date.now() + 60_000),
+    });
+    crypto.verifyPassword.mockResolvedValue(true);
+
+    await expect(service.login(user.email, 'correct')).resolves.toEqual(
+      expect.objectContaining({ accessToken: 'access-token' }),
+    );
+
+    expect(users.recordSuccessfulLogin).toHaveBeenCalledWith(user.id);
   });
 
   it('revokes a session when a rotated refresh token is reused', async () => {

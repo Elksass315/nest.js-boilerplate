@@ -3,8 +3,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 
 import { createLoggerOptions } from '@/common/logging/logger-options';
-import type { FileWorkerConfiguration } from '@/config/configuration.types';
-import { loadFileWorkerConfiguration } from '@/config/environment';
+import {
+  loadFileWorkerConfiguration,
+  type FileWorkerConfiguration,
+} from '@/config/file-worker.environment';
 import { DatabaseModule } from '@/database/database.module';
 import { FilesModule } from '@/modules/files';
 

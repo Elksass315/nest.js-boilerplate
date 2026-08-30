@@ -1,24 +1,20 @@
 # Supported Capability Matrix
 
-The initializer generates a single-tenant REST v1 application from the mandatory platform and
-the optional capabilities below. Profiles are supported combinations, not separate products.
+The initializer generates every dependency-valid combination of the five optional capabilities.
+There are 32 requested subsets and 24 unique resolved profiles because `user-avatars` resolves
+the `files` dependency automatically.
 
-| Profile           | Optional capabilities     | Additional runtime dependencies                             | Support level                 |
-| ----------------- | ------------------------- | ----------------------------------------------------------- | ----------------------------- |
-| Minimal           | None                      | Managed PostgreSQL, Redis, SMTP, OTLP collector             | Supported baseline            |
-| Files and avatars | `files`, `user-avatars`   | S3 in production; local storage may be used for development | Supported                     |
-| Invitations       | `team-invitations`        | SMTP (already mandatory)                                    | Supported                     |
-| Feature flags     | `feature-flags`           | None                                                        | Supported                     |
-| Sentry            | `sentry`                  | Sentry DSN and outbound network access                      | Supported, optional reporting |
-| Full              | All optional capabilities | S3, SMTP, Sentry as configured                              | Supported reference profile   |
+| Profile           | Optional capabilities            | Additional runtime dependencies            | Support level           |
+| ----------------- | -------------------------------- | ------------------------------------------ | ----------------------- |
+| Resolved profiles | All 24 dependency-valid profiles | Profile-specific dependencies and services | Supported and validated |
 
 Every generated project includes the mandatory stack: configuration, structured logging, errors,
 i18n, PostgreSQL, Redis, health, Swagger, pagination, authorization, users, authentication,
 sessions, security audits, mail, outbox, and the required workers. The manifest is the source of
 truth for source paths, migrations, seeds, environment keys, dependencies, and worker processes.
 
-Selecting `user-avatars` automatically selects `files`; the initializer refuses an invalid
-dependency graph. Avatar routes remain `/users/me/avatar` in the full template and preserve their
+The resolver records that `user-avatars` depends on `files`; selecting avatars alone requests one
+capability but resolves both. Avatar routes remain `/users/me/avatar` when selected and preserve their
 response and error contracts. File storage supports S3, local-development plus S3 production, and
 both-provider migration mode. Production file writes require S3 when the files capability is on.
 

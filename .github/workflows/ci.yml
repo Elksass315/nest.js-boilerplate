@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  schedule:
+    - cron: '17 3 * * 1'
   pull_request:
     branches: [main, develop]
   push:
@@ -14,6 +16,52 @@ permissions:
   contents: read
 
 jobs:
+  capability-profiles:
+    name: Capability profile ${{ matrix.profile }}
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - minimal
+          - files
+          - 'files,user-avatars'
+          - invitations
+          - 'files,invitations'
+          - 'files,user-avatars,invitations'
+          - feature-flags
+          - 'files,feature-flags'
+          - 'files,user-avatars,feature-flags'
+          - 'invitations,feature-flags'
+          - 'files,invitations,feature-flags'
+          - 'files,user-avatars,invitations,feature-flags'
+          - sentry
+          - 'files,sentry'
+          - 'files,user-avatars,sentry'
+          - 'invitations,sentry'
+          - 'files,invitations,sentry'
+          - 'files,user-avatars,invitations,sentry'
+          - 'feature-flags,sentry'
+          - 'files,feature-flags,sentry'
+          - 'files,user-avatars,feature-flags,sentry'
+          - 'invitations,feature-flags,sentry'
+          - 'files,invitations,feature-flags,sentry'
+          - 'files,user-avatars,invitations,feature-flags,sentry'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm profiles:check --profile="${{ matrix.profile }}"
+
   quality:
     name: Quality and integration
     runs-on: ubuntu-latest

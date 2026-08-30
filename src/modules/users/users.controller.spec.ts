@@ -19,8 +19,6 @@ describe(UsersController.name, () => {
     getById: jest.fn(),
     updateStatus: jest.fn(),
     replaceRoles: jest.fn(),
-    replaceOwnAvatar: jest.fn(),
-    deleteOwnAvatar: jest.fn(),
     getPermissionOverrides: jest.fn(),
     replacePermissionOverrides: jest.fn(),
   };
@@ -72,22 +70,6 @@ describe(UsersController.name, () => {
       ['10000000-0000-4000-8000-000000000003'],
       principal.userId,
     );
-  });
-
-  it('delegates avatar replacement and removal with the principal user ID', async () => {
-    service.replaceOwnAvatar.mockResolvedValue({ id: principal.userId });
-    service.deleteOwnAvatar.mockResolvedValue(undefined);
-
-    await controller.replaceAvatar(principal, {
-      fileId: '4e951b98-9250-4414-b88c-33f184543d8c',
-    });
-    await controller.deleteAvatar(principal);
-
-    expect(service.replaceOwnAvatar).toHaveBeenCalledWith(
-      principal.userId,
-      '4e951b98-9250-4414-b88c-33f184543d8c',
-    );
-    expect(service.deleteOwnAvatar).toHaveBeenCalledWith(principal.userId);
   });
 
   it('passes the actor identity and actual roles to permission mutation policy', async () => {

@@ -15,7 +15,7 @@ export const rateLimitEnvironmentSchema = {
   RATE_LIMIT_RECOVERY_MAX: Joi.number().integer().min(1).default(5),
   RATE_LIMIT_EMAIL_TTL_MS: Joi.number().integer().min(1000).default(3600000),
   RATE_LIMIT_EMAIL_MAX: Joi.number().integer().min(1).default(20),
-  TRUSTED_PROXY_IPS: Joi.string().trim().default(''),
+  TRUSTED_PROXY_IPS: Joi.string().trim().allow('').default(''),
 } satisfies Record<string, Joi.Schema>;
 
 export function parseTrustedProxyIps(value: string): string[] {

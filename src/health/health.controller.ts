@@ -7,11 +7,14 @@ import {
 } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 
+import { Public } from '@/modules/authorization';
+
 import { HealthService } from './health.service';
 import type { LivenessResponse, ReadinessResponse } from './health.types';
 
 @ApiTags('health')
 @SkipThrottle()
+@Public()
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   public constructor(private readonly healthService: HealthService) {}
