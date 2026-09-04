@@ -24,7 +24,9 @@ function createConfigService(access: SwaggerDocsAccess): ConfigService<AppConfig
 
 describe(configureSwagger.name, () => {
   beforeEach(() => {
-    jest.spyOn(SwaggerModule, 'createDocument').mockReturnValue({ openapi: '3.0.0' } as never);
+    jest
+      .spyOn(SwaggerModule, 'createDocument')
+      .mockReturnValue({ openapi: '3.0.0', paths: {} } as never);
     jest.spyOn(SwaggerModule, 'setup').mockImplementation();
   });
   afterEach(() => jest.restoreAllMocks());
