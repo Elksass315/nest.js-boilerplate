@@ -2,6 +2,11 @@
 
 Swagger is an executable API contract, not a route inventory.
 
+JSON success responses use the standard `{ success, meta, data }` envelope. The `meta` object
+contains the request ID, correlation ID, and response timestamp; the endpoint payload is under
+`data`. Error responses retain the existing stable error contract. Binary and protocol-specific
+responses, plus `204 No Content`, are documented as their native transport responses.
+
 CI generates the complete document with `pnpm openapi:generate` and validates the generated
 `.tmp/openapi.json` with `pnpm openapi:check`. The linter checks operation metadata, request and
 success examples, and every 4xx/5xx example against the stable error catalog embedded in the

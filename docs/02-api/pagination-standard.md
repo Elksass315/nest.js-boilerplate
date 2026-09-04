@@ -10,6 +10,10 @@ Business collection endpoints never return raw arrays. Offset pagination is the 
 with page, limit, totalItems, totalPages, hasNextPage, and hasPreviousPage. Use the canonical query
 DTO, result builder, and `ApiOffsetPaginatedResponse` decorator.
 
+At the HTTP boundary, the page is returned under the standard success envelope's `data` property;
+the request/correlation metadata remains in the envelope `meta` property. Thus a page response has
+the shape `{ success: true, meta: { requestId, correlationId, timestamp }, data: { items, meta } }`.
+
 The generated OpenAPI contract requires every collection response to include a deterministic page
 example. Controllers pass the example to the canonical decorator; the CI OpenAPI linter checks that
 the example remains present alongside the complete pagination metadata.
