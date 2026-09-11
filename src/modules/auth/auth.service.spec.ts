@@ -115,7 +115,7 @@ describe(AuthService.name, () => {
   let service: AuthService;
 
   beforeEach(async () => {
-    const values: Record<string, number> = {
+    const values: Record<string, number | string> = {
       'auth.accessTokenTtlSeconds': 900,
       'auth.sessionTtlSeconds': 1_209_600,
       'auth.verificationCodeTtlSeconds': 600,
@@ -127,6 +127,7 @@ describe(AuthService.name, () => {
       'auth.twoStepCodeTtlSeconds': 300,
       'auth.twoStepMaxAttempts': 5,
       'auth.recoveryCodeCount': 10,
+      'auth.adminTwoStepMode': 'forced',
     };
     const module = await Test.createTestingModule({
       providers: [
@@ -137,7 +138,7 @@ describe(AuthService.name, () => {
         { provide: MailService, useValue: mail },
         {
           provide: ConfigService,
-          useValue: { getOrThrow: (key: string): number => values[key] ?? 0 },
+          useValue: { getOrThrow: (key: string): number | string => values[key] ?? 0 },
         },
         { provide: getDataSourceToken(), useValue: dataSource },
       ],

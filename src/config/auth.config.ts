@@ -1,6 +1,6 @@
 import Joi from 'joi';
 
-import type { AuthConfig } from './configuration.types';
+import type { AdminTwoStepMode, AuthConfig } from './configuration.types';
 import { readNumber, readString } from './environment-reader';
 
 export const authEnvironmentSchema = {
@@ -18,6 +18,7 @@ export const authEnvironmentSchema = {
   AUTH_TWO_STEP_CODE_TTL_SECONDS: Joi.number().integer().min(60).max(900).default(300),
   AUTH_TWO_STEP_MAX_ATTEMPTS: Joi.number().integer().min(1).max(10).default(5),
   AUTH_RECOVERY_CODE_COUNT: Joi.number().integer().min(5).max(20).default(10),
+  AUTH_ADMIN_TWO_STEP_MODE: Joi.string().valid('forced', 'optional').default('forced'),
 } satisfies Record<string, Joi.Schema>;
 
 export function createAuthConfig(environment: Record<string, unknown>): AuthConfig {
@@ -36,5 +37,6 @@ export function createAuthConfig(environment: Record<string, unknown>): AuthConf
     twoStepCodeTtlSeconds: readNumber(environment, 'AUTH_TWO_STEP_CODE_TTL_SECONDS'),
     twoStepMaxAttempts: readNumber(environment, 'AUTH_TWO_STEP_MAX_ATTEMPTS'),
     recoveryCodeCount: readNumber(environment, 'AUTH_RECOVERY_CODE_COUNT'),
+    adminTwoStepMode: readString(environment, 'AUTH_ADMIN_TWO_STEP_MODE') as AdminTwoStepMode,
   };
 }

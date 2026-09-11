@@ -10,6 +10,9 @@ export const corsEnvironmentSchema = {
       if (origins.length === 0) {
         return helpers.error('environment.corsOrigins');
       }
+      if (origins.length === 1 && origins[0] === '*') {
+        return value;
+      }
       for (const origin of origins) {
         try {
           const url = new URL(origin);

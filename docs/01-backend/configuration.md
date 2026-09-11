@@ -33,6 +33,17 @@ Two-step email codes default to five minutes and five attempts. Enrollment creat
 recovery codes by default. `AUTH_TWO_STEP_CODE_TTL_SECONDS`, `AUTH_TWO_STEP_MAX_ATTEMPTS`, and
 `AUTH_RECOVERY_CODE_COUNT` are bounded and fail validation when unsafe.
 
+`AUTH_ADMIN_TWO_STEP_MODE` controls whether `admin`/`super_admin` roles force email two-step login.
+`forced` (default) always requires it for those roles and blocks voluntarily disabling it. `optional`
+treats admin roles like any other user: two-step applies only if the user enabled it themselves.
+
+`CORS_ORIGINS` is a comma-separated list of exact HTTP(S) origins (no paths, queries, or per-origin
+wildcards) allowed to send credentialed requests; it defaults to `http://localhost:3000`. Set it to a
+single `*` to allow all origins — the server reflects the request's own `Origin` header back (rather
+than a literal `*`) so `credentials: true` responses remain valid. Staging and production reject `*`
+and require HTTPS, non-localhost origins, consistent with their other managed-environment checks
+below.
+
 Mail configuration owns sender, public action URL, SMTP connection timeouts, worker concurrency,
 retry policy, TLS policy, and branding. `MAIL_ENABLED=false` safely suppresses queue production and worker SMTP
 startup. When enabled, auth queues named HBS templates with correlation context; no SMTP password,

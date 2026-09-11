@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { getDataSourceToken } from '@nestjs/typeorm';
 
@@ -98,6 +99,10 @@ describe(UsersService.name, () => {
         { provide: MailService, useValue: mail },
         { provide: RequestContextService, useValue: context },
         { provide: getDataSourceToken(), useValue: dataSource },
+        {
+          provide: ConfigService,
+          useValue: { getOrThrow: jest.fn().mockReturnValue('forced') },
+        },
       ],
     }).compile();
     service = module.get(UsersService);

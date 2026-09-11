@@ -306,7 +306,7 @@ describe('environment validation', () => {
     ]);
   });
 
-  it.each(['*', 'https://example.test/path', 'file:///tmp/app', 'not-a-url'])(
+  it.each(['https://example.test/path', 'file:///tmp/app', 'not-a-url', 'https://*.example.test'])(
     'rejects an unsafe CORS origin: %s',
     (corsOrigins) => {
       expect(() =>
@@ -314,4 +314,30 @@ describe('environment validation', () => {
       ).toThrow('CORS_ORIGINS must be a comma-separated list of exact HTTP(S) origins');
     },
   );
+
+  it('allows a single wildcard CORS origin outside managed environments', () => {
+    expect(validateApiEnvironment({ ...validEnvironment, CORS_ORIGINS: '*' })).toEqual(
+      expect.objectContaining({ CORS_ORIGINS: '*' }),
+    );
+  });
+
+  it('rejects a wildcard CORS origin in managed environments', () => {
+    expect(() =>
+      validateApiEnvironment({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        DATABASE_PASSWORD: 'managed-database-password-123',
+        REDIS_PASSWORD: 'managed-redis-password-123',
+        APP_BASE_URL: 'https://api.client.org',
+        MAIL_ACTION_BASE_URL: 'https://app.client.org/actions',
+        TEAM_INVITATION_BASE_URL: 'https://app.client.org/invitations',
+        CORS_ORIGINS: '*',
+        MAIL_FROM_ADDRESS: 'noreply@client.org',
+        MAIL_BRANDING_SUPPORT_EMAIL: 'support@client.org',
+        DATABASE_SSL_ENABLED: true,
+        DATABASE_REJECT_UNAUTHORIZED: true,
+        MAIL_SMTP_REQUIRE_TLS: true,
+      }),
+    ).toThrow('Managed public URLs');
+  });
 });

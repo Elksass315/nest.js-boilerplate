@@ -18,6 +18,7 @@ describe('auth configuration', () => {
         AUTH_TWO_STEP_CODE_TTL_SECONDS: 300,
         AUTH_TWO_STEP_MAX_ATTEMPTS: 5,
         AUTH_RECOVERY_CODE_COUNT: 10,
+        AUTH_ADMIN_TWO_STEP_MODE: 'forced',
       }),
     ).toEqual({
       accessTokenSecret: 'secret',
@@ -34,6 +35,7 @@ describe('auth configuration', () => {
       twoStepCodeTtlSeconds: 300,
       twoStepMaxAttempts: 5,
       recoveryCodeCount: 10,
+      adminTwoStepMode: 'forced',
     });
   });
 });
