@@ -4,7 +4,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, type EntityManager } from 'typeorm';
 
 import { buildOffsetPage, type OffsetPage } from '@/common/pagination';
-import type { AppConfiguration } from '@/config/configuration.types';
+import type { AdminTwoStepMode, AppConfiguration } from '@/config/configuration.types';
 import { AppException } from '@/core/errors/app.exception';
 import { MailService } from '@/modules/mail';
 import { UsersService, type UserWithRoles } from '@/modules/users';
@@ -54,6 +54,7 @@ export class AuthService {
   private readonly twoStepTtl: number;
   private readonly twoStepMaxAttempts: number;
   private readonly recoveryCodeCount: number;
+  private readonly adminTwoStepMode: AdminTwoStepMode;
 
   public constructor(
     private readonly repository: AuthRepository,
@@ -76,6 +77,14 @@ export class AuthService {
     this.twoStepTtl = config.getOrThrow('auth.twoStepCodeTtlSeconds', { infer: true });
     this.twoStepMaxAttempts = config.getOrThrow('auth.twoStepMaxAttempts', { infer: true });
     this.recoveryCodeCount = config.getOrThrow('auth.recoveryCodeCount', { infer: true });
+    this.adminTwoStepMode = config.getOrThrow('auth.adminTwoStepMode', { infer: true });
+  }
+
+  private adminRoleForcesTwoStep(user: UserWithRoles): boolean {
+    return (
+      this.adminTwoStepMode === 'forced' &&
+      user.roles.some(({ key }) => key === 'admin' || key === 'super_admin')
+    );
   }
 
   public cleanupOperationalData(
@@ -246,10 +255,7 @@ export class AuthService {
     if (purpose === 'enable' && user.emailTwoStepEnabled) {
       throw new AppException('TWO_STEP_ALREADY_ENABLED');
     }
-    if (
-      purpose !== 'enable' &&
-      user.roles.some(({ key }) => key === 'admin' || key === 'super_admin')
-    ) {
+    if (purpose !== 'enable' && this.adminRoleForcesTwoStep(user)) {
       throw new AppException('TWO_STEP_REQUIRED_FOR_ADMIN_ROLE');
     }
     if (purpose !== 'enable' && !user.emailTwoStepEnabled) {
@@ -532,10 +538,7 @@ export class AuthService {
   }
 
   private requiresEmailTwoStep(user: UserWithRoles): boolean {
-    return (
-      user.emailTwoStepEnabled ||
-      user.roles.some(({ key }) => key === 'admin' || key === 'super_admin')
-    );
+    return user.emailTwoStepEnabled || this.adminRoleForcesTwoStep(user);
   }
 
   private async issueTwoStepChallenge(

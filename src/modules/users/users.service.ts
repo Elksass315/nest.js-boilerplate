@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, type EntityManager } from 'typeorm';
 
 import { buildOffsetPage, type OffsetPage } from '@/common/pagination';
+import type { AdminTwoStepMode, AppConfiguration } from '@/config/configuration.types';
 import { AppException } from '@/core/errors/app.exception';
 import { RequestContextService } from '@/core/request-context/request-context.service';
 import { AuthorizationService, type RoleDefinition } from '@/modules/authorization';
@@ -55,6 +57,8 @@ const PROTECTED_OVERRIDE_GRANTS = new Set<Permission>([
 export class UsersService {
   private profileEnricher: UserProfileEnricher | undefined;
 
+  private readonly adminTwoStepMode: AdminTwoStepMode;
+
   public constructor(
     private readonly repository: UsersRepository,
     private readonly authorization: AuthorizationService,
@@ -62,7 +66,10 @@ export class UsersService {
     private readonly requestContext: RequestContextService,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly moduleRef: ModuleRef,
-  ) {}
+    config: ConfigService<AppConfiguration, true>,
+  ) {
+    this.adminTwoStepMode = config.getOrThrow('auth.adminTwoStepMode', { infer: true });
+  }
 
   public onModuleInit(): void {
     try {
@@ -545,7 +552,9 @@ export class UsersService {
       status: user.status,
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       emailTwoStepEnabled: user.emailTwoStepEnabled,
-      emailTwoStepRequired: roles.some(({ key }) => key === 'admin' || key === 'super_admin'),
+      emailTwoStepRequired:
+        this.adminTwoStepMode === 'forced' &&
+        roles.some(({ key }) => key === 'admin' || key === 'super_admin'),
       roles: roles.map(({ key }) => key),
       ...extension,
       createdAt: user.createdAt.toISOString(),

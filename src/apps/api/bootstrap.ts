@@ -22,8 +22,11 @@ export async function createApplication(
   app.useLogger(app.get(Logger));
   app.set('trust proxy', config.getOrThrow('rateLimit.trustedProxyIps', { infer: true }));
   app.use(helmet());
+  const corsOrigins = config.getOrThrow('cors.origins', { infer: true });
   const corsOptions: CorsOptions = {
-    origin: config.getOrThrow('cors.origins', { infer: true }),
+    // A single "*" origin reflects the request's own Origin header instead of the literal
+    // string "*", since credentials:true responses cannot use a literal wildcard origin.
+    origin: corsOrigins.length === 1 && corsOrigins[0] === '*' ? true : corsOrigins,
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   };
