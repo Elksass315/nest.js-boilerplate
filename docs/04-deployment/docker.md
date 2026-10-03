@@ -15,9 +15,9 @@ unchanged.
 `compose.deploy.yaml` adds the immutable runtime image, read-only filesystems, dropped capabilities,
 and one-shot migration and seed jobs. It does not create PostgreSQL, Redis, Mailpit, or LocalStack.
 
-The local and CI service baseline is PostgreSQL `18.6-bookworm` and Redis `8.4.6-trixie`, each
-pinned to its multi-platform image digest. Redis 8.4 no longer publishes a Bookworm variant, so the
-approved patched image uses Trixie. Compose and CI must retain the same exact references.
+The local and CI service baseline is PostgreSQL `18.6-bookworm` and Redis `8.4.7-alpine`, each
+pinned to its multi-platform image digest. The Debian-based Redis 8.x images still ship vulnerable
+OpenSSL packages, so the approved image uses Alpine. Compose and CI must retain the same exact references.
 
 ```bash
 pnpm docker:config

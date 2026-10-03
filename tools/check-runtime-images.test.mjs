@@ -6,26 +6,16 @@ import { findImageReferences, validateRuntimeImages } from './check-runtime-imag
 const postgres =
   'postgres:18.6-bookworm@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const redis =
-  'redis:8.4.6-trixie@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  'redis:8.4.7-alpine@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const dependabot = '- package-ecosystem: docker\n  directory: /\n';
-const redisTrivyIgnore = `# Redis does not expose or use QUIC.
-# Temporary exception; expires 2026-09-30.
-CVE-2026-14456
-`;
-const redisScan = `- name: Scan Redis service image
-  image-ref: ${redis}
-  trivyignores: .trivyignore.redis`;
-const currentDate = new Date('2026-08-27T00:00:00.000Z');
 
 describe('runtime image contract', () => {
   it('accepts synchronized Compose, CI service, and CI scan references', () => {
     assert.deepEqual(
       validateRuntimeImages({
         compose: `${postgres}\n${redis}\n`,
-        ci: `${postgres}\n${postgres}\n${redis}\n${redisScan}\n`,
+        ci: `${postgres}\n${postgres}\n${redis}\n${redis}\n`,
         dependabot,
-        redisTrivyIgnore,
-        currentDate,
       }),
       [],
     );
@@ -36,8 +26,6 @@ describe('runtime image contract', () => {
       compose: `${postgres.replace('18.6', '18.5')}\n${redis}\n`,
       ci: `${postgres}\n${postgres}\n${redis}\n`,
       dependabot: '',
-      redisTrivyIgnore: '',
-      currentDate,
     });
 
     assert.ok(violations.some((violation) => violation.includes('postgres')));
@@ -50,16 +38,19 @@ describe('runtime image contract', () => {
     assert.equal(findImageReferences('postgres:18-bookworm@sha256:abc', 'postgres').length, 0);
   });
 
-  it('rejects additional or expired Redis scan exceptions', () => {
+  it('rejects a Redis variant other than the approved one', () => {
     const violations = validateRuntimeImages({
-      compose: `${postgres}\n${redis}\n`,
-      ci: `${postgres}\n${postgres}\n${redis}\n${redisScan}\n`,
+      compose: `${postgres}
+${redis.replace('alpine', 'trixie')}
+`,
+      ci: `${postgres}
+${postgres}
+${redis}
+${redis}
+`,
       dependabot,
-      redisTrivyIgnore: `${redisTrivyIgnore}CVE-2099-0001\n`,
-      currentDate: new Date('2026-10-01T00:00:00.000Z'),
     });
 
-    assert.ok(violations.some((violation) => violation.includes('may ignore only')));
-    assert.ok(violations.some((violation) => violation.includes('expired')));
+    assert.ok(violations.some((violation) => violation.includes('approved alpine variant')));
   });
 });

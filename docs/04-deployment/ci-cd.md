@@ -43,11 +43,9 @@ images synchronized with both CI service and scan references, and verifies that 
 root Docker manifests. PostgreSQL and Redis updates therefore include readiness, migrations, seeds,
 E2E coverage, and image scanning in one reviewable change.
 
-The Redis scan has one narrow exception in `.trivyignore.redis` for `CVE-2026-14456`. The advisory
-affects OpenSSL QUIC server behavior, which Redis does not expose or use. The exception expires on
-2026-09-30, is applied only to the Redis image scan, and must be removed as soon as the official
-Redis 8.4 image contains fixed OpenSSL packages. The runtime-image contract rejects additional
-exceptions and fails after the expiry date.
+The Redis image scan has no vulnerability exceptions. The Debian-based Redis 8.x images currently
+ship OpenSSL packages with unfixed HIGH advisories, so the baseline uses the Alpine variant, which
+scans clean. Do not add `.trivyignore` files; update the image instead.
 
 `develop` deploys to development, `release/*` to staging, and `main`/SemVer tags to production after
 approval. Jenkins requires a production `BACKUP_REFERENCE` before running migrations, records it in
