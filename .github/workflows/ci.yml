@@ -81,7 +81,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:8.4.6-trixie@sha256:02ec5d8629b6313c9d02739576b6b1f102d152b7231497aff6502da412a93651
+        image: redis:8.4.7-alpine@sha256:0514fa59e3d84e2f3be66731c5401fc2a85b8ea71b49c0116c850f6a558076f4
         env:
           REDIS_PASSWORD: integration-redis-password
         ports:
@@ -321,11 +321,10 @@ jobs:
       - name: Scan Redis service image
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
-          image-ref: redis:8.4.6-trixie@sha256:02ec5d8629b6313c9d02739576b6b1f102d152b7231497aff6502da412a93651
+          image-ref: redis:8.4.7-alpine@sha256:0514fa59e3d84e2f3be66731c5401fc2a85b8ea71b49c0116c850f6a558076f4
           format: table
           scanners: vuln
           vuln-type: os
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          trivyignores: .trivyignore.redis
           exit-code: '1'

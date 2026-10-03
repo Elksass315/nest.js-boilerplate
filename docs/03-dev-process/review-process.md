@@ -2,6 +2,9 @@
 
 Reviewers verify architecture boundaries, controller/service/repository ownership, validation,
 error safety, logging/redaction, migrations, dependency necessity, tests, and documentation parity.
+New seed files must use a millisecond Unix-epoch timestamp prefix rather than a hand-picked
+sequential number (see `docs/01-backend/database.md`); flag a sequential seed filename as a
+merge-conflict risk across feature branches.
 
 For every API route, reviewers compare implementation, DTOs, tests, Swagger, and module docs:
 

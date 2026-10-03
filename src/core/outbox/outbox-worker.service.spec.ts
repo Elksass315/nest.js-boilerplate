@@ -155,7 +155,7 @@ describe(OutboxWorkerService.name, () => {
   it('publishes non-feature topics to the shared outbox queue', async () => {
     const record = Object.assign(new OutboxMessageEntity(), {
       id: '11111111-1111-4111-8111-111111111111',
-      topic: 'mail.send' as const,
+      topic: 'mail.send',
       version: 1,
       payload: { template: 'welcome' },
       correlationId: 'correlation-1',

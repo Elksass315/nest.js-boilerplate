@@ -48,6 +48,7 @@ if (plan.documentationViolations.length > 0) {
 runPnpm(['format:check']);
 runPnpm(['lint']);
 runPnpm(['typecheck']);
+runPnpm(['typecheck:all']);
 
 if (plan.focusedTestFiles.length > 0) {
   runPnpm([

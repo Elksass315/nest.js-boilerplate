@@ -24,6 +24,17 @@ with its history record in one transaction. A seed whose ID is already recorded 
 seed fails; add a new seed instead. Run `pnpm seed:show` or `pnpm seed:run` only as explicit one-shot
 deployment steps.
 
+New seed files use a millisecond Unix-epoch timestamp prefix, matching the migration timestamp
+convention: `<epoch-millis>-<kebab-description>.seed.ts` (for example
+`1757754321000-team-billing-rbac.seed.ts`), with the seed `id` equal to the filename prefix without
+the extension. Do not hand-pick the next sequential number (`007-...`); developers on different
+feature branches who both claim the next counter value produce a filename collision or, worse, two
+different seeds sharing one ID when merged into `develop`. A timestamp captured at authoring time
+does not collide across branches. Register new seeds by appending to the `SEED_REGISTRY` array in
+`seed.registry.ts`; ascending timestamps already sort chronologically, so appending preserves
+execution order. Existing sequentially numbered seeds (`002`-`006`) are immutable history and are
+never renamed to the new scheme.
+
 The RBAC seeds never contain administrator credentials. After migrations and seeds have completed,
 run `pnpm auth:bootstrap-admin` once from an interactive terminal to create the first active,
 verified super-admin. The command hashes the prompted password, refuses to modify an existing user,

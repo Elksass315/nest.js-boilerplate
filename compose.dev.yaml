@@ -156,7 +156,7 @@ services:
       - backend-external
 
   redis:
-    image: redis:8.4.6-trixie@sha256:02ec5d8629b6313c9d02739576b6b1f102d152b7231497aff6502da412a93651
+    image: redis:8.4.7-alpine@sha256:0514fa59e3d84e2f3be66731c5401fc2a85b8ea71b49c0116c850f6a558076f4
     env_file:
       - ${APP_ENV_FILE:-.env}
     command:
