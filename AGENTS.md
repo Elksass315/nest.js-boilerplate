@@ -29,6 +29,10 @@ repository-wide rules.
   correlation ID into background jobs, audit events, and outbound calls.
 - Use migrations for schema changes. Never enable TypeORM synchronization.
 - Do not run migrations or seeds from the API startup path.
+- Name new seed files with a millisecond Unix-epoch timestamp prefix
+  (`<epoch-millis>-<kebab-description>.seed.ts`), never a hand-picked sequential number. Sequential
+  prefixes collide when developers on different branches independently claim the same next number
+  and merge into `develop`; see `docs/01-backend/database.md`.
 - Update tests and authoritative documentation when behavior, contracts, security, deployment, or
   architecture changes.
 - Treat documentation as part of the implementation. Update the relevant `docs/` source of truth

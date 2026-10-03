@@ -39,7 +39,9 @@ Use only the sections that match the requested capability.
 ## Persistence
 
 - Schema changes have explicit migrations with safe reversal or documented forward-fix policy.
-- Reference-data changes use immutable ordered seeds when appropriate.
+- Reference-data changes use immutable ordered seeds when appropriate, named with a millisecond
+  Unix-epoch timestamp prefix (`<epoch-millis>-<kebab-description>.seed.ts`), never a hand-picked
+  sequential number that can collide with another branch's next seed on merge.
 - Synchronization remains disabled; constraints and indexes enforce real invariants.
 - Query, transaction, migration, and seed failure paths are covered.
 

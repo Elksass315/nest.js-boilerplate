@@ -32,7 +32,11 @@ never introduce DDD layers speculatively.
    map entities to response DTOs, and preserve request/correlation IDs in logs, jobs, audits, and
    outbound work.
 10. Add explicit migrations and immutable ordered seeds when stored state or reference data changes.
-    Never enable synchronization or run migrations/seeds during API startup.
+    Name a new seed file with a millisecond Unix-epoch timestamp prefix
+    (`<epoch-millis>-<kebab-description>.seed.ts`), never a hand-picked sequential number — two
+    branches independently claiming the same next counter value collide on merge into `develop`. See
+    `docs/01-backend/database.md`. Never enable synchronization or run migrations/seeds during API
+    startup.
 11. For file consumers, keep upload routes in the consuming feature, authenticate every stateful
     tus request, and call only the public `FilesService`. Define a fixed purpose/size/MIME policy;
     never accept a client storage key or import filesystem, S3, tus-store, file repository, or file

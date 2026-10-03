@@ -7,7 +7,7 @@ describe(DistributedThrottlerStorage.name, () => {
     const redis = { eval: jest.fn().mockResolvedValue([3, 59_000, 0]) } as unknown as Redis;
     const storage = new DistributedThrottlerStorage(redis);
 
-    await expect(storage.increment('key', 60_000, 5, 60_000, 'auth')).resolves.toEqual({
+    await expect(storage.increment('key', 60_000, 5, 60_000)).resolves.toEqual({
       totalHits: 3,
       timeToExpire: 59_000,
       isBlocked: false,
@@ -27,7 +27,7 @@ describe(DistributedThrottlerStorage.name, () => {
   it('reports blocked windows and never relies on process-local state', async () => {
     const redis = { eval: jest.fn().mockResolvedValue([6, 58_000, 30_000]) } as unknown as Redis;
     await expect(
-      new DistributedThrottlerStorage(redis).increment('key', 60_000, 5, 30_000, 'auth'),
+      new DistributedThrottlerStorage(redis).increment('key', 60_000, 5, 30_000),
     ).resolves.toMatchObject({ totalHits: 6, isBlocked: true, timeToBlockExpire: 30_000 });
   });
 });

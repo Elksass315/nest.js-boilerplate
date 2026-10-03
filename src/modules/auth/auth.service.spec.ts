@@ -37,7 +37,6 @@ describe(AuthService.name, () => {
     createdAt: new Date('2026-08-12T09:00:00.000Z'),
     updatedAt: new Date('2026-08-12T10:00:00.000Z'),
     roles: [],
-    avatarFileId: null,
   };
   const session = {
     id: 'b8f10c56-5e3c-42ee-8436-7994b9691ced',
