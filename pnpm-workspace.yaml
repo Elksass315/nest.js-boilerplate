@@ -6,6 +6,12 @@ savePrefix: ''
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - '@penta-tech/*'
+auditConfig:
+  # Accepted 2026-10-05, expires 2026-11-05. braces <=3.0.3 (stack-exhaustion DoS) is reachable only
+  # through nestjs-i18n's dev-only chokidar@3 watch path; no patched braces release is published.
+  # Remove this entry when braces >=3.0.4 is available and the chokidar chain is upgraded.
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
 overrides:
   '@grpc/grpc-js@<1.14.5': 1.14.5
   'brace-expansion@>=2.0.0 <2.1.7': 2.1.7

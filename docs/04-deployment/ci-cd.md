@@ -47,6 +47,13 @@ The Redis image scan has no vulnerability exceptions. The Debian-based Redis 8.x
 ship OpenSSL packages with unfixed HIGH advisories, so the baseline uses the Alpine variant, which
 scans clean. Do not add `.trivyignore` files; update the image instead.
 
+The production dependency audit (`pnpm audit --prod --audit-level high`) has one dated exception in
+`pnpm-workspace.yaml` under `auditConfig.ignoreGhsas`: `GHSA-vfj7-8cjw-p6xm` (`braces` <=3.0.3).
+It is accepted on 2026-10-05 and expires on 2026-11-05 because no patched `braces` release is
+published and the only path is `nestjs-i18n` → `chokidar@3`, which is enabled only by development
+watch mode. Remove the exception when `braces` >=3.0.4 is available or the chain is upgraded. Any
+new advisory requires its own dated, reviewed entry; never ignore the whole audit gate.
+
 `develop` deploys to development, `release/*` to staging, and `main`/SemVer tags to production after
 approval. Jenkins requires a production `BACKUP_REFERENCE` before running migrations, records it in
 the deployment output, and runs one-shot migration and seed jobs from the immutable image. It then
