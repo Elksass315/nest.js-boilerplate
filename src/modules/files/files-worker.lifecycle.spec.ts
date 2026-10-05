@@ -2,7 +2,7 @@ import type { Queue } from 'bullmq';
 import type { ConfigService } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 
-import type { FileWorkerConfiguration } from '@/config/configuration.types';
+import type { FileWorkerConfiguration } from '@/config/file-worker.environment';
 import type { WorkerHeartbeatService } from '@/core/worker/worker-heartbeat.service';
 
 import type { FilesProcessor } from './files.processor';

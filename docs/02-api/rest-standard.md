@@ -11,6 +11,26 @@
   pagination requires documented evidence and stable ordering.
 - Return and propagate both `x-request-id` and `x-correlation-id`.
 
+## Success response envelope
+
+Every JSON success response with a body is returned in the same envelope:
+
+```json
+{
+  "success": true,
+  "meta": {
+    "requestId": "2b8c5cc6-8be2-4be8-86e8-dbf7e866130e",
+    "correlationId": "2b8c5cc6-8be2-4be8-86e8-dbf7e866130e",
+    "timestamp": "2026-02-24T10:41:22.500Z"
+  },
+  "data": {}
+}
+```
+
+`data` contains the endpoint's normal response, including paginated `items` and pagination
+metadata. Existing error responses are unchanged. Binary downloads, tus protocol responses, and
+`204 No Content` responses are transport-specific exceptions and are not wrapped.
+
 Backward-incompatible behavior requires a version strategy, migration guidance, tests,
 documentation, and release communication. A controller without explicit version metadata fails
 `pnpm arch:check`.

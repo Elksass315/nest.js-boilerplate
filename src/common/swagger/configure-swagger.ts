@@ -49,6 +49,7 @@ export function createOpenApiDocument(
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig) as CompanyOpenApiDocument;
+  wrapJsonSuccessResponses(document);
   document['x-stable-errors'] = Object.fromEntries(
     Object.entries(ERROR_DEFINITIONS).map(([code, definition]) => [
       code,
@@ -56,4 +57,55 @@ export function createOpenApiDocument(
     ]),
   );
   return document;
+}
+
+function wrapJsonSuccessResponses(document: OpenAPIObject): void {
+  for (const pathItem of Object.values(document.paths)) {
+    if (!isRecord(pathItem)) continue;
+    for (const operation of Object.values(pathItem)) {
+      if (!isRecord(operation) || !isRecord(operation['responses'])) continue;
+      for (const [status, response] of Object.entries(operation['responses'])) {
+        if (!/^2\d\d$/.test(status) || status === '204' || !isRecord(response)) continue;
+        const content = response['content'];
+        if (!isRecord(content)) continue;
+        const json = content['application/json'];
+        if (!isRecord(json)) continue;
+        const example = json['example'];
+        if (example === null) continue;
+        const schema = json['schema'];
+        json['schema'] = {
+          type: 'object',
+          required: ['success', 'meta', 'data'],
+          properties: {
+            success: { type: 'boolean', example: true },
+            meta: {
+              type: 'object',
+              required: ['requestId', 'correlationId', 'timestamp'],
+              properties: {
+                requestId: { type: 'string', example: 'req_swagger_example' },
+                correlationId: { type: 'string', example: 'corr_swagger_example' },
+                timestamp: { type: 'string', format: 'date-time' },
+              },
+            },
+            data: schema ?? { type: 'object' },
+          },
+        };
+        if (example !== undefined) {
+          json['example'] = {
+            success: true,
+            meta: {
+              requestId: 'req_swagger_example',
+              correlationId: 'corr_swagger_example',
+              timestamp: '2026-08-12T12:00:00.000Z',
+            },
+            data: example,
+          };
+        }
+      }
+    }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -7,6 +7,7 @@ export type NodeEnvironment = 'development' | 'test' | 'staging' | 'production';
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
 export type SwaggerDocsAccess = 'public' | 'basic' | 'disabled';
 export type FileStorageDriver = 'local' | 's3';
+export type AdminTwoStepMode = 'forced' | 'optional';
 
 export interface AppConfig {
   nodeEnv: NodeEnvironment;
@@ -93,6 +94,7 @@ export interface AuthConfig {
   twoStepCodeTtlSeconds: number;
   twoStepMaxAttempts: number;
   recoveryCodeCount: number;
+  adminTwoStepMode: AdminTwoStepMode;
 }
 
 export interface MailConfig {

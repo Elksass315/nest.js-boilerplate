@@ -4,7 +4,9 @@ import { CreateTransactionalOutbox1787600000000 } from './migrations/17876000000
 
 describe('CreateTransactionalOutbox1787600000000', () => {
   it('creates and removes the durable outbox schema', async () => {
-    const runner = { query: jest.fn().mockResolvedValue(undefined) } as unknown as QueryRunner;
+    const runner = {
+      query: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<QueryRunner>;
     const migration = new CreateTransactionalOutbox1787600000000();
 
     await migration.up(runner);

@@ -7,6 +7,7 @@ import { OperationalMetricsService } from '@/observability/operational-metrics';
 import { HttpMetricsInterceptor } from '@/observability/http-metrics.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ERROR_REPORTER, NoopErrorReporter } from './error-reporting/error-reporter';
+import { ApiResponseInterceptor } from '@/common/http/api-response.interceptor';
 
 @Global()
 @Module({
@@ -17,6 +18,7 @@ import { ERROR_REPORTER, NoopErrorReporter } from './error-reporting/error-repor
     OperationalMetricsService,
     { provide: ERROR_REPORTER, useClass: NoopErrorReporter },
     { provide: APP_INTERCEPTOR, useClass: HttpMetricsInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ApiResponseInterceptor },
   ],
   exports: [
     RequestContextService,

@@ -37,7 +37,6 @@ describe(AuthService.name, () => {
     createdAt: new Date('2026-08-12T09:00:00.000Z'),
     updatedAt: new Date('2026-08-12T10:00:00.000Z'),
     roles: [],
-    avatarFileId: null,
   };
   const session = {
     id: 'b8f10c56-5e3c-42ee-8436-7994b9691ced',
@@ -115,7 +114,7 @@ describe(AuthService.name, () => {
   let service: AuthService;
 
   beforeEach(async () => {
-    const values: Record<string, number> = {
+    const values: Record<string, number | string> = {
       'auth.accessTokenTtlSeconds': 900,
       'auth.sessionTtlSeconds': 1_209_600,
       'auth.verificationCodeTtlSeconds': 600,
@@ -127,6 +126,7 @@ describe(AuthService.name, () => {
       'auth.twoStepCodeTtlSeconds': 300,
       'auth.twoStepMaxAttempts': 5,
       'auth.recoveryCodeCount': 10,
+      'auth.adminTwoStepMode': 'forced',
     };
     const module = await Test.createTestingModule({
       providers: [
@@ -137,7 +137,7 @@ describe(AuthService.name, () => {
         { provide: MailService, useValue: mail },
         {
           provide: ConfigService,
-          useValue: { getOrThrow: (key: string): number => values[key] ?? 0 },
+          useValue: { getOrThrow: (key: string): number | string => values[key] ?? 0 },
         },
         { provide: getDataSourceToken(), useValue: dataSource },
       ],

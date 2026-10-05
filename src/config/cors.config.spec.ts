@@ -13,4 +13,8 @@ describe('CORS configuration', () => {
       origins: ['https://one.test', 'https://two.test'],
     });
   });
+
+  it('accepts a single wildcard origin', () => {
+    expect(createCorsConfig({ CORS_ORIGINS: '*' })).toEqual({ origins: ['*'] });
+  });
 });

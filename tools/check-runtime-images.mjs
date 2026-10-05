@@ -14,13 +14,11 @@ const POLICIES = {
   redis: {
     major: 8,
     minimum: [8, 4, 5],
-    suffix: 'trixie',
+    suffix: 'alpine',
     composeCount: 1,
     ciCount: 2,
   },
 };
-
-const REDIS_TRIVY_EXCEPTION = 'CVE-2026-14456';
 
 function compareVersions(left, right) {
   for (let index = 0; index < 3; index += 1) {
@@ -43,13 +41,7 @@ export function findImageReferences(content, image) {
     }));
 }
 
-export function validateRuntimeImages({
-  compose,
-  ci,
-  dependabot,
-  redisTrivyIgnore,
-  currentDate = new Date(),
-}) {
+export function validateRuntimeImages({ compose, ci, dependabot }) {
   const violations = [];
 
   for (const [image, policy] of Object.entries(POLICIES)) {
@@ -90,34 +82,6 @@ export function validateRuntimeImages({
     violations.push('Dependabot must monitor Docker manifests in the repository root');
   }
 
-  const redisScanUsesScopedIgnore = new RegExp(
-    `- name:\\s*Scan Redis service image[\\s\\S]{0,500}?image-ref:\\s*redis:[^\\r\\n]+[\\s\\S]{0,500}?trivyignores:\\s*\\.trivyignore\\.redis`,
-  ).test(ci);
-  if (!redisScanUsesScopedIgnore) {
-    violations.push('The Redis image scan must use .trivyignore.redis');
-  }
-
-  const activeRedisExceptions = redisTrivyIgnore
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith('#'));
-  if (activeRedisExceptions.length !== 1 || activeRedisExceptions[0] !== REDIS_TRIVY_EXCEPTION) {
-    violations.push(`Redis may ignore only ${REDIS_TRIVY_EXCEPTION}`);
-  }
-
-  const expiryMatch = redisTrivyIgnore.match(/expires (\d{4}-\d{2}-\d{2})/i);
-  if (!redisTrivyIgnore.includes('Redis does not expose or use QUIC')) {
-    violations.push('The Redis Trivy exception must document why it is not exploitable');
-  }
-  if (!expiryMatch) {
-    violations.push('The Redis Trivy exception must declare an expiry date');
-  } else {
-    const expiryDate = new Date(`${expiryMatch[1]}T23:59:59.999Z`);
-    if (Number.isNaN(expiryDate.getTime()) || currentDate > expiryDate) {
-      violations.push(`The Redis Trivy exception expired on ${expiryMatch[1]}`);
-    }
-  }
-
   return violations;
 }
 
@@ -126,7 +90,6 @@ if (pathToFileURL(resolve(process.argv[1] ?? '')).href === import.meta.url) {
     compose: readFileSync('compose.dev.yaml', 'utf8'),
     ci: readFileSync('.github/workflows/ci.yml', 'utf8'),
     dependabot: readFileSync('.github/dependabot.yml', 'utf8'),
-    redisTrivyIgnore: readFileSync('.trivyignore.redis', 'utf8'),
   });
 
   if (violations.length > 0) {

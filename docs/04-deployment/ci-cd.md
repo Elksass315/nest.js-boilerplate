@@ -43,11 +43,16 @@ images synchronized with both CI service and scan references, and verifies that 
 root Docker manifests. PostgreSQL and Redis updates therefore include readiness, migrations, seeds,
 E2E coverage, and image scanning in one reviewable change.
 
-The Redis scan has one narrow exception in `.trivyignore.redis` for `CVE-2026-14456`. The advisory
-affects OpenSSL QUIC server behavior, which Redis does not expose or use. The exception expires on
-2026-09-30, is applied only to the Redis image scan, and must be removed as soon as the official
-Redis 8.4 image contains fixed OpenSSL packages. The runtime-image contract rejects additional
-exceptions and fails after the expiry date.
+The Redis image scan has no vulnerability exceptions. The Debian-based Redis 8.x images currently
+ship OpenSSL packages with unfixed HIGH advisories, so the baseline uses the Alpine variant, which
+scans clean. Do not add `.trivyignore` files; update the image instead.
+
+The production dependency audit (`pnpm audit --prod --audit-level high`) has one dated exception in
+`pnpm-workspace.yaml` under `auditConfig.ignoreGhsas`: `GHSA-vfj7-8cjw-p6xm` (`braces` <=3.0.3).
+It is accepted on 2026-10-05 and expires on 2026-11-05 because no patched `braces` release is
+published and the only path is `nestjs-i18n` → `chokidar@3`, which is enabled only by development
+watch mode. Remove the exception when `braces` >=3.0.4 is available or the chain is upgraded. Any
+new advisory requires its own dated, reviewed entry; never ignore the whole audit gate.
 
 `develop` deploys to development, `release/*` to staging, and `main`/SemVer tags to production after
 approval. Jenkins requires a production `BACKUP_REFERENCE` before running migrations, records it in

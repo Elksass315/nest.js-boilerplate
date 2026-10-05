@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import type { DataSource, EntityManager } from 'typeorm';
+import type { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { AuthRepository } from './auth.repository';
 import { AuthActionTokenEntity } from './entities/auth-action-token.entity';
@@ -23,7 +23,7 @@ describe(AuthRepository.name, () => {
   const sessions = {
     findOneBy: jest.fn().mockResolvedValue(session),
     findAndCount: jest.fn().mockResolvedValue([[session], 1]),
-  };
+  } as unknown as jest.Mocked<Repository<AuthSessionEntity>>;
   const sessionStore = {
     create: jest.fn((value: object) =>
       Object.assign(new AuthSessionEntity(), value, { id: session.id }),
